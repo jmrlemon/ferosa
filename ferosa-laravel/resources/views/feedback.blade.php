@@ -1,0 +1,282 @@
+@extends('layouts.customer')
+
+@section('title', 'Feedback')
+
+@section('content')
+<div class="max-w-2xl mx-auto space-y-6 pb-24 px-4 sm:px-6 pt-8">
+
+  {{-- Page header --}}
+  <div>
+    <h1 class="text-xl font-semibold text-gray-900">Feedback</h1>
+    <p class="text-sm text-gray-500 mt-1">Rate your delivered orders and share your experience.</p>
+  </div>
+
+  @if (session('status'))
+    <div class="rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3 text-sm">
+      {{ session('status') }}
+    </div>
+  @endif
+
+  {{-- ── Delivered orders awaiting feedback ─────────────────────────── --}}
+  @if ($deliveredOrders->isNotEmpty())
+    <div class="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-amber-200 flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="text-amber-500 shrink-0">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-amber-800">Orders Awaiting Your Review</h2>
+      </div>
+      <ul class="divide-y divide-amber-100">
+        @foreach ($deliveredOrders as $order)
+          <li class="px-4 sm:px-5 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900">
+                  Order <span class="font-mono text-brand-600">{{ $order->order_number }}</span>
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5">
+                  Delivered · {{ optional($order->updated_at)->format('M d, Y') }}
+                  &nbsp;·&nbsp; &#8369;{{ number_format((float) $order->total_amount, 2) }}
+                </p>
+              </div>
+              <button onclick="openFeedbackModal({{ $order->id }}, '{{ $order->order_number }}')"
+                class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm sm:text-xs font-medium px-4 py-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-colors touch-manipulation">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Rate Now
+              </button>
+            </div>
+          </li>
+        @endforeach
+      </ul>
+    </div>
+  @else
+    {{-- General submit form (for service/product feedback not tied to an order) --}}
+    <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+      <h2 class="text-sm font-semibold text-gray-800 mb-4">General Feedback</h2>
+      <form method="POST" action="{{ route('feedback.store') }}" class="space-y-5">
+        @csrf
+
+        {{-- Star rating --}}
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-2">Rating <span class="text-red-500">*</span></label>
+          <div class="flex gap-1" id="star-group">
+            @for ($i = 1; $i <= 5; $i++)
+              <button type="button" data-value="{{ $i }}"
+                class="star-btn text-3xl text-gray-300 hover:text-amber-400 transition-colors focus:outline-none"
+                aria-label="{{ $i }} star">&#9733;</button>
+            @endfor
+          </div>
+          <input type="hidden" name="rating" id="rating-input" value="{{ old('rating') }}">
+          @error('rating')
+            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+          @enderror
+        </div>
+
+        {{-- About --}}
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Product (optional)</label>
+            <select name="product_id" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#4caf50]">
+              <option value="">— None —</option>
+              @foreach ($products as $product)
+                <option value="{{ $product->id }}" {{ old('product_id') == $product->id ? 'selected' : '' }}>
+                  {{ $product->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Service (optional)</label>
+            <select name="service_type_id" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#4caf50]">
+              <option value="">— None —</option>
+              @foreach ($services as $service)
+                <option value="{{ $service->id }}" {{ old('service_type_id') == $service->id ? 'selected' : '' }}>
+                  {{ $service->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+
+        {{-- Comment --}}
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Comment (optional)</label>
+          <textarea name="comment" rows="4"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#4caf50] resize-none"
+            placeholder="Tell us about your experience…">{{ old('comment') }}</textarea>
+          @error('comment')
+            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+          @enderror
+        </div>
+
+        <button type="submit"
+          class="bg-[#4caf50] hover:bg-[#43a047] text-white text-sm font-medium px-6 py-2.5 rounded-lg transition-colors">
+          Submit Feedback
+        </button>
+      </form>
+    </div>
+  @endif
+
+  {{-- Past feedback --}}
+  @if ($myFeedbacks->isNotEmpty())
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-800">Your Past Feedback</h2>
+      </div>
+      <ul class="divide-y divide-gray-100">
+        @foreach ($myFeedbacks as $fb)
+          <li class="px-6 py-4 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-amber-400 text-lg tracking-tighter">
+                {{ str_repeat('★', $fb->rating) }}<span class="text-gray-200">{{ str_repeat('★', 5 - $fb->rating) }}</span>
+              </span>
+              <span class="text-xs text-gray-400">{{ $fb->created_at->format('M d, Y') }}</span>
+            </div>
+            @if ($fb->order)
+              <p class="text-xs text-gray-500">
+                Order: <span class="font-mono font-medium text-brand-600">{{ $fb->order->order_number }}</span>
+              </p>
+            @elseif ($fb->product || $fb->serviceType)
+              <p class="text-xs text-gray-500">
+                About: <span class="font-medium text-gray-700">
+                  {{ $fb->product ? $fb->product->name : $fb->serviceType->name }}
+                </span>
+              </p>
+            @endif
+            @if ($fb->comment)
+              <p class="text-sm text-gray-600">{{ $fb->comment }}</p>
+            @endif
+          </li>
+        @endforeach
+      </ul>
+    </div>
+  @endif
+
+</div>
+
+{{-- ── Feedback Modal ─────────────────────────────────────────────── --}}
+<div id="feedback-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center sm:p-4">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeFeedbackModal()"></div>
+  <div class="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl animate-modal-up sm:animate-fade-in">
+    {{-- drag handle mobile --}}
+    <div class="flex justify-center pt-3 pb-1 sm:hidden">
+      <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
+    </div>
+    <div class="px-4 sm:px-6 pt-2 sm:pt-5 pb-5 sm:pb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Rate Your Order</h3>
+          <p class="text-xs text-gray-400 mt-0.5">Order <span id="modal-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
+        </div>
+        <button onclick="closeFeedbackModal()" class="p-1.5 text-gray-300 hover:text-gray-600 transition-colors rounded-lg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form method="POST" action="{{ route('feedback.store') }}" class="space-y-4">
+        @csrf
+        <input type="hidden" name="order_id" id="modal-order-id">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-3">Rating <span class="text-red-500">*</span></label>
+          <div class="flex justify-between sm:justify-start sm:gap-3" id="modal-star-group">
+            @for ($i = 1; $i <= 5; $i++)
+              <button type="button" data-value="{{ $i }}"
+                class="modal-star text-5xl sm:text-4xl text-gray-200 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
+                aria-label="{{ $i }} star">&#9733;</button>
+            @endfor
+          </div>
+          <input type="hidden" name="rating" id="modal-rating-input" value="">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Comment <span class="text-gray-300">(optional)</span></label>
+          <textarea name="comment" rows="3"
+            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-[#4caf50] resize-none transition-all"
+            placeholder="Tell us about your experience…"></textarea>
+        </div>
+        <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
+          <button type="button" onclick="closeFeedbackModal()"
+            class="py-3 sm:py-2.5 sm:px-4 rounded-xl border border-gray-200 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors touch-manipulation">
+            Cancel
+          </button>
+          <button type="submit"
+            class="flex-1 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
+            Submit Feedback
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes fade-in  { from { opacity:0; transform:scale(.95); }    to { opacity:1; transform:scale(1); } }
+@keyframes modal-up { from { transform:translateY(100%); opacity:0; } to { transform:translateY(0); opacity:1; } }
+.animate-fade-in  { animation: fade-in  .18s ease-out; }
+.animate-modal-up { animation: modal-up .25s cubic-bezier(.32,1,.5,1); }
+</style>
+
+@include('partials.mobile-bottom-customer')
+@endsection
+
+@section('scripts')
+<script>
+  // General feedback star rating
+  const stars       = document.querySelectorAll('.star-btn');
+  const ratingInput = document.getElementById('rating-input');
+  let selected = parseInt(ratingInput?.value) || 0;
+
+  function paint(upTo) {
+    stars.forEach((s, i) => {
+      s.classList.toggle('text-amber-400', i < upTo);
+      s.classList.toggle('text-gray-300',  i >= upTo);
+    });
+  }
+  paint(selected);
+  stars.forEach((btn, idx) => {
+    btn.addEventListener('mouseenter', () => paint(idx + 1));
+    btn.addEventListener('mouseleave', () => paint(selected));
+    btn.addEventListener('click', () => { selected = idx + 1; if (ratingInput) ratingInput.value = selected; paint(selected); });
+  });
+
+  // ── Modal ──────────────────────────────────────────────────────────────
+  const feedbackModal    = document.getElementById('feedback-modal');
+  const modalOrderId     = document.getElementById('modal-order-id');
+  const modalOrderNum    = document.getElementById('modal-order-number');
+  const modalRatingInput = document.getElementById('modal-rating-input');
+  const modalStars       = document.querySelectorAll('.modal-star');
+  let modalSelected = 0;
+
+  function paintModal(upTo) {
+    modalStars.forEach((s, i) => {
+      s.classList.toggle('text-amber-400', i < upTo);
+      s.classList.toggle('text-gray-200',  i >= upTo);
+    });
+  }
+
+  modalStars.forEach((btn, idx) => {
+    btn.addEventListener('mouseenter', () => paintModal(idx + 1));
+    btn.addEventListener('mouseleave', () => paintModal(modalSelected));
+    btn.addEventListener('click', () => {
+      modalSelected = idx + 1;
+      modalRatingInput.value = modalSelected;
+      paintModal(modalSelected);
+    });
+  });
+
+  function openFeedbackModal(orderId, orderNum) {
+    modalOrderId.value         = orderId;
+    modalOrderNum.textContent  = orderNum;
+    modalSelected              = 0;
+    modalRatingInput.value     = '';
+    paintModal(0);
+    feedbackModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeFeedbackModal() {
+    feedbackModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFeedbackModal(); });
+</script>
+@endsection

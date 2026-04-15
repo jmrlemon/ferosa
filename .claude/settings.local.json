@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({**d.get\\('require',{}\\), **d.get\\('require-dev',{}\\)}, indent=2\\)\\)\")",
+      "Bash(php artisan:*)",
+      "Bash(php -l app/Mail/LowStockAlert.php)",
+      "Bash(php -l app/Http/Controllers/PageController.php)",
+      "Bash(php -l resources/views/checkout.blade.php)",
+      "Bash(jar tf:*)",
+      "Bash(mkdir -p D:/xampp/htdocs/cpst/ferosa-laravel/public/downloads)",
+      "Bash(cp D:/xampp/htdocs/cpst/ferosa_mobile/app/build/intermediates/apk/debug/app-debug.apk D:/xampp/htdocs/cpst/ferosa-laravel/public/downloads/ferosa.apk)",
+      "Bash(xargs grep:*)",
+      "Bash(php -r ':*)",
+      "Bash(php -l app/Http/Controllers/AdminController.php)",
+      "Bash(php -l resources/views/admin/dashboard.blade.php)",
+      "Bash(grep -l \"layouts.app\\\\|layouts.customer\\\\|extends\" /d/xampp/htdocs/cpst/ferosa-laravel/resources/views/*.blade.php)"
+    ]
+  }
+}

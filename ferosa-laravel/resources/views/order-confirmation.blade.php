@@ -7,7 +7,7 @@
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
     </div>
     <h1 class="text-xl font-display font-bold text-surface-900 mb-1">Thank you — order received</h1>
-    <p class="text-sm text-surface-400 mb-5">We sent a confirmation email to <strong class="text-surface-600">{{ $order->user->email }}</strong>.</p>
+    <p class="text-sm text-surface-400 mb-5">Your order is recorded. Check <strong class="text-surface-600">{{ $order->user->email }}</strong> and Notifications for updates.</p>
 
     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs border-t border-surface-100 pt-5">
       <div>
@@ -17,6 +17,13 @@
       <div>
         <dt class="text-surface-400 mb-0.5">Total</dt>
         <dd class="font-semibold text-surface-900">&#8369;{{ number_format((float) $order->total_amount, 2) }}</dd>
+      </div>
+      <div class="sm:col-span-2">
+        <dt class="text-surface-400 mb-0.5">Payment status</dt>
+        <dd class="font-semibold text-surface-900">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'unpaid')) }}</dd>
+        @if($order->payment_method === 'gcash')
+          <p class="mt-1 text-surface-500">Your receipt is private and is waiting for administrator verification.</p>
+        @endif
       </div>
       <div class="sm:col-span-2">
         <dt class="text-surface-400 mb-2">Items</dt>
@@ -45,6 +52,15 @@
         </dd>
       </div>
     </dl>
+
+    <div class="mt-6 rounded-xl border border-brand-100 bg-brand-50 p-4">
+      <p class="text-[10px] font-bold uppercase tracking-wider text-brand-600">What happens next</p>
+      <ol class="mt-3 grid gap-3 text-xs leading-5 text-brand-900 sm:grid-cols-3">
+        <li><strong class="block">1. Review</strong>Ferosa checks the order and payment details.</li>
+        <li><strong class="block">2. Prepare</strong>Your items move through the selected delivery or pickup flow.</li>
+        <li><strong class="block">3. Track</strong>Every status change appears in Orders and Notifications.</li>
+      </ol>
+    </div>
 
     <div class="mt-6 flex flex-wrap gap-2">
       <a href="{{ route('orders') }}" class="bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 px-5 rounded-lg text-xs transition-colors">View my orders</a>

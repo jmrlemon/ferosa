@@ -3,20 +3,32 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Ferosa Landscaping – Garden & Landscaping</title>
+<title>Ferosa Landscaping - Garden & Landscaping</title>
+<meta name="description" content="Plan landscaping projects, schedule services, shop garden essentials, and track updates with Ferosa Landscaping.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ferosa Landscaping">
+<meta property="og:description" content="Plan. Book. Grow beautifully in Orani, Bataan.">
+<meta property="og:image" content="{{ asset('og.png') }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{ asset('og.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="{{ asset('images/ferosa-login-hero.png') }}">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --green: #22c55e;
-  --green-dark: #16a34a;
+  --green: #347f57;
+  --green-dark: #1b5239;
+  --green-deep: #123426;
+  --paper: #f8f7f3;
+  --ink: #183127;
 }
 
 html, body {
   height: 100%;
-  font-family: 'Inter', sans-serif;
+  font-family: 'DM Sans', sans-serif;
   overflow-x: hidden;
   /* Allow vertical scroll so keyboard doesn't cover inputs */
   overflow-y: auto;
@@ -220,7 +232,133 @@ html, body {
 }
 .has-eye input { padding-right:38px; }
 
+/* Terms and Conditions */
+.terms-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17,24,39,0.42);
+  backdrop-filter: blur(8px);
+}
+.terms-modal.active { display: flex; }
+.terms-panel {
+  width: min(560px, 100%);
+  max-height: min(78vh, 680px);
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,0.68);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 24px 70px rgba(0,0,0,0.24);
+  animation: fadeUp 0.28s ease both;
+}
+.terms-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.terms-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+}
+.terms-subtitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-top: 3px;
+}
+.terms-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 50%;
+  background: rgba(243,244,246,0.9);
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.2s;
+}
+.terms-close:hover {
+  background: white;
+  transform: translateY(-1px);
+}
+.terms-scroll {
+  max-height: calc(min(78vh, 680px) - 112px);
+  overflow-y: auto;
+  padding-right: 8px;
+  color: #374151;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.terms-scroll h3 {
+  color: #111827;
+  font-size: 12.5px;
+  margin: 12px 0 4px;
+}
+.terms-scroll h3:first-child { margin-top: 0; }
+.terms-scroll ul {
+  margin: 5px 0 8px 18px;
+}
+.terms-scroll p { margin-bottom: 8px; }
+.terms-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 15px;
+  color: #374151;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.terms-check input {
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  accent-color: var(--green-dark);
+  flex-shrink: 0;
+}
+.terms-check label { cursor: pointer; }
+.terms-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--green-dark);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Account type ── */
+@media (max-width: 600px) {
+  .terms-modal {
+    align-items: flex-end;
+    padding: 12px;
+  }
+  .terms-panel {
+    max-height: 86svh;
+    padding: 18px 16px;
+    border-radius: 18px;
+  }
+  .terms-scroll {
+    max-height: calc(86svh - 96px);
+    font-size: 12.5px;
+  }
+  .terms-check { margin-top: 2px; }
+}
+
 .acct-label {
   display:block; font-size:12.5px; font-weight:600;
   color:#374151; margin-bottom:8px;
@@ -326,6 +464,208 @@ html, body {
 #session-banner a {
   color: #bbf7d0; font-weight: 700; cursor: pointer;
   text-decoration: underline;
+}
+
+/* Premium photographic garden-studio shell */
+.scene-bg {
+  transform: none;
+  background-color: #102f23;
+  background-image: url("{{ asset('images/ferosa-login-hero.png') }}");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+.scene-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8,29,21,.02) 0%, rgba(8,29,21,.01) 47%, rgba(8,29,21,.16) 72%, rgba(8,29,21,.32) 100%);
+}
+.scene-bg::after {
+  content: none;
+}
+.scene-bg > svg { display: none !important; }
+.scene-overlay {
+  background:
+    linear-gradient(180deg, rgba(8,29,21,.02), rgba(8,29,21,.10)),
+    linear-gradient(90deg, transparent 0%, transparent 50%, rgba(8,29,21,.08) 70%, rgba(8,29,21,.26) 100%);
+}
+.scene {
+  align-items: stretch;
+  justify-content: flex-end;
+  min-height: 100svh;
+  padding: clamp(18px, 2.2vw, 34px);
+}
+.page.active {
+  position: relative;
+  width: min(43vw, 520px);
+  max-height: calc(100svh - clamp(36px, 4.4vw, 68px));
+  overflow-y: auto;
+  align-items: flex-start;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,.82);
+  border-radius: 28px;
+  background: rgba(248,247,243,.93);
+  box-shadow: 0 28px 80px rgba(3,18,12,.28), inset 0 1px 0 rgba(255,255,255,.9);
+  backdrop-filter: blur(22px) saturate(120%);
+  -webkit-backdrop-filter: blur(22px) saturate(120%);
+  scrollbar-width: thin;
+}
+.page.active::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #236746, #82bd98 62%, #b76542);
+  z-index: 2;
+}
+.form-card {
+  max-width: 420px;
+  margin: auto;
+  padding: 42px 32px 34px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.brand { display: none; }
+.brand-icon { background: #f6f3ea; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+.brand-icon svg path:first-child { fill: #1b5239; }
+.brand-name {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 28px;
+  letter-spacing: -.02em;
+}
+.brand-slogan {
+  margin-top: 28px;
+  max-width: 430px;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(34px, 3.6vw, 56px);
+  line-height: 1.03;
+  letter-spacing: -.035em;
+}
+.brand-sub { margin-top: 18px; max-width: 420px; color: rgba(255,255,255,.68); font-size: 14px; line-height: 1.75; }
+.auth-proof { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 26px; }
+.auth-proof span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  background: rgba(255,255,255,.07);
+  color: rgba(255,255,255,.78);
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+.auth-proof span::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #82bd98; }
+.form-title {
+  font-family: 'Fraunces', Georgia, serif;
+  color: var(--ink);
+  letter-spacing: -.035em;
+}
+.form-subtitle { color: #706b61; line-height: 1.6; }
+.portal-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: 0 auto 22px;
+  color: #1b5239;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.portal-mark-icon {
+  display: inline-flex;
+  width: 31px;
+  height: 31px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #123426;
+  color: #eef7f1;
+  box-shadow: 0 8px 18px rgba(18,52,38,.18);
+}
+.field-label { color: #3b4a42; }
+.field input {
+  min-height: 50px;
+  border: 1px solid #dedbd2;
+  border-radius: 13px;
+  background: #fff;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--ink);
+}
+.field input:focus { border-color: #347f57; box-shadow: 0 0 0 4px rgba(52,127,87,.12); }
+.cta-btn {
+  min-height: 52px;
+  border-radius: 13px;
+  background: #1b5239;
+  box-shadow: 0 12px 28px rgba(27,82,57,.22);
+  font-family: 'DM Sans', sans-serif;
+}
+.cta-btn:hover { background: #123426; transform: translateY(-1px); }
+.bottom-link a, .bottom-link button, .forgot-link { color: #236746; }
+.forgot-link, .bottom-link button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+}
+.bottom-link button { font-size: inherit; font-weight: 700; cursor: pointer; }
+.bottom-link button:hover { text-decoration: underline; }
+.input-eye {
+  width: 38px;
+  height: 38px;
+  right: 6px;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+}
+.input-eye:hover { color: #1b5239; background: #eef7f1; }
+.secure-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid #e2ded4;
+  color: #827c70;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.help-badge { display: none; }
+:focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
+
+@media (max-width: 900px) {
+  .scene { padding: 16px; }
+  .page.active { width: min(52vw, 500px); max-height: calc(100svh - 32px); }
+}
+@media (max-width: 700px) {
+  .scene-bg { background-position: 69% center; }
+  .scene-overlay { background: rgba(8,29,21,.22); }
+  .scene { display: block; padding: 14px; }
+  .page.active {
+    width: 100%;
+    max-height: none;
+    min-height: calc(100svh - 28px);
+    border-radius: 24px;
+    background: rgba(248,247,243,.94);
+  }
+  .brand { display: none; }
+  .form-card { max-width: 440px; padding: 42px 22px 30px; }
+  .form-title { font-size: 32px; }
+  .portal-mark { margin-bottom: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 </style>
 
@@ -499,24 +839,33 @@ html, body {
     </div>
     <span class="brand-name">Ferosa Landscaping</span>
   </div>
-  <p class="brand-slogan">Transform your outdoor space into a paradise</p>
-  <p class="brand-sub">Join thousands of homeowners who trust Ferosa Landscaping for their garden and landscaping needs.</p>
+  <p class="brand-slogan">Plan. Book.<br>Grow beautifully.</p>
+  <p class="brand-sub">Estimate projects, schedule landscaping services, shop garden essentials, and follow every update in one place.</p>
+  <div class="auth-proof" aria-label="Ferosa portal features">
+    <span>Project estimates</span>
+    <span>Service scheduling</span>
+    <span>Order tracking</span>
+  </div>
 </div>
-
-<div class="help-badge">?</div>
 
 <div class="scene">
 
   <!-- LOGIN -->
   <div class="page {{ ($active ?? 'login') === 'signup' ? '' : 'active' }}" id="page-login">
     <div class="form-card">
+      <div class="portal-mark" aria-label="Ferosa customer portal">
+        <span class="portal-mark-icon" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 4.5c-6.6.2-11.3 3-13.5 8.3M5.2 19c1.1-5.2 4.8-8.7 10.8-10.7M19.5 4.5c.4 6.8-2.8 11.3-8.1 11.8-2.3.2-4.3-.8-5.4-3.5"/></svg>
+        </span>
+        <span>Ferosa customer portal</span>
+      </div>
       <div class="form-header">
         <h1 class="form-title">Welcome Back</h1>
-        <p class="form-subtitle">Sign in to your Ferosa Landscaping account</p>
+        <p class="form-subtitle">Sign in to plan, book, and follow your landscaping projects.</p>
       </div>
 
       <div class="field">
-        <label class="field-label">Email Address</label>
+        <label class="field-label" for="login-email">Email Address</label>
         <div class="input-wrap">
           <span class="input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
           <input id="login-email" type="text" inputmode="email" placeholder="you@example.com" dir="ltr" autocomplete="email" autocorrect="off" autocapitalize="off" spellcheck="false">
@@ -525,22 +874,26 @@ html, body {
 
       <div class="field">
         <div class="field-label-row">
-          <label class="field-label" style="margin:0">Password</label>
-          <a class="forgot-link" onclick="handleForgotPassword()">Forgot password?</a>
+          <label class="field-label" for="login-password" style="margin:0">Password</label>
+          <button type="button" class="forgot-link" onclick="handleForgotPassword()">Forgot password?</button>
         </div>
         <div class="input-wrap has-eye">
           <span class="input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
           <input id="login-password" type="password" placeholder="••••••••" dir="ltr" autocomplete="current-password">
-          <span class="input-eye" onclick="togglePw(this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          <button type="button" class="input-eye" onclick="togglePw(this)" aria-label="Show or hide password"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
       </div>
 
-      <button id="login-btn" class="cta-btn" style="margin-top:8px" onclick="handleLogin()">
+      <button type="button" id="login-btn" class="cta-btn" style="margin-top:8px" onclick="handleLogin()">
         Sign In
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
       </button>
 
-      <p class="bottom-link">Don't have an account? <a onclick="switchTo('signup')">Sign up</a></p>
+      <p class="bottom-link">Don't have an account? <button type="button" onclick="switchTo('signup')">Sign up</button></p>
+      <p class="secure-note">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        Secure access &middot; Orani, Bataan
+      </p>
     </div>
   </div>
 
@@ -553,10 +906,26 @@ html, body {
       </div>
 
       <div class="field">
-        <label class="field-label">Full Name</label>
+        <label class="field-label">Last Name / Surname</label>
         <div class="input-wrap">
           <span class="input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-          <input id="signup-name" type="text" placeholder="John Doe" dir="ltr" autocomplete="name" autocorrect="off" autocapitalize="words" spellcheck="false">
+          <input id="signup-last-name" type="text" placeholder="Dela Cruz" dir="ltr" autocomplete="family-name" autocorrect="off" autocapitalize="words" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">First Name</label>
+        <div class="input-wrap">
+          <span class="input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <input id="signup-first-name" type="text" placeholder="Juan" dir="ltr" autocomplete="given-name" autocorrect="off" autocapitalize="words" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Middle Name <span style="font-weight:400;color:#9ca3af">(Optional)</span></label>
+        <div class="input-wrap">
+          <span class="input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <input id="signup-middle-name" type="text" placeholder="Santos" dir="ltr" autocomplete="additional-name" autocorrect="off" autocapitalize="words" spellcheck="false">
         </div>
       </div>
 
@@ -592,6 +961,87 @@ html, body {
           <input id="signup-password-confirm" type="password" placeholder="••••••••" dir="ltr" autocomplete="new-password">
           <span class="input-eye" onclick="togglePw(this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
         </div>
+      </div>
+
+      <div class="terms-modal" id="terms-modal" role="dialog" aria-modal="true" aria-labelledby="terms-heading" onclick="closeTermsModal(event)">
+        <div class="terms-panel" onclick="event.stopPropagation()">
+          <div class="terms-head">
+            <div>
+              <div class="terms-title" id="terms-heading">FEROSA LANDSCAPING</div>
+              <div class="terms-subtitle">Terms and Conditions</div>
+            </div>
+            <button type="button" class="terms-close" onclick="closeTermsModal()" aria-label="Close Terms and Conditions">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+        <div class="terms-scroll" tabindex="0">
+          <h3>1. Acceptance of Agreement</h3>
+          <p>By accepting a quotation, signing a service agreement, making a payment, or authorizing the commencement of work, the client agrees to these Terms and Conditions.</p>
+
+          <h3>2. Scope of Services</h3>
+          <p>Ferosa Landscaping provides professional landscaping and plant-related services, including but not limited to:</p>
+          <ul>
+            <li>Landscape design and installation</li>
+            <li>Supply and installation of ornamental plants, shrubs, trees, and other greenery</li>
+            <li>Garden development and beautification</li>
+            <li>Lawn installation and maintenance</li>
+            <li>Garden and landscape maintenance</li>
+            <li>Tree and shrub planting</li>
+            <li>Irrigation system installation and maintenance</li>
+            <li>Soil preparation, mulching, and fertilization</li>
+            <li>Other landscaping services as agreed upon in writing</li>
+          </ul>
+          <p>Any services requested outside the approved quotation or agreement may be subject to additional charges.</p>
+
+          <h3>3. Quotations</h3>
+          <p>All quotations are valid for thirty (30) days from the date of issue unless otherwise stated. Prices are based on current labor, plant, and material costs. Ferosa Landscaping reserves the right to adjust quotations if project requirements or material costs change before work begins.</p>
+
+          <h3>4. Payment Terms</h3>
+          <p>A 50% down payment may be required before the project starts. The remaining balance is due upon project completion unless otherwise agreed in writing. Late payments may incur additional charges as permitted by applicable law.</p>
+
+          <h3>5. Project Schedule</h3>
+          <p>Project timelines are estimates and may be affected by weather conditions, availability of plants and materials, site accessibility, unexpected site conditions, and circumstances beyond the company's reasonable control. Clients will be informed of any significant schedule changes.</p>
+
+          <h3>6. Client Responsibilities</h3>
+          <p>The client agrees to provide safe and unobstructed access to the project site, ensure accurate property boundaries, obtain necessary permits if required unless otherwise agreed, and inform the company of underground utilities, irrigation lines, septic systems, or hidden structures before work begins.</p>
+          <p>Ferosa Landscaping shall not be liable for damages resulting from undisclosed site conditions.</p>
+
+          <h3>7. Plant Care and Warranty</h3>
+          <p>All plants supplied by Ferosa Landscaping are healthy and inspected before installation. Plant survival depends on proper watering, sunlight, soil conditions, maintenance, pests, and weather. Plants damaged due to neglect, improper care, pests, diseases, natural disasters, or extreme weather conditions are not covered under warranty unless otherwise specified in writing.</p>
+
+          <h3>8. Changes to the Project</h3>
+          <p>Any request to modify the approved project scope must be agreed upon in writing. Additional work may result in changes to the project cost and completion date.</p>
+
+          <h3>9. Cancellation</h3>
+          <p>Clients may cancel the project before work begins. Deposits may be non-refundable if plants, materials, or labor have already been scheduled or purchased. If work has already started, the client shall pay for completed work, materials used, and any applicable cancellation costs.</p>
+
+          <h3>10. Limitation of Liability</h3>
+          <p>Ferosa Landscaping shall not be responsible for delays or damages caused by events beyond its reasonable control, including severe weather, natural disasters, supplier delays, or government restrictions. The company's total liability shall not exceed the amount paid by the client for the services provided.</p>
+
+          <h3>11. Property Damage</h3>
+          <p>Reasonable care will be taken while performing services. However, the company is not responsible for damage resulting from hidden underground utilities, pre-existing structural defects, weak surfaces, or conditions unknown before work commenced.</p>
+
+          <h3>12. Use of Project Photos</h3>
+          <p>Ferosa Landscaping reserves the right to take photographs of completed projects for portfolio, promotional, and marketing purposes unless the client provides written notice declining such use.</p>
+
+          <h3>13. Dispute Resolution</h3>
+          <p>Both parties agree to resolve disputes through good-faith negotiation before pursuing any legal action. Any legal disputes shall be governed by the laws of the Republic of the Philippines.</p>
+
+          <h3>14. Governing Law</h3>
+          <p>These Terms and Conditions shall be governed and interpreted in accordance with the laws of the Republic of the Philippines.</p>
+
+          <h3>15. Amendments</h3>
+          <p>Ferosa Landscaping reserves the right to amend these Terms and Conditions at any time. Updated versions shall apply to future projects and service agreements.</p>
+
+          <h3>16. Contact Information</h3>
+          <p>For questions regarding these Terms and Conditions, clients may contact Ferosa Landscaping through its official contact number, email address, or social media pages.</p>
+        </div>
+        </div>
+      </div>
+
+      <div class="terms-check">
+        <input id="signup-terms" type="checkbox" value="1">
+        <label for="signup-terms">I have read and agree to the Ferosa Landscaping <span class="terms-link" role="button" tabindex="0" onclick="openTermsModal(event)" onkeydown="openTermsModalFromKey(event)">Terms and Conditions</span>.</label>
       </div>
 
       <button id="signup-btn" class="cta-btn" onclick="handleSignup()">
@@ -737,6 +1187,35 @@ function togglePw(eye) {
   input.type = input.type === 'password' ? 'text' : 'password';
 }
 
+function openTermsModal(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const modal = document.getElementById('terms-modal');
+  if (!modal) return;
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  const scrollBox = modal.querySelector('.terms-scroll');
+  if (scrollBox) scrollBox.focus();
+}
+
+function openTermsModalFromKey(event) {
+  if (event.key === 'Enter' || event.key === ' ') openTermsModal(event);
+}
+
+function closeTermsModal(event) {
+  if (event && event.currentTarget !== event.target) return;
+  const modal = document.getElementById('terms-modal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeTermsModal();
+});
+
 function selectAcct(btn) {
   btn.closest('.acct-row').querySelectorAll('.acct-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
@@ -812,28 +1291,36 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
-  const fullName = document.getElementById('signup-name').value.trim();
+  const lastName   = document.getElementById('signup-last-name').value.trim();
+  const firstName  = document.getElementById('signup-first-name').value.trim();
+  const middleName = document.getElementById('signup-middle-name').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const phone = document.getElementById('signup-phone').value.trim();
   const password = document.getElementById('signup-password').value;
   const passwordConfirm = document.getElementById('signup-password-confirm').value;
+  const termsAccepted = document.getElementById('signup-terms').checked;
 
-  if (!fullName) return showToast('Please enter your full name.', 'error');
+  if (!lastName) return showToast('Please enter your last name.', 'error');
+  if (!firstName) return showToast('Please enter your first name.', 'error');
   if (!email) return showToast('Please enter your email address.', 'error');
   if (!phone) return showToast('Please enter your mobile number.', 'error');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('Please enter a valid email address.', 'error');
   if (!password) return showToast('Please create a password.', 'error');
   if (password.length < 8) return showToast('Password must be at least 8 characters.', 'error');
   if (password !== passwordConfirm) return showToast('Passwords do not match.', 'error');
+  if (!termsAccepted) return showToast('Please read and accept the Terms and Conditions before creating an account.', 'error');
 
   setLoading('signup-btn', true);
   try {
     const form = new URLSearchParams();
-    form.append('name', fullName);
+    form.append('last_name', lastName);
+    form.append('first_name', firstName);
+    form.append('middle_name', middleName);
     form.append('email', email);
     form.append('phone_number', phone);
     form.append('password', password);
     form.append('password_confirmation', passwordConfirm);
+    form.append('terms_accepted', termsAccepted ? '1' : '');
     const res = await fetch('{{ route('register.submit') }}', {
       method: 'POST',
       headers: {

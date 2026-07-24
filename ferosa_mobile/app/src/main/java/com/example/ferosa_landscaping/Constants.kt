@@ -3,10 +3,11 @@ package com.example.ferosa_landscaping
 /**
  * Base URL for the Ferosa web server.
  *
- * ► Android Emulator  → "http://10.0.2.2/cpst/ferosa-laravel/public"
- * ► Real device (WiFi) → your PC's local IP on the same network
+ * Android Emulator: use 10.0.2.2 to reach the development computer.
+ * Physical development device: use an ADB-reversed localhost port.
  *
- * Current: Real device on WiFi (192.168.254.171)
- * To switch back to emulator, change to: "http://10.0.2.2/cpst/ferosa-laravel/public"
+ * The active value is configured as FEROSA_SERVER_URL in gradle.properties.
  */
-const val SERVER_URL = "http://192.168.254.171/cpst/ferosa-laravel/public"
+val SERVER_URL: String = BuildConfig.SERVER_URL.trimEnd('/')
+
+val API_BASE_URL: String = "$SERVER_URL/"

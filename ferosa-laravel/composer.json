@@ -43,7 +43,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            ".\\\\node_modules\\\\.bin\\\\concurrently.cmd -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"npm run dev\" --names=server,queue,vite --kill-others-on-fail"
+            ".\\\\node_modules\\\\.bin\\\\concurrently.cmd -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve --host=0.0.0.0\" \"php artisan queue:listen --tries=1 --timeout=0\" \"npm run dev\" --names=server,queue,vite --kill-others-on-fail"
         ],
         "dev:logs": [
             "Composer\\Config::disableProcessTimeout",

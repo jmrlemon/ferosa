@@ -4,67 +4,89 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\SmsService;
+use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class PasswordResetOtpController extends Controller
 {
+    private const MAX_ATTEMPTS = 5;
+
     public function sendOtp(Request $request, SmsService $sms): JsonResponse
     {
         $data = $request->validate([
             'phone_number' => ['required', 'string', 'max:20'],
         ]);
 
-        $phone = $data['phone_number'];
+        $phone = PhoneNumber::normalize($data['phone_number']);
+        $candidates = PhoneNumber::lookupCandidates($data['phone_number']);
+        $genericResponse = [
+            'ok' => true,
+            'message' => 'If that mobile number is connected to an account, a reset code will be sent shortly.',
+        ];
 
-        $user = User::where('phone_number', $phone)->first();
+        $user = User::query()->whereIn('phone_number', $candidates)->first();
         if (! $user) {
-            return response()->json(['message' => 'No account found with that mobile number.'], 422);
+            Hash::make((string) random_int(100000, 999999));
+
+            return response()->json($genericResponse);
         }
 
-        // Rate limit: max 3 OTPs per phone per 10 minutes
         $recent = DB::table('password_reset_otps')
-            ->where('phone_number', $phone)
+            ->whereIn('phone_number', $candidates)
             ->where('created_at', '>=', Carbon::now()->subMinutes(10))
             ->count();
 
         if ($recent >= 3) {
-            return response()->json(['message' => 'Too many attempts. Please wait 10 minutes.'], 429);
+            return response()->json($genericResponse);
         }
 
         $otp = (string) random_int(100000, 999999);
+        $otpId = DB::transaction(function () use ($candidates, $phone, $otp): int {
+            DB::table('password_reset_otps')
+                ->whereIn('phone_number', $candidates)
+                ->whereNull('used_at')
+                ->update(['used_at' => now(), 'updated_at' => now()]);
 
-        DB::table('password_reset_otps')->insert([
-            'phone_number' => $phone,
-            'otp'          => Hash::make($otp),
-            'expires_at'   => Carbon::now()->addMinutes(10),
-            'created_at'   => Carbon::now(),
-            'updated_at'   => Carbon::now(),
-        ]);
+            return DB::table('password_reset_otps')->insertGetId([
+                'phone_number' => $phone,
+                'otp' => Hash::make($otp),
+                'attempts' => 0,
+                'expires_at' => Carbon::now()->addMinutes(10),
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ]);
+        });
 
-        $sms->send($phone, "Your Ferosa Landscaping password reset code is: {$otp}. Valid for 10 minutes.");
+        if (! $sms->send($phone, "Your Ferosa Landscaping password reset code is: {$otp}. Valid for 10 minutes.")) {
+            DB::table('password_reset_otps')->where('id', $otpId)->update([
+                'used_at' => now(),
+                'updated_at' => now(),
+            ]);
+            Log::warning('Password reset OTP could not be delivered.', ['user_id' => $user->id]);
+        }
 
-        return response()->json(['ok' => true, 'message' => 'OTP sent to your mobile number.']);
+        return response()->json($genericResponse);
     }
 
     public function verifyOtp(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'phone_number' => ['required', 'string'],
-            'otp'          => ['required', 'string', 'size:6'],
+            'phone_number' => ['required', 'string', 'max:20'],
+            'otp' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
         ]);
 
-        $record = DB::table('password_reset_otps')
-            ->where('phone_number', $data['phone_number'])
-            ->whereNull('used_at')
-            ->where('expires_at', '>', Carbon::now())
-            ->latest('id')
-            ->first();
+        $valid = DB::transaction(fn (): bool => $this->checkOtp(
+            PhoneNumber::lookupCandidates($data['phone_number']),
+            $data['otp'],
+            consume: false,
+        ));
 
-        if (! $record || ! Hash::check($data['otp'], $record->otp)) {
+        if (! $valid) {
             return response()->json(['message' => 'Invalid or expired OTP.'], 422);
         }
 
@@ -74,34 +96,64 @@ class PasswordResetOtpController extends Controller
     public function resetPassword(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'phone_number' => ['required', 'string'],
-            'otp'          => ['required', 'string', 'size:6'],
-            'password'     => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
+            'phone_number' => ['required', 'string', 'max:20'],
+            'otp' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'password' => ['required', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
 
-        $record = DB::table('password_reset_otps')
-            ->where('phone_number', $data['phone_number'])
-            ->whereNull('used_at')
-            ->where('expires_at', '>', Carbon::now())
-            ->latest('id')
-            ->first();
+        $candidates = PhoneNumber::lookupCandidates($data['phone_number']);
+        $reset = DB::transaction(function () use ($candidates, $data): bool {
+            $user = User::query()->whereIn('phone_number', $candidates)->lockForUpdate()->first();
+            if (! $user || ! $this->checkOtp($candidates, $data['otp'], consume: true)) {
+                return false;
+            }
 
-        if (! $record || ! Hash::check($data['otp'], $record->otp)) {
+            $user->update(['password' => Hash::make($data['password'])]);
+
+            return true;
+        });
+
+        if (! $reset) {
             return response()->json(['message' => 'Invalid or expired OTP. Please start over.'], 422);
         }
 
-        $user = User::where('phone_number', $data['phone_number'])->first();
-        if (! $user) {
-            return response()->json(['message' => 'Account not found.'], 422);
+        return response()->json(['ok' => true, 'message' => 'Password reset successfully.']);
+    }
+
+    /** @param list<string> $phoneCandidates */
+    private function checkOtp(array $phoneCandidates, string $otp, bool $consume): bool
+    {
+        $record = DB::table('password_reset_otps')
+            ->whereIn('phone_number', $phoneCandidates)
+            ->whereNull('used_at')
+            ->whereNull('locked_at')
+            ->where('expires_at', '>', Carbon::now())
+            ->latest('id')
+            ->lockForUpdate()
+            ->first();
+
+        if (! $record || (int) $record->attempts >= self::MAX_ATTEMPTS) {
+            return false;
         }
 
-        // Mark OTP as used
-        DB::table('password_reset_otps')
-            ->where('id', $record->id)
-            ->update(['used_at' => Carbon::now()]);
+        if (! Hash::check($otp, $record->otp)) {
+            $attempts = (int) $record->attempts + 1;
+            DB::table('password_reset_otps')->where('id', $record->id)->update([
+                'attempts' => $attempts,
+                'locked_at' => $attempts >= self::MAX_ATTEMPTS ? now() : null,
+                'updated_at' => now(),
+            ]);
 
-        $user->update(['password' => Hash::make($data['password'])]);
+            return false;
+        }
 
-        return response()->json(['ok' => true, 'message' => 'Password reset successfully.']);
+        if ($consume) {
+            DB::table('password_reset_otps')->where('id', $record->id)->update([
+                'used_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return true;
     }
 }

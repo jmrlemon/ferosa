@@ -13,6 +13,12 @@ use Illuminate\Support\Facades\Hash;
 
 class SystemSeeder extends Seeder
 {
+    /** Unsplash CDN (Unsplash License) — each ID is chosen to match the product. */
+    private function unsplash(string $photoId): string
+    {
+        return 'https://images.unsplash.com/photo-'.$photoId.'?auto=format&fit=crop&w=800&q=80';
+    }
+
     public function run(): void
     {
         $admin = User::updateOrCreate(
@@ -35,26 +41,20 @@ class SystemSeeder extends Seeder
             ]
         );
 
+        $u = fn (string $photoId) => $this->unsplash($photoId);
+
         $products = [
-            // Original system list
-            ['name' => 'Garden Soil', 'category' => 'soil', 'price' => 150],
-            ['name' => 'Organic/Loam Soil', 'category' => 'soil', 'price' => 200],
-            ['name' => 'Gravel', 'category' => 'aggregates', 'price' => 500],
-            ['name' => 'Sand', 'category' => 'aggregates', 'price' => 450],
-            ['name' => 'Plants (Various)', 'category' => 'plants', 'price' => 300],
-            ['name' => 'Natural Stones (Pebbles, River Rocks, Boulder)', 'category' => 'stones', 'price' => 800],
-            ['name' => 'Concrete Pavers', 'category' => 'stones', 'price' => 1200],
-            ['name' => 'Carabao Grass', 'category' => 'grass', 'price' => 250],
-            ['name' => 'Bermuda Grass', 'category' => 'grass', 'price' => 350],
-            ['name' => 'Frog Grass', 'category' => 'grass', 'price' => 400],
-            ['name' => 'Grass Paver', 'category' => 'stones', 'price' => 1100],
-            ['name' => 'Decorative Stone/Claddings', 'category' => 'stones', 'price' => 900],
-            ['name' => 'Louver/Breeze blocks/Ornamental Blocks', 'category' => 'blocks', 'price' => 850],
-            ['name' => 'Cobble Stone / Drive-way Stone', 'category' => 'stones', 'price' => 1500],
-            ['name' => 'Adobe Stone', 'category' => 'stones', 'price' => 1000],
-            ['name' => 'Brick stone', 'category' => 'stones', 'price' => 700],
-            ['name' => 'Fruit bearing plants', 'category' => 'plants', 'price' => 600],
-            ['name' => 'Pavements', 'category' => 'stones', 'price' => 1300],
+            // Original system list — images match product type (Unsplash).
+            ['name' => 'Garden Soil', 'category' => 'soil', 'price' => 150, 'image_url' => $u('1653398241881-b26e7cebfcf5')], // pile of soil
+            ['name' => 'Gravel', 'category' => 'aggregates', 'price' => 500, 'image_url' => $u('1604178449672-3e7d72d5a09a')], // crushed stone / gravel
+            ['name' => 'Plants (Various)', 'category' => 'plants', 'price' => 300, 'image_url' => $u('1598902108854-10e335adac99')], // mixed garden plants
+            ['name' => 'Natural Stones (Pebbles, River Rocks, Boulder)', 'category' => 'stones', 'price' => 800, 'image_url' => $u('1567921706527-ac8e2f08b053')], // assorted pebbles
+            ['name' => 'Carabao Grass', 'category' => 'grass', 'price' => 250, 'image_url' => $u('1526392587392-d1627b6c134a')], // lawn grass
+            ['name' => 'Bermuda Grass', 'category' => 'grass', 'price' => 350, 'image_url' => $u('1571955184611-592f592e5ac6')], // green turf
+            ['name' => 'Frog Grass', 'category' => 'grass', 'price' => 400, 'image_url' => $u('1628340981113-fe1949fe5cc0')], // grass field
+            ['name' => 'Grass Paver', 'category' => 'stones', 'price' => 1100, 'image_url' => $u('1759745063503-921e354f5f55')], // paver patio / hardscape
+            ['name' => 'Decorative Stone/Claddings', 'category' => 'stones', 'price' => 900, 'image_url' => $u('1629747218925-d829bf8d85a8')], // stone wall / cladding texture
+            ['name' => 'Fruit bearing plants', 'category' => 'plants', 'price' => 600, 'image_url' => $u('1661371089074-f7f642f0c323')], // fruit on tree
 
             // Ferosa demo products
             [
@@ -63,27 +63,7 @@ class SystemSeeder extends Seeder
                 'price' => 1200,
                 'category' => 'plants',
                 'is_active' => true,
-            ],
-            [
-                'name' => 'Boxwood Hedge (Set of 3)',
-                'description' => 'Perfect for defining garden borders.',
-                'price' => 3200,
-                'category' => 'plants',
-                'is_active' => true,
-            ],
-            [
-                'name' => 'Premium Garden Trowel',
-                'description' => 'Stainless steel with ergonomic handle.',
-                'price' => 450,
-                'category' => 'tools',
-                'is_active' => true,
-            ],
-            [
-                'name' => 'Irrigation Drip Kit',
-                'description' => 'Complete drip system for 25 m2 garden.',
-                'price' => 2100,
-                'category' => 'materials',
-                'is_active' => true,
+                'image_url' => $u('1614594975525-e45190c55d0b'),
             ],
         ];
 
@@ -95,6 +75,9 @@ class SystemSeeder extends Seeder
                     'price' => $p['price'] ?? 0,
                     'category' => $p['category'] ?? 'plants',
                     'is_active' => $p['is_active'] ?? true,
+                    'image_url' => $p['image_url'] ?? null,
+                    // Above dashboard low-stock threshold (5 or fewer); migration defaults stock_qty to 0.
+                    'stock_qty' => $p['stock_qty'] ?? 100,
                 ]
             );
         }

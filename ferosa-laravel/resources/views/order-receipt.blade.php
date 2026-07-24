@@ -69,14 +69,27 @@
           'pending'          => 'badge-pending',
           'confirmed'        => 'badge-confirmed',
           'delivered'        => 'badge-delivered',
+          'completed'        => 'badge-delivered',
           'out_for_delivery' => 'badge-delivered',
           'cancelled'        => 'badge-cancelled',
           default            => 'badge-other',
         };
       @endphp
-      <span class="badge {{ $cls }}">{{ ucfirst(str_replace('_',' ', $st)) }}</span>
+      <span class="badge {{ $cls }}">{{ $st === 'delivered' && ! $order->customer_confirmed_at ? 'Delivered - Pending Confirmation' : ucfirst(str_replace('_',' ', $st)) }}</span>
     </span>
   </div>
+  @if($order->delivery_proof_url)
+  <div class="row">
+    <span class="label">Delivered At</span>
+    <span class="value">{{ optional($order->delivered_at)->format('F j, Y g:i A') ?? 'Pending timestamp' }}</span>
+  </div>
+  @endif
+  @if($order->customer_confirmed_at)
+  <div class="row">
+    <span class="label">Confirmed Received</span>
+    <span class="value">{{ optional($order->customer_confirmed_at)->format('F j, Y g:i A') }}</span>
+  </div>
+  @endif
 
   <hr class="divider">
 
@@ -144,6 +157,10 @@
   <div class="row">
     <span class="label">Payment Method</span>
     <span class="value">{{ $pMethod === 'gcash' ? 'GCash' : 'Cash on Delivery' }}</span>
+  </div>
+  <div class="row">
+    <span class="label">Payment Status</span>
+    <span class="value">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'unpaid')) }}</span>
   </div>
   @if($pMethod === 'gcash' && $order->payment_reference)
   <div class="row">

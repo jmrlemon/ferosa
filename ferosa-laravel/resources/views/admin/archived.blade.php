@@ -7,22 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: {
-            brand: { 50:'#f0fdf4',100:'#dcfce7',500:'#22c55e',600:'#16a34a',700:'#15803d' },
-            surface: { 0:'#ffffff',50:'#fafafa',100:'#f4f4f5',200:'#e4e4e7',300:'#d4d4d8',400:'#a1a1aa',500:'#71717a',600:'#52525b',700:'#3f3f46',800:'#27272a',900:'#18181b' }
-          }
-        }
-      }
-    }
-  </script>
+  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  @include('admin.partials.premium-theme')
 </head>
 <body class="bg-surface-50 text-surface-800 font-sans antialiased">
+  <a href="#admin-main" class="skip-link">Skip to admin content</a>
   <header class="bg-white border-b border-surface-100">
     <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
       <div>
@@ -39,7 +28,7 @@
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto px-4 py-6 space-y-5">
+  <main id="admin-main" tabindex="-1" class="max-w-5xl mx-auto px-4 py-6 space-y-5">
     @if (session('status'))
       <div class="bg-brand-50 border border-brand-100 text-brand-700 px-4 py-2.5 rounded-lg text-sm">
         {{ session('status') }}

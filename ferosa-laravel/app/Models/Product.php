@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Product extends Model
 {
@@ -17,6 +19,8 @@ class Product extends Model
         'is_active',
         'archived_at',
     ];
+
+    protected $appends = ['is_ar_enabled'];
 
     protected function casts(): array
     {
@@ -36,5 +40,26 @@ class Product extends Model
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function plantModel(): HasOne
+    {
+        return $this->hasOne(PlantModel::class);
+    }
+
+    /**
+     * Scope to filter only products that have an associated AR plant model.
+     */
+    public function scopeArEnabled(Builder $query): Builder
+    {
+        return $query->whereHas('plantModel');
+    }
+
+    /**
+     * Determine if the product has an associated AR plant model.
+     */
+    public function getIsArEnabledAttribute(): bool
+    {
+        return $this->plantModel()->exists();
     }
 }

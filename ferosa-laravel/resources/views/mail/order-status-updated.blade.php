@@ -25,7 +25,7 @@
       </tr>
       <tr>
         <td style="color:#6b7280;padding:6px 0">New status</td>
-        <td><span class="badge">{{ ucfirst(str_replace('_', ' ', $order->status)) }}</span></td>
+        <td><span class="badge">{{ $order->status === 'delivered' && ! $order->customer_confirmed_at ? 'Delivered - Pending Confirmation' : ucfirst(str_replace('_', ' ', $order->status)) }}</span></td>
       </tr>
       <tr>
         <td style="color:#6b7280;padding:6px 0">Total</td>
@@ -51,7 +51,11 @@
     </p>
     @elseif ($order->status === 'delivered')
     <p style="margin-top:16px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;padding:10px 14px;border-radius:8px">
-      Your order has been delivered. Thank you for choosing Ferosa!
+      Your order has been delivered. Please confirm receipt in your Orders page after checking the delivery proof.
+    </p>
+    @elseif ($order->status === 'completed')
+    <p style="margin-top:16px;font-size:13px;background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;padding:10px 14px;border-radius:8px">
+      Your order is completed. Thank you for choosing Ferosa!
     </p>
     @else
     <p style="margin-top:16px;font-size:13px;color:#6b7280">

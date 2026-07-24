@@ -12,31 +12,45 @@ class SmsService
         $driver = config('services.sms.driver', 'log');
 
         return match ($driver) {
-            'twilio'   => $this->sendTwilio($to, $message),
-            'textbee'  => $this->sendTextBee($to, $message),
-            default    => $this->sendLog($to, $message),
+            'twilio' => $this->sendTwilio($to, $message),
+            'textbee' => $this->sendTextBee($to, $message),
+            default => $this->sendLog($to, $message),
         };
     }
 
     private function sendLog(string $to, string $message): bool
     {
         Log::info("SMS to {$to}: {$message}");
+
         return true;
     }
 
     private function sendTwilio(string $to, string $message): bool
     {
-        $sid   = config('services.twilio.sid');
+        $sid = config('services.twilio.sid');
         $token = config('services.twilio.token');
-        $from  = config('services.twilio.from');
+        $from = config('services.twilio.from');
 
-        $response = Http::withBasicAuth($sid, $token)
-            ->asForm()
-            ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", [
-                'From' => $from,
-                'To'   => $to,
-                'Body' => $message,
-            ]);
+        if (! $sid || ! $token || ! $from) {
+            Log::error('Twilio SMS credentials are incomplete.');
+
+            return false;
+        }
+
+        try {
+            $response = Http::timeout(10)->retry(2, 250)
+                ->withBasicAuth($sid, $token)
+                ->asForm()
+                ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", [
+                    'From' => $from,
+                    'To' => $to,
+                    'Body' => $message,
+                ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
 
         return $response->successful();
     }
@@ -46,21 +60,32 @@ class SmsService
         // Ensure international format (+639XXXXXXXXX)
         $number = preg_replace('/[^0-9+]/', '', $to);
         if (str_starts_with($number, '09')) {
-            $number = '+63' . substr($number, 1);
+            $number = '+63'.substr($number, 1);
         } elseif (str_starts_with($number, '63')) {
-            $number = '+' . $number;
+            $number = '+'.$number;
         }
 
         $deviceId = config('services.textbee.device_id');
+        $apiKey = config('services.textbee.api_key');
 
-        $response = Http::withoutVerifying()
-            ->withHeaders([
-                'x-api-key' => config('services.textbee.api_key'),
-            ])
-            ->post("https://api.textbee.dev/api/v1/gateway/devices/{$deviceId}/sendSMS", [
-                'receivers' => [$number],
-                'message'   => $message,
-            ]);
+        if (! $deviceId || ! $apiKey) {
+            Log::error('TextBee SMS credentials are incomplete.');
+
+            return false;
+        }
+
+        try {
+            $response = Http::timeout(10)->retry(2, 250)
+                ->withHeaders(['x-api-key' => $apiKey])
+                ->post("https://api.textbee.dev/api/v1/gateway/devices/{$deviceId}/sendSMS", [
+                    'receivers' => [$number],
+                    'message' => $message,
+                ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
 
         if (! $response->successful()) {
             Log::error('TextBee SMS failed', ['status' => $response->status(), 'body' => $response->body()]);

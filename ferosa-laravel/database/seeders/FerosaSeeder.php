@@ -8,16 +8,20 @@ use Illuminate\Database\Seeder;
 
 class FerosaSeeder extends Seeder
 {
+    private function unsplash(string $photoId): string
+    {
+        return 'https://images.unsplash.com/photo-'.$photoId.'?auto=format&fit=crop&w=800&q=80';
+    }
+
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
+        $u = fn (string $id) => $this->unsplash($id);
+
         Product::insert([
-            ['name' => 'Monstera Deliciosa', 'description' => 'Lush indoor foliage plant in ceramic pot.', 'price' => 1200, 'category' => 'plants', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Boxwood Hedge (Set of 3)', 'description' => 'Perfect for defining garden borders.', 'price' => 3200, 'category' => 'plants', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Premium Garden Trowel', 'description' => 'Stainless steel with ergonomic handle.', 'price' => 450, 'category' => 'tools', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Irrigation Drip Kit', 'description' => 'Complete drip system for 25 m2 garden.', 'price' => 2100, 'category' => 'materials', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Monstera Deliciosa', 'description' => 'Lush indoor foliage plant in ceramic pot.', 'image_url' => $u('1614594975525-e45190c55d0b'), 'price' => 1200, 'stock_qty' => 100, 'category' => 'plants', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         ServiceType::insert([

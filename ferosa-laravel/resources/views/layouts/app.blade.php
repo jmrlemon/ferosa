@@ -34,7 +34,6 @@
                 <a href="{{ route('schedule') }}" class="block w-full px-6 py-3 text-sm hover:bg-gray-200 {{ request()->routeIs('schedule') ? 'bg-[#4caf50] text-white font-medium hover:bg-[#4caf50]' : 'text-gray-800' }}">Schedule</a>
                 <a href="{{ route('estimator') }}" class="block w-full px-6 py-3 text-sm hover:bg-gray-200 {{ request()->routeIs('estimator') ? 'bg-[#4caf50] text-white font-medium hover:bg-[#4caf50]' : 'text-gray-800' }}">Estimator</a>
                 <a href="{{ route('account') }}" class="block w-full px-6 py-3 text-sm hover:bg-gray-200 {{ request()->routeIs('account') ? 'bg-[#4caf50] text-white font-medium hover:bg-[#4caf50]' : 'text-gray-800' }}">Account</a>
-                <a href="{{ route('feedback') }}" class="block w-full px-6 py-3 text-sm hover:bg-gray-200 {{ request()->routeIs('feedback') ? 'bg-[#4caf50] text-white font-medium hover:bg-[#4caf50]' : 'text-gray-800' }}">Feedback</a>
             </nav>
         </div>
 

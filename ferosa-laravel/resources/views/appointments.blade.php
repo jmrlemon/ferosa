@@ -1,0 +1,381 @@
+@extends('layouts.customer')
+
+@section('content')
+<main class="customer-page max-w-4xl">
+  <div class="mb-8">
+    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">My Appointments</h1>
+    <p class="text-surface-400 text-sm">View and manage your landscaping service bookings.</p>
+  </div>
+
+  @if (session('status'))
+    <div class="bg-brand-50 border border-brand-100 text-brand-700 px-4 py-2.5 rounded-lg text-sm mb-6">
+      {{ session('status') }}
+    </div>
+  @endif
+  @if (session('error'))
+    <div class="bg-red-50 border border-red-100 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-6">
+      {{ session('error') }}
+    </div>
+  @endif
+
+  {{-- Filters --}}
+  <form method="GET" action="{{ route('appointments') }}" class="customer-card p-4 mb-5" data-loading-label="Filtering...">
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+      <div>
+        <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
+        <select name="status" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
+          <option value="">All</option>
+          @foreach (['scheduled','confirmed','completed','cancelled'] as $st)
+            <option value="{{ $st }}" {{ request('status') === $st ? 'selected' : '' }}>
+              {{ ucfirst($st) }}
+            </option>
+          @endforeach
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-medium text-surface-400 mb-1">From</label>
+        <input type="date" name="from" value="{{ request('from') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div>
+        <label class="block text-[10px] font-medium text-surface-400 mb-1">To</label>
+        <input type="date" name="to" value="{{ request('to') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
+      </div>
+      <div class="flex gap-2">
+        <button class="customer-action flex-1 bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 text-xs" data-loading-label="Filtering...">Filter</button>
+        <a href="{{ route('appointments') }}" class="px-3 py-2 rounded-lg border border-surface-200 text-xs font-medium text-surface-500 hover:bg-surface-50 transition-colors">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  {{-- List --}}
+  <div class="space-y-4">
+    @forelse ($appointments as $appt)
+      @php
+        $st = $appt->status;
+        $badge = match($st) {
+          'confirmed'  => 'bg-blue-50 text-blue-700 border-blue-100',
+          'completed'  => 'bg-surface-900 text-white border-surface-900',
+          'cancelled'  => 'bg-red-50 text-red-600 border-red-100',
+          default      => 'bg-amber-50 text-amber-700 border-amber-100',
+        };
+        $isUpcoming = in_array($st, ['scheduled','confirmed'])
+          && $appt->appointment_at
+          && \Carbon\Carbon::parse($appt->appointment_at)->isFuture();
+        $step = match($st) {
+          'confirmed' => 2,
+          'completed' => 3,
+          default     => 1,
+        };
+      @endphp
+
+      <div class="customer-card overflow-hidden">
+
+        {{-- Card Header --}}
+        <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-surface-100">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="text-sm font-semibold text-surface-900">
+                {{ $appt->serviceType->name ?? 'Service' }}
+              </h3>
+              <span class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border {{ $badge }}">
+                {{ ucfirst($st) }}
+              </span>
+              @if ($isUpcoming)
+                <span class="text-[10px] font-semibold bg-green-50 text-green-600 border border-green-100 px-2 py-0.5 rounded">Upcoming</span>
+              @endif
+            </div>
+            <p class="text-xs text-surface-400 mt-0.5">
+              {{ $appt->appointment_at ? \Carbon\Carbon::parse($appt->appointment_at)->format('D, M j, Y \a\t g:i A') : '—' }}
+            </p>
+          </div>
+
+          <div class="flex items-center flex-wrap gap-1.5 self-start sm:self-center">
+            @if (($appt->payment_status ?? 'unpaid') === 'paid')
+              <a href="{{ route('appointments.receipt', $appt) }}"
+                class="inline-flex items-center gap-1 text-[11px] font-medium text-surface-600 hover:text-surface-900 border border-surface-200 hover:border-surface-400 bg-white hover:bg-surface-50 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+                Receipt
+              </a>
+            @endif
+
+            {{-- Feedback / Reviewed --}}
+            @if ($st === 'completed' && !$appt->feedback)
+              <button onclick="openApptFeedbackModal({{ $appt->id }}, '{{ addslashes($appt->serviceType->name ?? 'Service') }}')"
+                class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Leave Feedback
+              </button>
+            @elseif ($st === 'completed' && $appt->feedback)
+              <span class="inline-flex items-center gap-1 text-[11px] font-medium text-green-600 border border-green-200 bg-green-50 px-2.5 py-1.5 rounded-lg min-h-[34px]">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Reviewed
+              </span>
+            @endif
+
+            {{-- Cancel --}}
+            @if ($isUpcoming)
+              <button onclick="openCancelApptModal({{ $appt->id }}, '{{ addslashes($appt->serviceType->name ?? 'Appointment') }}')"
+                class="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Cancel
+              </button>
+            @endif
+          </div>
+        </div>
+
+        {{-- Card Body --}}
+        <div class="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+          {{-- Details --}}
+          <div>
+            <h4 class="text-xs font-semibold text-surface-900 mb-2">Details</h4>
+            <div class="rounded-lg border border-surface-100 p-3 space-y-2 text-xs">
+              <div class="flex gap-2">
+                <span class="text-surface-400 w-20 shrink-0">Service</span>
+                <span class="text-surface-700 font-medium">{{ $appt->serviceType->name ?? '—' }}</span>
+              </div>
+              <div class="flex gap-2">
+                <span class="text-surface-400 w-20 shrink-0">Date & Time</span>
+                <span class="text-surface-700">{{ $appt->appointment_at ? \Carbon\Carbon::parse($appt->appointment_at)->format('M j, Y · g:i A') : '—' }}</span>
+              </div>
+              <div class="flex gap-2">
+                <span class="text-surface-400 w-20 shrink-0">Payment</span>
+                <span class="text-surface-700 capitalize">{{ $appt->payment_status ?? 'unpaid' }}</span>
+              </div>
+              <div class="flex gap-2">
+                <span class="text-surface-400 w-20 shrink-0">Amount</span>
+                <span class="text-surface-700 font-medium">PHP {{ number_format((float) ($appt->appointment_amount ?? $appt->serviceType->default_fee ?? 0), 2) }}</span>
+              </div>
+              @if ($appt->notes)
+                <div class="flex gap-2 pt-1 border-t border-surface-100">
+                  <span class="text-surface-400 w-20 shrink-0">Notes</span>
+                  <span class="text-surface-600 italic">"{{ $appt->notes }}"</span>
+                </div>
+              @endif
+            </div>
+          </div>
+
+          {{-- Timeline --}}
+          <div>
+            <h4 class="text-xs font-semibold text-surface-900 mb-2">Progress</h4>
+            @php
+              $steps = [
+                ['label' => 'Scheduled',  'desc' => optional($appt->appointment_at)->format('M d, Y g:i A')],
+                ['label' => 'Confirmed',  'desc' => $step >= 2 ? 'Appointment confirmed' : 'Pending'],
+                ['label' => 'Completed',  'desc' => $step >= 3 ? 'Service completed' : 'Pending'],
+              ];
+            @endphp
+            <div class="relative ml-1.5">
+              <div class="absolute left-[5px] top-1 bottom-1 w-px bg-surface-200"></div>
+              <div class="space-y-4">
+                @foreach ($steps as $i => $s)
+                  @php
+                    $idx  = $i + 1;
+                    $done = $step > $idx || ($st === 'cancelled' && false);
+                    $active = $step === $idx && $st !== 'cancelled';
+                    if ($st === 'cancelled') { $done = false; $active = false; }
+                    $circle = $done ? 'bg-brand-600 ring-brand-50 border-brand-600' :
+                              ($active ? 'bg-brand-600 ring-brand-50 border-brand-600' : 'bg-white border-surface-300 ring-white');
+                    $text   = $done || $active ? ($active ? 'text-brand-700' : 'text-surface-900') : 'text-surface-300';
+                  @endphp
+                  <div class="relative flex gap-3">
+                    <div class="relative z-10 w-3 h-3 mt-0.5 rounded-full ring-2 {{ $circle }} flex items-center justify-center border">
+                      @if ($done)
+                        <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      @elseif ($active)
+                        <div class="w-1 h-1 bg-white rounded-full"></div>
+                      @endif
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium {{ $text }}">{{ $s['label'] }}</p>
+                      <p class="text-[10px] {{ $active ? 'text-surface-600' : 'text-surface-400' }}">{{ $s['desc'] }}</p>
+                      @if ($st === 'cancelled' && $i === 0)
+                        <p class="text-[10px] text-red-600 font-semibold mt-0.5">Cancelled</p>
+                      @endif
+                    </div>
+                  </div>
+                @endforeach
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    @empty
+      <div class="customer-empty">
+        <div class="customer-empty-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <h2 class="text-sm font-semibold text-surface-900 mb-1">No appointments yet</h2>
+        <p class="text-surface-400 text-sm mb-4">Book a service and your schedule will appear here.</p>
+        <a href="{{ route('schedule') }}" class="customer-action bg-surface-900 text-white text-xs font-medium px-5 py-2 hover:bg-surface-800">Book a Service</a>
+      </div>
+    @endforelse
+  </div>
+
+  @if (method_exists($appointments, 'links'))
+    <div class="mt-6">{{ $appointments->links() }}</div>
+  @endif
+</main>
+
+{{-- ── Cancel Appointment Modal ────────────────────────────────────── --}}
+<div id="cancel-appt-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center sm:p-4">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeCancelApptModal()"></div>
+  <div class="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl">
+    <div class="flex justify-center pt-3 pb-1 sm:hidden">
+      <div class="w-10 h-1 bg-surface-200 rounded-full"></div>
+    </div>
+    <div class="px-4 sm:px-6 pt-4 sm:pt-5 pb-5 sm:pb-6">
+      <div class="flex items-start gap-3 mb-3">
+        <div class="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div>
+          <h3 class="text-base font-semibold text-surface-900">Cancel Appointment?</h3>
+          <p class="text-xs text-surface-400 mt-0.5" id="cancel-appt-name"></p>
+        </div>
+      </div>
+      <p class="text-sm text-surface-500 mb-5">Are you sure you want to cancel this appointment? This action cannot be undone.</p>
+      <form id="cancel-appt-form" method="POST">
+        @csrf
+        @method('DELETE')
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-surface-600 mb-1">Reason for cancellation <span class="text-red-500">*</span></label>
+          <textarea name="cancel_reason" rows="3" required minlength="3" maxlength="500"
+            class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 resize-none transition-all"
+            placeholder="Example: I need to reschedule this service."></textarea>
+        </div>
+        <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+          <button type="button" onclick="closeCancelApptModal()"
+            class="py-3 sm:py-2.5 sm:px-5 rounded-xl border border-surface-200 text-sm font-medium text-surface-500 hover:bg-surface-50 transition-colors touch-manipulation">
+            Keep Appointment
+          </button>
+          <button type="submit" data-loading-label="Cancelling..."
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
+            Yes, Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{{-- ── Feedback Modal ──────────────────────────────────────────────── --}}
+<div id="appt-feedback-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center sm:p-4">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeApptFeedbackModal()"></div>
+  <div class="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl">
+    <div class="flex justify-center pt-3 pb-1 sm:hidden">
+      <div class="w-10 h-1 bg-surface-200 rounded-full"></div>
+    </div>
+    <div class="px-4 sm:px-6 pt-2 sm:pt-5 pb-5 sm:pb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-base font-semibold text-surface-900">Rate Your Appointment</h3>
+          <p class="text-xs text-surface-400 mt-0.5" id="appt-modal-service-name"></p>
+        </div>
+        <button onclick="closeApptFeedbackModal()" class="p-1.5 text-surface-300 hover:text-surface-600 transition-colors rounded-lg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form method="POST" action="{{ route('feedback.store') }}" class="space-y-4">
+        @csrf
+        <input type="hidden" name="appointment_id" id="appt-modal-appointment-id">
+        <div>
+          <label class="block text-xs font-medium text-surface-600 mb-3">Rating <span class="text-red-500">*</span></label>
+          <div class="flex justify-between sm:justify-start sm:gap-3" id="appt-modal-star-group">
+            @for ($i = 1; $i <= 5; $i++)
+              <button type="button" data-value="{{ $i }}"
+                class="appt-modal-star text-5xl sm:text-4xl text-surface-200 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
+                aria-label="{{ $i }} star">&#9733;</button>
+            @endfor
+          </div>
+          <input type="hidden" name="rating" id="appt-modal-rating-input" value="">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-300">(optional)</span></label>
+          <textarea name="comment" rows="3"
+            class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-100 resize-none transition-all"
+            placeholder="Tell us about your experience…"></textarea>
+        </div>
+        <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
+          <button type="button" onclick="closeApptFeedbackModal()"
+            class="py-3 sm:py-2.5 sm:px-4 rounded-xl border border-surface-200 text-sm font-medium text-surface-500 hover:bg-surface-50 transition-colors touch-manipulation">
+            Cancel
+          </button>
+          <button type="submit" data-loading-label="Submitting..."
+            class="flex-1 bg-surface-900 hover:bg-surface-800 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
+            Submit Feedback
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+@include('partials.mobile-bottom-customer')
+@endsection
+
+@section('scripts')
+<script>
+  // ── Cancel Modal ────────────────────────────────────────────────────────
+  const cancelApptModal = document.getElementById('cancel-appt-modal');
+  const cancelApptForm  = document.getElementById('cancel-appt-form');
+  const cancelApptName  = document.getElementById('cancel-appt-name');
+
+  function openCancelApptModal(apptId, name) {
+    cancelApptForm.action = '/appointments/' + apptId + '/cancel';
+    cancelApptName.textContent = name;
+    cancelApptModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCancelApptModal() {
+    cancelApptModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // ── Feedback Modal ──────────────────────────────────────────────────────
+  const apptFeedbackModal  = document.getElementById('appt-feedback-modal');
+  const apptApptId         = document.getElementById('appt-modal-appointment-id');
+  const apptServiceNameEl  = document.getElementById('appt-modal-service-name');
+  const apptRatingInput    = document.getElementById('appt-modal-rating-input');
+  const apptStars          = document.querySelectorAll('.appt-modal-star');
+  let apptSelected = 0;
+
+  function paintApptStars(upTo) {
+    apptStars.forEach((s, i) => {
+      s.classList.toggle('text-amber-400', i < upTo);
+      s.classList.toggle('text-surface-200', i >= upTo);
+    });
+  }
+
+  apptStars.forEach((btn, idx) => {
+    btn.addEventListener('mouseenter', () => paintApptStars(idx + 1));
+    btn.addEventListener('mouseleave', () => paintApptStars(apptSelected));
+    btn.addEventListener('click', () => {
+      apptSelected = idx + 1;
+      apptRatingInput.value = apptSelected;
+      paintApptStars(apptSelected);
+    });
+  });
+
+  function openApptFeedbackModal(apptId, serviceName) {
+    apptApptId.value = apptId;
+    apptServiceNameEl.textContent = serviceName;
+    apptSelected = 0;
+    apptRatingInput.value = '';
+    paintApptStars(0);
+    apptFeedbackModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeApptFeedbackModal() {
+    apptFeedbackModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeCancelApptModal(); closeApptFeedbackModal(); }
+  });
+</script>
+@endsection

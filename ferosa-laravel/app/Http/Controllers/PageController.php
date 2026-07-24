@@ -4,44 +4,128 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreScheduleRequest;
 use App\Mail\AppointmentBooked;
+use App\Mail\AppointmentStatusUpdated;
+use App\Mail\LowStockAlert;
 use App\Mail\OrderPlaced;
+use App\Mail\OrderStatusUpdated;
 use App\Models\Appointment;
+use App\Models\AppSetting;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Project;
 use App\Models\ServiceType;
-use Illuminate\Support\Carbon;
+use App\Models\User;
+use App\Notifications\AdminCancellationNotice;
+use App\Notifications\WorkCreatedNotice;
+use App\Services\CartService;
+use App\Support\Audit;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PageController extends Controller
 {
     public function home(): View
     {
-        return view('home');
+        $userId = auth()->id();
+
+        $nextAppointment = Appointment::query()
+            ->with('serviceType')
+            ->where('user_id', $userId)
+            ->whereNull('archived_at')
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->where('appointment_at', '>=', now())
+            ->orderBy('appointment_at')
+            ->first();
+
+        $latestOrder = Order::query()
+            ->where('user_id', $userId)
+            ->whereNull('archived_at')
+            ->latest()
+            ->first();
+
+        $featuredServices = ServiceType::query()
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->orderBy('default_fee')
+            ->limit(4)
+            ->get();
+
+        $featuredProducts = Product::query()
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->where('stock_qty', '>', 0)
+            ->latest()
+            ->limit(4)
+            ->get();
+
+        $featuredProjects = Project::query()
+            ->published()
+            ->where('is_featured', true)
+            ->orderByDesc('completed_at')
+            ->latest('id')
+            ->limit(3)
+            ->get();
+
+        $activityCounts = [
+            'active_orders' => Order::query()
+                ->where('user_id', $userId)
+                ->whereNull('archived_at')
+                ->whereNotIn('status', ['delivered', 'completed', 'cancelled'])
+                ->count(),
+            'completed_services' => Appointment::query()
+                ->where('user_id', $userId)
+                ->whereNull('archived_at')
+                ->where('status', 'completed')
+                ->count(),
+            'catalog_items' => Product::query()
+                ->where('is_active', true)
+                ->whereNull('archived_at')
+                ->where('stock_qty', '>', 0)
+                ->count(),
+        ];
+
+        $businessProfile = AppSetting::getBusinessProfile();
+
+        return view('home', compact(
+            'nextAppointment',
+            'latestOrder',
+            'featuredServices',
+            'featuredProducts',
+            'featuredProjects',
+            'activityCounts',
+            'businessProfile',
+        ));
     }
 
     public function shop(Request $request): View
     {
-        $q        = trim((string) $request->get('q', ''));
+        $q = trim((string) $request->get('q', ''));
         $category = (string) $request->get('category', 'all');
-        $sort     = (string) $request->get('sort', 'name_asc');
+        $sort = (string) $request->get('sort', 'name_asc');
         $maxPrice = $request->filled('max_price') ? (float) $request->get('max_price') : null;
 
         $query = Product::query()
+            ->with('plantModel')
             ->where('is_active', true)
             ->whereNull('archived_at');
 
         if ($q !== '') {
             $query->where(function ($qq) use ($q) {
                 $qq->where('name', 'like', '%'.$q.'%')
-                   ->orWhere('description', 'like', '%'.$q.'%')
-                   ->orWhere('category', 'like', '%'.$q.'%');
+                    ->orWhere('description', 'like', '%'.$q.'%')
+                    ->orWhere('category', 'like', '%'.$q.'%');
             });
         }
 
@@ -54,13 +138,13 @@ class PageController extends Controller
         }
 
         match ($sort) {
-            'price_asc'  => $query->orderBy('price'),
+            'price_asc' => $query->orderBy('price'),
             'price_desc' => $query->orderByDesc('price'),
-            'newest'     => $query->latest(),
-            default      => $query->orderBy('name'),
+            'newest' => $query->latest(),
+            default => $query->orderBy('name'),
         };
 
-        $products   = $query->get();
+        $products = $query->get();
         $categories = Product::query()
             ->where('is_active', true)
             ->whereNull('archived_at')
@@ -71,109 +155,177 @@ class PageController extends Controller
         return view('shop', compact('products', 'categories', 'q', 'category', 'sort', 'maxPrice'));
     }
 
-    public function checkout(): View
+    public function product(Product $product): View
     {
-        return view('checkout');
+        abort_unless($product->is_active && is_null($product->archived_at), 404);
+
+        $product->load('plantModel');
+
+        $relatedProducts = Product::query()
+            ->with('plantModel')
+            ->whereKeyNot($product->getKey())
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->where('stock_qty', '>', 0)
+            ->when($product->category, fn ($query) => $query->where('category', $product->category))
+            ->orderBy('name')
+            ->limit(4)
+            ->get();
+
+        return view('product-show', [
+            'product' => $product,
+            'relatedProducts' => $relatedProducts,
+            'businessProfile' => AppSetting::getBusinessProfile(),
+        ]);
     }
 
-    public function storeCheckout(Request $request): RedirectResponse
+    public function checkout(Request $request): View
+    {
+        $checkoutToken = $request->session()->get('checkout_token') ?? (string) Str::uuid();
+        $request->session()->put('checkout_token', $checkoutToken);
+
+        return view('checkout', [
+            'gcashSettings' => AppSetting::getGcashSettings(),
+            'checkoutToken' => $checkoutToken,
+        ]);
+    }
+
+    public function storeCheckout(Request $request, CartService $cart): RedirectResponse
     {
         $data = $request->validate([
-            'cart_data'          => ['required', 'string'],
-            'delivery_method'    => ['required', 'string', 'in:delivery,pickup'],
-            'delivery_name'      => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:255'],
-            'delivery_phone'     => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:50'],
-            'delivery_address'   => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:500'],
-            'delivery_city'      => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:255'],
-            'delivery_notes'     => ['nullable', 'string', 'max:1000'],
-            'payment_method'     => ['required', 'string', 'in:cod,gcash'],
-            'payment_reference'  => ['required_if:payment_method,gcash', 'nullable', 'string', 'max:100'],
+            'checkout_token' => ['nullable', 'uuid'],
+            'cart_data' => ['nullable', 'string'],
+            'delivery_method' => ['required', 'string', 'in:delivery,pickup'],
+            'delivery_name' => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:255'],
+            'delivery_phone' => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:50'],
+            'delivery_address' => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:500'],
+            'delivery_city' => ['required_if:delivery_method,delivery', 'nullable', 'string', 'max:255'],
+            'delivery_notes' => ['nullable', 'string', 'max:1000'],
+            'payment_method' => ['required', 'string', 'in:cod,gcash'],
+            'payment_reference' => ['required_if:payment_method,gcash', 'nullable', 'string', 'min:8', 'max:100', 'regex:/^[A-Za-z0-9 -]+$/'],
+            'payment_proof' => ['required_if:payment_method,gcash', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
 
-        $cartData = json_decode($data['cart_data'], true);
-        if (! $cartData || ! is_array($cartData) || count($cartData) === 0) {
+        $data['checkout_token'] = $data['checkout_token'] ?? (string) Str::uuid();
+
+        $existingOrder = Order::query()
+            ->where('user_id', $request->user()->id)
+            ->where('checkout_token', $data['checkout_token'])
+            ->first();
+        if ($existingOrder) {
+            return redirect()->route('orders.confirmation', $existingOrder);
+        }
+
+        if ($data['payment_method'] === 'gcash') {
+            $gcashSettings = AppSetting::getGcashSettings();
+            if (empty($gcashSettings['number']) && empty($gcashSettings['qr_url'])) {
+                return back()->withErrors(['payment_method' => 'GCash payment is not available right now. Please choose Cash on Delivery.']);
+            }
+
+            $data['payment_reference_normalized'] = Order::normalizePaymentReference($data['payment_reference']);
+            if (Order::query()->where('payment_reference_normalized', $data['payment_reference_normalized'])->exists()) {
+                return back()->withErrors([
+                    'payment_reference' => 'This GCash reference number has already been submitted. Check your Orders page or enter the correct reference.',
+                ])->withInput($request->except('payment_proof'));
+            }
+        }
+
+        $summary = $cart->summary($request->user());
+        $legacyCart = json_decode($data['cart_data'] ?? '[]', true);
+        if ($summary['cart_count'] === 0 && is_array($legacyCart) && $legacyCart !== []) {
+            $summary = $cart->merge($request->user(), $legacyCart);
+        }
+
+        if ($summary['cart_count'] === 0) {
             return back()->withErrors(['Your cart is empty.']);
         }
 
-        // Extract product IDs and look up real prices from the database
-        $productIds = collect($cartData)->pluck('id')->filter()->unique()->all();
-        $products = Product::whereIn('id', $productIds)
-            ->where('is_active', true)
-            ->whereNull('archived_at')
-            ->get()
-            ->keyBy('id');
+        $paymentProofPath = $data['payment_method'] === 'gcash'
+            ? $request->file('payment_proof')->store('payment-proofs', 'local')
+            : null;
 
-        $lineItems = [];
-        $totalPrice = 0;
+        try {
+            $order = DB::transaction(function () use ($summary, $data, $request, $cart, $paymentProofPath) {
+                $lineItems = [];
+                $totalPrice = 0.0;
 
-        foreach ($cartData as $item) {
-            $productId = $item['id'] ?? null;
-            $product = $products->get($productId);
+                foreach ($summary['items'] as $cartItem) {
+                    $product = Product::query()
+                        ->whereKey($cartItem['id'])
+                        ->where('is_active', true)
+                        ->whereNull('archived_at')
+                        ->lockForUpdate()
+                        ->first();
 
-            if (! $product) {
-                return back()->withErrors(["Product \"{$item['name']}\" is no longer available."]);
+                    if (! $product) {
+                        abort(422, 'A product in your cart is no longer available.');
+                    }
+
+                    $qty = (int) $cartItem['qty'];
+                    if ($product->stock_qty < $qty) {
+                        abort(422, $product->stock_qty === 0
+                            ? "{$product->name} is out of stock."
+                            : "Only {$product->stock_qty} unit(s) of {$product->name} are available.");
+                    }
+
+                    $price = (float) $product->price;
+                    $lineItems[] = [
+                        'product_id' => $product->id,
+                        'name' => $product->name,
+                        'price' => $price,
+                        'qty' => $qty,
+                    ];
+                    $totalPrice += $price * $qty;
+                    $product->decrement('stock_qty', $qty);
+                }
+                Cache::forget('shop_products_active');
+
+                $order = Order::create([
+                    'user_id' => $request->user()->id,
+                    'order_number' => 'FRS-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
+                    'checkout_token' => $data['checkout_token'],
+                    'status' => 'pending',
+                    'payment_status' => $data['payment_method'] === 'gcash' ? 'pending_verification' : 'unpaid',
+                    'total_amount' => $totalPrice,
+                    'items' => $lineItems,
+                    'delivery_method' => $data['delivery_method'],
+                    'delivery_name' => $data['delivery_name'] ?? null,
+                    'delivery_phone' => $data['delivery_phone'] ?? null,
+                    'delivery_address' => $data['delivery_address'] ?? null,
+                    'delivery_city' => $data['delivery_city'] ?? null,
+                    'delivery_notes' => $data['delivery_notes'] ?? null,
+                    'payment_method' => $data['payment_method'],
+                    'payment_reference' => $data['payment_reference'] ?? null,
+                    'payment_reference_normalized' => $data['payment_reference_normalized'] ?? null,
+                    'payment_proof_path' => $paymentProofPath,
+                ]);
+
+                foreach ($lineItems as $item) {
+                    $order->orderItems()->create([
+                        'product_id' => $item['product_id'],
+                        'name' => $item['name'],
+                        'price' => $item['price'],
+                        'qty' => $item['qty'],
+                    ]);
+                }
+
+                $cart->clear($request->user());
+
+                return $order;
+            }, 3);
+        } catch (\Throwable $e) {
+            if ($paymentProofPath) {
+                Storage::disk('local')->delete($paymentProofPath);
             }
 
-            $qty = max(1, (int) ($item['qty'] ?? 1));
-
-            if ($product->stock_qty < $qty) {
-                $available = $product->stock_qty;
+            if ($e instanceof QueryException && $data['payment_method'] === 'gcash') {
                 return back()->withErrors([
-                    $available === 0
-                        ? "\"{$product->name}\" is out of stock."
-                        : "\"{$product->name}\" only has {$available} unit(s) left.",
-                ]);
+                    'payment_reference' => 'This GCash reference number has already been submitted. Check your Orders page before trying again.',
+                ])->withInput($request->except('payment_proof'));
             }
 
-            $price = (float) $product->price;
-
-            $lineItems[] = [
-                'product_id' => $product->id,
-                'name'       => $product->name,
-                'price'      => $price,
-                'qty'        => $qty,
-            ];
-            $totalPrice += $price * $qty;
+            throw $e;
         }
-
-        $orderNumber = 'FRS-'.strtoupper(substr(uniqid(), -5)).rand(10, 99);
-
-        $order = DB::transaction(function () use ($lineItems, $totalPrice, $orderNumber, $data) {
-            // Decrement stock inside the transaction
-            foreach ($lineItems as $item) {
-                Product::where('id', $item['product_id'])
-                    ->where('stock_qty', '>=', $item['qty'])
-                    ->decrement('stock_qty', $item['qty']);
-            }
-            Cache::forget('shop_products_active');
-
-            $order = Order::create([
-                'user_id'            => auth()->id(),
-                'order_number'       => $orderNumber,
-                'status'             => 'pending',
-                'total_amount'       => $totalPrice,
-                'items'              => $lineItems,
-                'delivery_method'    => $data['delivery_method'],
-                'delivery_name'      => $data['delivery_name'] ?? null,
-                'delivery_phone'     => $data['delivery_phone'] ?? null,
-                'delivery_address'   => $data['delivery_address'] ?? null,
-                'delivery_city'      => $data['delivery_city'] ?? null,
-                'delivery_notes'     => $data['delivery_notes'] ?? null,
-                'payment_method'     => $data['payment_method'],
-                'payment_reference'  => $data['payment_reference'] ?? null,
-            ]);
-
-            foreach ($lineItems as $item) {
-                $order->orderItems()->create([
-                    'product_id' => $item['product_id'],
-                    'name'       => $item['name'],
-                    'price'      => $item['price'],
-                    'qty'        => $item['qty'],
-                ]);
-            }
-
-            return $order;
-        });
 
         $order->load('user');
 
@@ -183,18 +335,32 @@ class PageController extends Controller
             report($e);
         }
 
+        $operationsTeam = User::query()->whereIn('role', ['admin', 'staff'])->get();
+        if ($operationsTeam->isNotEmpty()) {
+            Notification::send($operationsTeam, new WorkCreatedNotice(
+                type: 'order_created',
+                message: 'New order '.$order->order_number.' from '.$order->user->name.' needs review.',
+                url: route('admin.orders.show', $order),
+                orderId: $order->id,
+            ));
+        }
+
         // After transaction: check for low-stock and alert admins
-        $lowStock = Product::whereIn('id', collect($lineItems)->pluck('product_id'))
+        $lowStock = Product::whereIn('id', $order->orderItems()->pluck('product_id'))
             ->where('stock_qty', '<=', 5)
             ->get();
         if ($lowStock->isNotEmpty()) {
-            $adminEmails = \App\Models\User::where('role', 'admin')->pluck('email');
+            $adminEmails = User::where('role', 'admin')->pluck('email');
             foreach ($adminEmails as $email) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\LowStockAlert($lowStock));
-                } catch (\Throwable $e) { report($e); }
+                    Mail::to($email)->send(new LowStockAlert($lowStock));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
         }
+
+        $request->session()->forget('checkout_token');
 
         return redirect()->route('orders.confirmation', $order)
             ->with('clear_cart', true);
@@ -213,12 +379,13 @@ class PageController extends Controller
     public function orders(): View
     {
         $data = request()->validate([
-            'status' => ['nullable', 'string', 'in:pending,confirmed,out_for_delivery,delivered,cancelled'],
+            'status' => ['nullable', 'string', 'in:pending,confirmed,out_for_delivery,delivered,completed,cancelled'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
         $q = Order::query()
+            ->with('feedback')
             ->where('user_id', auth()->id())
             ->whereNull('archived_at')
             ->latest();
@@ -260,13 +427,62 @@ class PageController extends Controller
             'found' => true,
             'order_number' => $order->order_number,
             'status' => $order->status,
-            'created_at' => optional($order->created_at)->format('M d, Y \u00b7 h:i A'),
+            'created_at' => optional($order->created_at)->format('M d, Y h:i A'),
+            'delivery_proof_url' => $order->delivery_proof_url,
+            'dispatch_proof_url' => $order->dispatch_proof_url,
+            'dispatched_at' => optional($order->dispatched_at)->format('M d, Y h:i A'),
+            'driver_name' => $order->driver_name,
+            'driver_phone' => $order->driver_phone,
+            'delivery_recipient_name' => $order->delivery_recipient_name,
+            'delivered_at' => optional($order->delivered_at)->format('M d, Y h:i A'),
+            'customer_confirmed_at' => optional($order->customer_confirmed_at)->format('M d, Y h:i A'),
         ]);
+    }
+
+    public function confirmOrderReceived(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless((int) $order->user_id === (int) $request->user()->id, 403);
+
+        if ($order->status !== 'delivered') {
+            return back()->with('error', 'This order is not ready for confirmation yet.');
+        }
+
+        if (! $order->delivery_proof_url) {
+            return back()->with('error', 'Delivery proof is not available yet. Please wait for staff to upload proof.');
+        }
+
+        $before = Audit::snapshot($order, ['status', 'customer_confirmed_at']);
+        DB::transaction(function () use ($order): void {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            abort_unless($lockedOrder->canTransitionTo('completed'), 422, 'This order is not ready for confirmation yet.');
+            abort_unless($lockedOrder->delivery_proof_url, 422, 'Delivery proof is required.');
+            $lockedOrder->update([
+                'status' => 'completed',
+                'customer_confirmed_at' => now(),
+            ]);
+        }, 3);
+        $order->refresh();
+        Audit::log($request, 'order.receipt.confirmed', $order, $before, Audit::snapshot($order, ['status', 'customer_confirmed_at']));
+
+        $operationsTeam = User::query()->whereIn('role', ['admin', 'staff'])->get();
+        if ($operationsTeam->isNotEmpty()) {
+            Notification::send($operationsTeam, new WorkCreatedNotice(
+                type: 'order_received',
+                message: 'Customer confirmed receipt of order '.$order->order_number.'.',
+                url: route('admin.orders.show', $order),
+                orderId: $order->id,
+            ));
+        }
+
+        return back()->with('status', "Order {$order->order_number} confirmed as received.");
     }
 
     public function schedule(): View
     {
+        $activeAppointment = $this->activeAppointmentForUser(auth()->id());
+
         return view('schedule', [
+            'activeAppointment' => $activeAppointment,
             'serviceTypes' => ServiceType::query()
                 ->where('is_active', true)
                 ->whereNull('archived_at')
@@ -305,6 +521,12 @@ class PageController extends Controller
     {
         $data = $request->validated();
 
+        if ($this->activeAppointmentForUser(auth()->id())) {
+            return back()->withErrors([
+                'appointment_at' => 'You already have an active booking. Please cancel or complete it before booking another service.',
+            ]);
+        }
+
         $serviceTypeId = $data['service_type_id'] ?? null;
         if (! $serviceTypeId) {
             $serviceTypeId = ServiceType::query()
@@ -312,7 +534,8 @@ class PageController extends Controller
                 ->value('id');
         }
 
-        abort_unless($serviceTypeId, 422, 'Invalid service type.');
+        $serviceType = ServiceType::query()->find($serviceTypeId);
+        abort_unless($serviceType, 422, 'Invalid service type.');
 
         // Prevent double booking (server-side)
         $appointmentAt = Carbon::parse($data['appointment_at'])->seconds(0);
@@ -328,13 +551,21 @@ class PageController extends Controller
             ]);
         }
 
-        $appointment = Appointment::create([
-            'user_id' => auth()->id(),
-            'service_type_id' => $serviceTypeId,
-            'appointment_at' => $appointmentAt,
-            'status' => 'scheduled',
-            'notes' => $data['notes'] ?? null,
-        ]);
+        try {
+            $appointment = Appointment::create([
+                'user_id' => auth()->id(),
+                'service_type_id' => $serviceTypeId,
+                'appointment_at' => $appointmentAt,
+                'slot_key' => Appointment::slotKey($serviceTypeId, $appointmentAt),
+                'appointment_amount' => $serviceType->default_fee ?? 0,
+                'status' => 'scheduled',
+                'notes' => $data['notes'] ?? null,
+            ]);
+        } catch (QueryException) {
+            return back()->withErrors([
+                'appointment_at' => 'That time slot was just booked. Please choose another time.',
+            ]);
+        }
 
         $appointment->load(['user', 'serviceType']);
 
@@ -344,7 +575,33 @@ class PageController extends Controller
             report($e);
         }
 
-        return back()->with('status', 'Booking confirmed successfully.');
+        $operationsTeam = User::query()->whereIn('role', ['admin', 'staff'])->get();
+        if ($operationsTeam->isNotEmpty()) {
+            Notification::send($operationsTeam, new WorkCreatedNotice(
+                type: 'appointment_created',
+                message: 'New '.$appointment->serviceType->name.' booking from '.$appointment->user->name.' needs review.',
+                url: route('admin.appointments.show', $appointment),
+                appointmentId: $appointment->id,
+            ));
+        }
+
+        return back()->with('status', 'Booking submitted. Track confirmation and updates in Appointments and Notifications.');
+    }
+
+    private function activeAppointmentForUser(?int $userId): ?Appointment
+    {
+        if (! $userId) {
+            return null;
+        }
+
+        return Appointment::query()
+            ->with('serviceType')
+            ->where('user_id', $userId)
+            ->whereNull('archived_at')
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->where('appointment_at', '>=', now()->startOfMinute())
+            ->orderBy('appointment_at')
+            ->first();
     }
 
     public function orderReceipt(Order $order): View
@@ -355,24 +612,75 @@ class PageController extends Controller
         return view('order-receipt', compact('order'));
     }
 
-    public function estimator(): View
+    public function paymentProof(Request $request, Order $order): StreamedResponse
     {
-        return view('estimator');
+        abort_unless(
+            (int) $order->user_id === (int) $request->user()->id || $request->user()->isStaffOrAdmin(),
+            403
+        );
+        abort_unless($order->payment_proof_path, 404);
+        abort_unless(Storage::disk('local')->exists($order->payment_proof_path), 404);
+
+        return Storage::disk('local')->response($order->payment_proof_path);
     }
 
-    public function account(): View
+    public function appointmentReceipt(Appointment $appointment): View
+    {
+        abort_unless((int) $appointment->user_id === (int) auth()->id(), 403);
+        abort_unless(($appointment->payment_status ?? 'unpaid') === 'paid', 404);
+
+        $appointment->load(['user', 'serviceType']);
+
+        return view('appointment-receipt', compact('appointment'));
+    }
+
+    public function estimator(): View
+    {
+        return view('estimator', [
+            'estimateProducts' => Product::query()
+                ->where('is_active', true)
+                ->whereNull('archived_at')
+                ->where('stock_qty', '>', 0)
+                ->orderBy('category')
+                ->orderBy('name')
+                ->take(12)
+                ->get(['id', 'name', 'category', 'price', 'stock_qty']),
+        ]);
+    }
+
+    public function appointments(Request $request): View
     {
         $user = auth()->user();
 
-        $appointments = Appointment::query()
-            ->with('serviceType')
+        $query = Appointment::query()
+            ->with(['serviceType', 'feedback'])
             ->where('user_id', $user->id)
-            ->whereNull('archived_at')
-            ->orderByDesc('appointment_at')
-            ->limit(10)
-            ->get();
+            ->whereNull('archived_at');
 
-        return view('account', compact('user', 'appointments'));
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('from')) {
+            $query->whereDate('appointment_at', '>=', $request->from);
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('appointment_at', '<=', $request->to);
+        }
+
+        $appointments = $query->orderByDesc('appointment_at')->paginate(8)->withQueryString();
+
+        return view('appointments', compact('appointments'));
+    }
+
+    public function account(): View|RedirectResponse
+    {
+        $user = auth()->user();
+
+        if ($user->isStaffOrAdmin()) {
+            return redirect()->route('admin.account.edit');
+        }
+
+        return view('account', compact('user'));
     }
 
     public function updateAccount(Request $request): RedirectResponse
@@ -382,11 +690,13 @@ class PageController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
+            'phone_number' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
 
         $user->name = $data['name'];
         $user->email = $data['email'];
+        $user->phone_number = $data['phone_number'] ?? $user->phone_number;
 
         if (! empty($data['password'])) {
             $user->password = Hash::make($data['password']);
@@ -395,5 +705,201 @@ class PageController extends Controller
         $user->save();
 
         return back()->with('status', 'Profile updated successfully.');
+    }
+
+    public function cancelOrder(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless((int) $order->user_id === (int) $request->user()->id, 403);
+
+        $data = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if (! in_array($order->status, ['pending', 'confirmed'])) {
+            return back()->with('error', 'This order can no longer be cancelled.');
+        }
+
+        $before = Audit::snapshot($order, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
+        DB::transaction(function () use ($order, $request, $data) {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            abort_unless($lockedOrder->canTransitionTo('cancelled'), 422, 'This order can no longer be cancelled.');
+
+            $lockedOrder->update([
+                'status' => 'cancelled',
+                'cancel_reason' => $data['cancel_reason'] ?? 'Cancelled by customer.',
+                'cancelled_at' => now(),
+                'cancelled_by' => $request->user()->id,
+            ]);
+
+            foreach ($lockedOrder->orderItems()->with('product')->get() as $item) {
+                if ($item->product) {
+                    $item->product->increment('stock_qty', $item->qty);
+                }
+            }
+        });
+
+        $order->refresh()->load('user');
+        Audit::log($request, 'order.cancel', $order, $before, Audit::snapshot($order, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']));
+
+        $this->notifyAdminsOfCancellation(
+            "Customer {$order->user->name} cancelled order #{$order->order_number}.",
+            route('admin.dashboard', ['tab' => 'orders'], false),
+            'order_cancelled',
+            orderId: $order->id,
+        );
+
+        try {
+            Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        try {
+            $admin = User::where('role', 'admin')->first();
+            if ($admin) {
+                Mail::to($admin->email)->send(new OrderStatusUpdated($order));
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return back()->with('status', 'Your order has been cancelled.');
+    }
+
+    private function notifyAdminsOfCancellation(
+        string $message,
+        string $url,
+        string $type,
+        ?int $orderId = null,
+        ?int $appointmentId = null,
+    ): void {
+        User::query()
+            ->whereIn('role', ['admin', 'staff'])
+            ->get()
+            ->each(function (User $admin) use ($message, $url, $type, $orderId, $appointmentId) {
+                $admin->notify(new AdminCancellationNotice($type, $message, $url, $orderId, $appointmentId));
+            });
+    }
+
+    public function notifications(Request $request)
+    {
+        $user = auth()->user();
+        $notifications = $user->notifications()->latest()->take(20)->get()->map(function ($n) {
+            $data = $n->data;
+            $data['url'] = $this->normalizeNotificationUrl($data['url'] ?? null);
+
+            return [
+                'id' => $n->id,
+                'data' => $data,
+                'read_at' => $n->read_at?->toIso8601String(),
+                'created_at' => $n->created_at->diffForHumans(),
+            ];
+        });
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['notifications' => $notifications]);
+        }
+
+        return view('notifications', ['notifications' => $notifications]);
+    }
+
+    public function markNotificationRead(Request $request, string $id): JsonResponse
+    {
+        $notification = auth()->user()->notifications()->where('id', $id)->first();
+        if ($notification) {
+            $notification->markAsRead();
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function markAllNotificationsRead(): JsonResponse
+    {
+        auth()->user()->unreadNotifications->markAsRead();
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function normalizeNotificationUrl(?string $url): string
+    {
+        if (! $url) {
+            return route('home');
+        }
+
+        // If it's already a full URL, return as-is
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        $query = parse_url($url, PHP_URL_QUERY);
+
+        if (! $path || ! str_starts_with($path, '/')) {
+            return route('home');
+        }
+
+        // Build full URL using the app URL base
+        return url($path).($query ? '?'.$query : '');
+    }
+
+    public function cancelAppointment(Request $request, Appointment $appointment): RedirectResponse
+    {
+        $data = $request->validate([
+            'cancel_reason' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+
+        // Customers may only cancel their own upcoming appointments
+        abort_unless(
+            (int) $appointment->user_id === (int) $request->user()->id,
+            403
+        );
+        abort_unless(
+            in_array($appointment->status, ['scheduled', 'confirmed']) && $appointment->appointment_at->isFuture(),
+            422
+        );
+
+        $before = Audit::snapshot($appointment, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
+        $appointment->update([
+            'status' => 'cancelled',
+            'slot_key' => null,
+            'cancel_reason' => $data['cancel_reason'],
+            'cancelled_at' => now(),
+            'cancelled_by' => $request->user()->id,
+        ]);
+        Audit::log(
+            $request,
+            'appointment.cancel.customer',
+            $appointment,
+            $before,
+            Audit::snapshot($appointment, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by'])
+        );
+        $appointment->load(['user', 'serviceType']);
+
+        $service = $appointment->serviceType->name ?? 'Service';
+        $this->notifyAdminsOfCancellation(
+            "Customer {$appointment->user->name} cancelled {$service} appointment.",
+            route('admin.dashboard', ['tab' => 'appointments'], false),
+            'appointment_cancelled',
+            appointmentId: $appointment->id,
+        );
+
+        // Confirm to the customer
+        try {
+            Mail::to($appointment->user->email)->send(new AppointmentStatusUpdated($appointment));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        // Notify the first admin
+        try {
+            $admin = User::where('role', 'admin')->first();
+            if ($admin) {
+                Mail::to($admin->email)->send(new AppointmentStatusUpdated($appointment));
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return back()->with('status', 'Your appointment has been cancelled.');
     }
 }

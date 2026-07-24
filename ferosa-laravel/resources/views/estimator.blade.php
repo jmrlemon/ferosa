@@ -99,24 +99,25 @@
     color: white !important;
   }
 
-  /* ── Slider ─────────────────────────────────────────────────── */
-  input[type="range"] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 9999px; background: #e4e4e7; outline: none; }
-  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: rgb(var(--brand-600)); cursor: pointer; box-shadow: 0 0 0 3px rgba(var(--brand-600),.18); transition: box-shadow .15s; }
-  input[type="range"]::-webkit-slider-thumb:hover { box-shadow: 0 0 0 5px rgba(var(--brand-600),.22); }
-  input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: rgb(var(--brand-600)); cursor: pointer; border: none; }
-
   /* ── Size quick-pick active state ───────────────────────────── */
   .size-btn { transition: border-color .15s, background .15s, color .15s; }
   .size-btn.is-active {
     border-color: rgb(var(--brand-600));
-    background: rgb(var(--brand-600));
-    color: white;
+    background: rgb(var(--brand-50));
+    color: rgb(var(--brand-700));
     font-weight: 600;
   }
 
   /* ── Misc ───────────────────────────────────────────────────── */
   .price-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f4f4f5; }
   .price-row:last-child { border-bottom: none; }
+
+  /* Shared with Android EstimateHero: same gradient, radius, spacing and hierarchy. */
+  .estimate-hero {
+    background: linear-gradient(135deg, #181714 0%, #123c29 52%, #1b5239 100%);
+    border-radius: 20px;
+    box-shadow: 0 1px 2px rgba(18, 52, 38, .08);
+  }
 
   @keyframes countUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
   .price-animate { animation: countUp .25s ease both; }
@@ -129,25 +130,38 @@
 <main class="bg-surface-50 min-h-screen pb-24">
 
   {{-- ── Page Header ─────────────────────────────────────────── --}}
-  <div class="bg-white border-b border-surface-100">
+  <div class="bg-surface-50">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <div class="flex items-start gap-4">
-        <div class="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--brand-600))" stroke-width="2">
-            <path d="M9 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3"/>
-            <rect x="9" y="3" width="6" height="4" rx="1"/>
-            <path d="m9 14 2 2 4-4"/>
-          </svg>
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-[11px] font-bold text-brand-600 uppercase tracking-[.12em]">Cost Estimator</p>
+          <h1 class="text-2xl sm:text-3xl font-sans font-bold text-surface-900 leading-tight mt-1">Plan your project</h1>
+          <p class="text-surface-500 text-sm mt-1">Adjust the options and see your estimate instantly.</p>
         </div>
-        <div>
-          <h1 class="text-xl sm:text-2xl font-display font-bold text-surface-900 leading-tight">Cost Estimator</h1>
-          <p class="text-surface-400 text-sm mt-1">Answer a few questions to get a personalised project estimate in seconds.</p>
+        <div class="w-12 h-12 rounded-[14px] bg-brand-50 flex items-center justify-center flex-shrink-0">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--brand-700))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="2" width="16" height="20" rx="2"/>
+            <line x1="8" y1="6" x2="16" y2="6"/>
+            <line x1="8" y1="11" x2="12" y2="11"/><line x1="10" y1="9" x2="10" y2="13"/>
+            <line x1="15" y1="10" x2="18" y2="13"/><line x1="18" y1="10" x2="15" y2="13"/>
+            <line x1="8" y1="17" x2="12" y2="17"/><line x1="15" y1="17" x2="18" y2="17"/>
+          </svg>
         </div>
       </div>
     </div>
   </div>
 
   <div class="max-w-5xl mx-auto px-4 sm:px-6 pt-8">
+    {{-- Mobile summary mirrors the native Android hero before the estimator steps. --}}
+    <section class="estimate-hero lg:hidden px-5 py-5 mb-5 text-white" aria-label="Current estimate" aria-live="polite">
+      <p class="text-[11px] font-bold text-white/60 uppercase tracking-wider">Your Estimate</p>
+      <div data-estimate-total class="text-[34px] leading-none font-sans font-bold tracking-tight text-white price-animate mt-2">&#8369;5,000</div>
+      <p data-estimate-summary class="text-white/80 text-sm mt-3 truncate">Garden Design | 100 sq m | Standard</p>
+      <p class="text-white/60 text-xs font-medium mt-3">
+        Typical range <span data-range-low>&#8369;4,000</span> &ndash; <span data-range-high>&#8369;6,250</span>
+      </p>
+    </section>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
       {{-- ── Left: Steps ──────────────────────────────────────── --}}
@@ -158,8 +172,8 @@
           <div class="flex items-center gap-3 px-5 py-4 border-b border-surface-50">
             <span class="step-badge bg-brand-600 text-white">1</span>
             <div>
-              <h3 class="text-sm font-semibold text-surface-900">Project Type</h3>
-              <p class="text-xs text-surface-400">What kind of project are you planning?</p>
+              <h3 class="text-sm font-semibold text-surface-900">Project type</h3>
+              <p class="text-xs text-surface-400">What are you planning?</p>
             </div>
           </div>
           <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -196,35 +210,26 @@
           <div class="flex items-center gap-3 px-5 py-4 border-b border-surface-50">
             <span class="step-badge bg-brand-600 text-white">2</span>
             <div>
-              <h3 class="text-sm font-semibold text-surface-900">Property Size</h3>
-              <p class="text-xs text-surface-400">Drag the slider to set your area in square metres.</p>
+              <h3 class="text-sm font-semibold text-surface-900">Property size</h3>
+              <p class="text-xs text-surface-400">Enter the area in square metres.</p>
             </div>
           </div>
           <div class="p-5">
-            <div class="flex items-center justify-between mb-5">
-              <span class="text-surface-500 text-xs">Area</span>
-              <div class="flex items-center gap-2">
-                <span id="size-label" class="text-lg font-display font-bold text-surface-900">100</span>
-                <span class="text-surface-400 text-sm">sq m</span>
-              </div>
+            <div class="relative mb-1">
+              <input type="number" id="size-input" min="1" step="1" value="100" placeholder="e.g. 2500"
+                     class="w-full border border-surface-200 rounded-xl px-4 py-3.5 text-2xl font-display font-bold text-surface-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition-all pr-20"
+                     oninput="updateSizeUI(); calculate()">
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 text-sm font-medium pointer-events-none">sq m</span>
             </div>
-            <input type="range" id="size-slider" min="10" max="1000" step="10" value="100"
-                   class="w-full cursor-pointer" oninput="updateSizeUI(); calculate()">
-            <div class="flex justify-between mt-3 text-[10px] text-surface-300 font-medium">
-              <span>10 sq m</span>
-              <span>250 sq m</span>
-              <span>500 sq m</span>
-              <span>750 sq m</span>
-              <span>1,000 sq m</span>
-            </div>
+            <p id="size-error" class="hidden text-xs text-red-500 mt-1 mb-2">Please enter a valid size greater than 0.</p>
 
             {{-- Quick-pick buttons --}}
             <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-50">
               <span class="text-[11px] text-surface-400 self-center mr-1">Quick pick:</span>
-              @foreach ([10, 50, 100, 200, 500, 1000] as $sz)
+              @foreach ([50, 100, 250, 500, 1000, 2000, 5000] as $sz)
               <button type="button" onclick="setSize({{ $sz }})"
                       class="size-btn text-xs px-3 py-1.5 rounded-lg border border-surface-200 text-surface-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 transition-colors font-medium">
-                {{ $sz }} sq m
+                {{ number_format($sz) }} sq m
               </button>
               @endforeach
             </div>
@@ -236,19 +241,19 @@
           <div class="flex items-center gap-3 px-5 py-4 border-b border-surface-50">
             <span class="step-badge bg-brand-600 text-white">3</span>
             <div>
-              <h3 class="text-sm font-semibold text-surface-900">Quality Tier</h3>
-              <p class="text-xs text-surface-400">Choose the finish level that matches your expectations.</p>
+              <h3 class="text-sm font-semibold text-surface-900">Quality tier</h3>
+              <p class="text-xs text-surface-400">Choose the finish level.</p>
             </div>
           </div>
           <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
             @foreach ([
-              ['standard',  'Standard',  '1×', 'Budget-friendly materials with solid craftsmanship.',  'bg-zinc-100 text-zinc-500'],
-              ['premium',   'Premium',   '1.6×','Higher-grade plants and materials with more detail.',  'bg-violet-50 text-violet-600'],
-              ['luxury',    'Luxury',    '2.4×','Top-tier finishes, rare plants, and bespoke design.',  'bg-amber-50 text-amber-600'],
+              ['standard', 'Standard', '1×', 'Budget-friendly materials with solid craftsmanship.', 'bg-zinc-100 text-zinc-600'],
+              ['premium', 'Premium', '1.6×', 'Higher-grade plants and materials with more visual detail.', 'bg-violet-50 text-violet-700'],
+              ['luxury', 'Luxury', '2.4×', 'Top-tier finishes, specimen plants, and bespoke design.', 'bg-amber-50 text-amber-700'],
             ] as [$val, $label, $mult, $desc, $badgeClass])
             <label class="tier-card cursor-pointer">
               <input type="radio" name="quality_tier" value="{{ $val }}" data-mult="{{ $mult }}" class="sr-only" {{ $val === 'standard' ? 'checked' : '' }} onchange="calculate()">
-              <div class="tier-body border border-surface-200 rounded-xl p-4 hover:border-brand-200">
+              <div class="tier-body h-full border border-surface-200 rounded-xl p-4 hover:border-brand-200">
                 <div class="flex items-center justify-between mb-2">
                   <span class="text-sm font-semibold text-surface-900">{{ $label }}</span>
                   {{-- Plain dot (unselected) --}}
@@ -259,7 +264,8 @@
                   </span>
                 </div>
                 <p class="text-[11px] text-surface-400 leading-snug mb-3">{{ $desc }}</p>
-                <span class="inline-block text-[10px] font-bold {{ $badgeClass }} px-2 py-0.5 rounded-full">{{ $mult }} multiplier</span>
+                <span class="mt-3 inline-block text-[10px] font-bold {{ $badgeClass }} px-2 py-0.5 rounded-full">{{ $mult }} multiplier</span>
+                <p class="mt-2 text-[10px] font-medium text-brand-700">See visualization in the package preview</p>
               </div>
             </label>
             @endforeach
@@ -272,13 +278,13 @@
             <span class="step-badge bg-brand-600 text-white">4</span>
             <div class="flex-1">
               <div class="flex items-center gap-2">
-                <h3 class="text-sm font-semibold text-surface-900">Extra Features</h3>
+                <h3 class="text-sm font-semibold text-surface-900">Extra features</h3>
                 <span id="addon-count-badge" class="hidden items-center gap-1 text-[10px] font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
                   <span id="addon-count-text">0</span> selected
                 </span>
               </div>
-              <p class="text-xs text-surface-400">Select any additional features you'd like included.</p>
+              <p class="text-xs text-surface-400">Optional add-ons</p>
             </div>
           </div>
           <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -315,18 +321,78 @@
           </div>
         </div>
 
+        {{-- Step 5: Products / Materials --}}
+        <div class="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
+          <div class="flex items-center gap-3 px-5 py-4 border-b border-surface-50">
+            <span class="step-badge bg-brand-600 text-white">5</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-semibold text-surface-900">Products / Materials</h3>
+                <span id="product-count-badge" class="hidden items-center gap-1 text-[10px] font-semibold bg-brand-600 text-white px-2 py-0.5 rounded-full">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span id="product-count-text">0</span> selected
+                </span>
+              </div>
+              <p class="text-xs text-surface-400">Optional shop items to include in the estimate.</p>
+            </div>
+          </div>
+          <div class="p-5">
+            @if (($estimateProducts ?? collect())->isNotEmpty())
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                @foreach ($estimateProducts as $product)
+                  <div class="estimate-product border border-surface-200 rounded-xl p-3.5 hover:border-brand-200 transition-colors"
+                       data-name="{{ $product->name }}"
+                       data-price="{{ (float) $product->price }}">
+                    <div class="flex items-start gap-3">
+                      <input type="checkbox"
+                             class="estimate-product-check mt-1 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
+                             onchange="toggleEstimateProduct(this); calculate()">
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <p class="text-sm font-medium text-surface-800 truncate">{{ $product->name }}</p>
+                            <p class="text-[10px] text-surface-400 capitalize">{{ $product->category }} &middot; {{ $product->stock_qty }} in stock</p>
+                          </div>
+                          <p class="text-xs font-semibold text-brand-600 whitespace-nowrap">&#8369;{{ number_format((float) $product->price, 2) }}</p>
+                        </div>
+                        <div class="estimate-product-qty mt-3 hidden items-center justify-between gap-3">
+                          <span class="text-[10px] text-surface-400">Quantity</span>
+                          <input type="number" min="1" step="1" value="1"
+                                 class="w-20 border border-surface-200 rounded-lg px-2 py-1.5 text-xs text-surface-700 outline-none focus:border-brand-500"
+                                 oninput="calculate()">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                @endforeach
+              </div>
+            @else
+              <div class="rounded-xl border border-dashed border-surface-200 p-5 text-center">
+                <p class="text-sm font-medium text-surface-700">No active products available</p>
+                <p class="text-xs text-surface-400 mt-1">Add active products in admin to include materials in estimates.</p>
+              </div>
+            @endif
+          </div>
+        </div>
+
       </div>{{-- end left col --}}
 
       {{-- ── Right: Estimate Card ──────────────────────────────── --}}
       <div class="lg:col-span-1">
-        <div class="bg-white rounded-2xl border border-surface-100 shadow-sm sticky top-6 overflow-hidden">
+        <div class="sticky top-6 space-y-4">
 
           {{-- Card header --}}
-          <div class="bg-gradient-to-br from-surface-900 to-surface-800 px-5 py-5">
-            <p class="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-1">Your Estimate</p>
-            <div id="total-price" class="text-4xl font-display font-bold text-white price-animate">₱5,000</div>
-            <p class="text-white/40 text-[11px] mt-1">Rough industry-average estimate</p>
-          </div>
+          <section class="estimate-hero hidden lg:block px-5 py-5 text-white" aria-label="Current estimate" aria-live="polite">
+            <p class="text-[11px] font-bold text-white/60 uppercase tracking-wider">Your Estimate</p>
+            <div id="total-price" data-estimate-total class="text-[34px] leading-none font-sans font-bold tracking-tight text-white price-animate mt-2">&#8369;5,000</div>
+            <p data-estimate-summary class="text-white/80 text-sm mt-3 truncate">Garden Design | 100 sq m | Standard</p>
+            <p class="text-white/60 text-xs font-medium mt-3">
+              Typical range <span id="range-low" data-range-low>&#8369;4,000</span>
+              &ndash; <span id="range-high" data-range-high>&#8369;6,250</span>
+            </p>
+          </section>
+
+          <div class="bg-white rounded-2xl border border-surface-100 shadow-sm overflow-hidden">
 
           {{-- Breakdown --}}
           <div class="px-5 py-4 border-b border-surface-100">
@@ -344,13 +410,56 @@
             </div>
           </div>
 
-          {{-- Range note --}}
-          <div class="px-5 py-3 bg-surface-50 border-b border-surface-100">
-            <p class="text-[10px] text-surface-400 leading-relaxed">
-              Actual range: <span class="font-semibold text-surface-700" id="range-low">₱4,000</span>
-              &ndash; <span class="font-semibold text-surface-700" id="range-high">₱6,500</span>
-            </p>
-            <p class="text-[10px] text-surface-300 mt-0.5">Based on ±20% typical variation.</p>
+          {{-- Generated package visualization --}}
+          <div class="px-5 py-4 border-b border-surface-100">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Generated Package</p>
+                <h3 id="package-title" class="text-sm font-semibold text-surface-900 mt-0.5">Garden Design Package</h3>
+              </div>
+              <span id="package-pill" class="text-[10px] font-semibold px-2 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100">Standard</span>
+            </div>
+            <div class="mb-3 overflow-hidden rounded-xl border border-surface-100 bg-surface-100 shadow-sm">
+              <button type="button"
+                      onclick="openPackageZoom()"
+                      aria-label="Open a larger view of the selected package visualization"
+                      class="group relative mx-auto block aspect-[3/4] w-full max-w-xs cursor-zoom-in overflow-hidden bg-surface-200 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500">
+                <img id="package-visual-sprite"
+                     src="{{ asset('images/tier-package-visuals.png') }}"
+                     alt="Standard starter garden package visualization"
+                     class="absolute inset-y-0 left-0 h-auto min-h-full w-[300%] max-w-none object-cover transition-transform duration-500 ease-out"
+                     style="transform: translateX(0%);">
+                <span class="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-black/55 px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-sm transition group-hover:bg-black/70" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <path d="m20 20-4-4"/>
+                    <path d="M11 8v6M8 11h6"/>
+                  </svg>
+                  Zoom
+                </span>
+                <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-4 pt-16 text-white">
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-white/70">Example creation</p>
+                  <p id="package-visual-title" class="mt-0.5 text-sm font-semibold">Starter Garden</p>
+                  <p id="package-visual-caption" class="mt-1 text-[11px] leading-snug text-white/85">A practical garden using common plants, lawn, and simple edging.</p>
+                </div>
+              </button>
+            </div>
+            <div class="rounded-xl border border-surface-100 bg-white overflow-hidden">
+              <div class="grid grid-cols-2 divide-x divide-surface-100 border-b border-surface-100">
+                <div class="p-3">
+                  <p class="text-[10px] text-surface-400">Area</p>
+                  <p id="package-area" class="text-xs font-semibold text-surface-800 mt-0.5">100 sq m</p>
+                </div>
+                <div class="p-3">
+                  <p class="text-[10px] text-surface-400">Items</p>
+                  <p id="package-item-count" class="text-xs font-semibold text-surface-800 mt-0.5">1 service</p>
+                </div>
+              </div>
+              <div class="p-3">
+                <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-1.5">Includes</p>
+                <div id="package-includes" class="space-y-1.5"></div>
+              </div>
+            </div>
           </div>
 
           {{-- CTA --}}
@@ -380,12 +489,44 @@
               Estimates are indicative only. A site visit may be required for an accurate quote.
             </p>
           </div>
+          </div>
         </div>
       </div>
 
     </div>{{-- end grid --}}
   </div>{{-- end container --}}
 </main>
+
+{{-- Package visualization zoom dialog --}}
+<div id="package-zoom-dialog"
+     class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="package-zoom-title"
+     onclick="closePackageZoomFromBackdrop(event)">
+  <div class="relative overflow-hidden rounded-2xl border border-white/20 bg-surface-900 shadow-2xl"
+       style="height: min(82vh, calc(92vw * 1.3333)); aspect-ratio: 3 / 4;">
+    <img id="package-zoom-image"
+         src="{{ asset('images/tier-package-visuals.png') }}"
+         alt="Standard starter garden package visualization"
+         class="absolute inset-y-0 left-0 h-auto min-h-full w-[300%] max-w-none object-cover transition-transform duration-500 ease-out"
+         style="transform: translateX(0%);">
+    <button id="package-zoom-close"
+            type="button"
+            onclick="closePackageZoom()"
+            aria-label="Close enlarged package visualization"
+            class="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-black/60 text-white shadow-md backdrop-blur-sm transition hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </svg>
+    </button>
+    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-5 pb-5 pt-24 text-white">
+      <p class="text-[10px] font-semibold uppercase tracking-wider text-white/70">Example creation</p>
+      <p id="package-zoom-title" class="mt-1 text-lg font-semibold">Starter Garden</p>
+      <p id="package-zoom-caption" class="mt-1 max-w-md text-sm leading-snug text-white/85">A practical garden using common plants, lawn, and simple edging.</p>
+    </div>
+  </div>
+</div>
 
 @include('partials.mobile-bottom-customer')
 @endsection
@@ -396,24 +537,65 @@
   const BASE_RATES = { design: 50, maintenance: 10, hardscaping: 120 };   // ₱ per sq m
   const TIER_MULT  = { standard: 1.0, premium: 1.6, luxury: 2.4 };
   const TIER_LABEL = { standard: 'Standard (1×)', premium: 'Premium (1.6×)', luxury: 'Luxury (2.4×)' };
+  const TIER_NAME = { standard: 'Standard', premium: 'Premium', luxury: 'Luxury' };
+  const PROJECT_NAME = { design: 'Garden Design', maintenance: 'Maintenance', hardscaping: 'Hardscaping' };
+  const TIER_EXAMPLES = {
+    standard: ['Common shrubs and groundcover', 'Basic soil preparation', 'Simple edging and layout'],
+    premium: ['Mature plants and layered planting', 'Decorative stone and edging', 'Selected garden lighting'],
+    luxury: ['Rare or specimen plants', 'Custom hardscape and irrigation', 'Water feature or signature focal point'],
+  };
+  const TIER_VISUALS = {
+    standard: {
+      title: 'Starter Garden',
+      caption: 'A practical garden using common plants, lawn, and simple edging.',
+      alt: 'Standard starter garden package visualization',
+      position: 0,
+    },
+    premium: {
+      title: 'Enhanced Garden',
+      caption: 'A polished garden with mature planting, a refined path, stone edging, and lighting.',
+      alt: 'Premium enhanced garden package visualization',
+      position: -33.333,
+    },
+    luxury: {
+      title: 'Signature Landscape',
+      caption: 'A bespoke landscape with specimen plants, custom stonework, lighting, and a water feature.',
+      alt: 'Luxury signature landscape package visualization',
+      position: -66.666,
+    },
+  };
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
   function fmt(n) {
-    return '₱' + Math.round(n).toLocaleString('en-PH');
+    return '\u20B1' + Math.round(n).toLocaleString('en-PH');
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function updateSizeUI() {
-    const v = document.getElementById('size-slider').value;
-    document.getElementById('size-label').textContent = parseInt(v).toLocaleString();
+    const input = document.getElementById('size-input');
+    const v = parseInt(input.value) || 0;
+    const errorEl = document.getElementById('size-error');
+    const invalid = v <= 0 && input.value !== '';
+    errorEl.classList.toggle('hidden', !invalid);
+    input.classList.toggle('border-red-400', invalid);
+    input.classList.toggle('border-surface-200', !invalid);
     // highlight matching quick-pick
     document.querySelectorAll('.size-btn').forEach(btn => {
-      const match = btn.textContent.trim().startsWith(v + ' ');
-      btn.classList.toggle('is-active', match);
+      const btnVal = parseInt(btn.textContent.replace(/[^0-9]/g, ''));
+      btn.classList.toggle('is-active', btnVal === v);
     });
   }
 
   function setSize(val) {
-    document.getElementById('size-slider').value = val;
+    document.getElementById('size-input').value = val;
     updateSizeUI();
     calculate();
   }
@@ -425,7 +607,7 @@
     if (!typeEl || !tierEl) return;
 
     const type  = typeEl.value;
-    const size  = parseInt(document.getElementById('size-slider').value) || 0;
+    const size  = parseInt(document.getElementById('size-input').value) || 0;
     const rate  = BASE_RATES[type] || 50;
     const mult  = TIER_MULT[tierEl.value] || 1;
     const base  = rate * size * mult;
@@ -443,14 +625,35 @@
       }
     });
 
-    const total = base + extrasTotal;
+    let productsTotal = 0;
+    const productRows = [];
+    document.querySelectorAll('.estimate-product').forEach(card => {
+      const cb = card.querySelector('.estimate-product-check');
+      if (!cb?.checked) return;
+
+      const qtyInput = card.querySelector('.estimate-product-qty input');
+      const qty = Math.max(1, parseInt(qtyInput?.value) || 1);
+      const price = parseFloat(card.dataset.price) || 0;
+      const amount = price * qty;
+      const label = card.dataset.name || 'Product';
+      productsTotal += amount;
+      productRows.push({ label, qty, price, amount });
+    });
+
+    const total = base + extrasTotal + productsTotal;
 
     // ── Update total ──
-    const totalEl = document.getElementById('total-price');
-    totalEl.textContent = fmt(total);
-    totalEl.classList.remove('price-animate');
-    void totalEl.offsetWidth;
-    totalEl.classList.add('price-animate');
+    document.querySelectorAll('[data-estimate-total]').forEach(totalEl => {
+      totalEl.textContent = fmt(total);
+      totalEl.classList.remove('price-animate');
+      void totalEl.offsetWidth;
+      totalEl.classList.add('price-animate');
+    });
+
+    const estimateSummary = `${PROJECT_NAME[type]} | ${size.toLocaleString()} sq m | ${TIER_NAME[tierEl.value]}`;
+    document.querySelectorAll('[data-estimate-summary]').forEach(summaryEl => {
+      summaryEl.textContent = estimateSummary;
+    });
 
     // ── Update breakdown ──
     const typeLabel = { design: 'Design', maintenance: 'Maintenance', hardscaping: 'Hardscaping' }[type];
@@ -458,14 +661,21 @@
     document.getElementById('base-amount').textContent = fmt(base);
     document.getElementById('tier-label').textContent  = TIER_LABEL[tierEl.value];
 
-    // Addon rows
+    // Addon and product rows
     const addonContainer = document.getElementById('addon-rows');
-    addonContainer.innerHTML = addonRows.map(r => `
+    const addonHtml = addonRows.map(r => `
       <div class="price-row">
-        <span class="text-surface-600 text-xs">${r.label}</span>
+        <span class="text-surface-600 text-xs">${escapeHtml(r.label)}</span>
         <span class="font-medium text-surface-800 text-xs">${fmt(r.amount)}</span>
       </div>
-    `).join('') + (addonRows.length ? `
+    `).join('');
+    const productHtml = productRows.map(r => `
+      <div class="price-row">
+        <span class="text-surface-600 text-xs">${escapeHtml(r.label)} x ${r.qty}</span>
+        <span class="font-medium text-surface-800 text-xs">${fmt(r.amount)}</span>
+      </div>
+    `).join('');
+    addonContainer.innerHTML = addonHtml + productHtml + ((addonRows.length || productRows.length) ? `
       <div class="price-row font-semibold">
         <span class="text-surface-800 text-xs">Total</span>
         <span class="text-surface-900 text-xs">${fmt(total)}</span>
@@ -473,15 +683,125 @@
     ` : '');
 
     // ── Range ──
-    document.getElementById('range-low').textContent  = fmt(total * 0.8);
-    document.getElementById('range-high').textContent = fmt(total * 1.25);
+    document.querySelectorAll('[data-range-low]').forEach(el => { el.textContent = fmt(total * 0.8); });
+    document.querySelectorAll('[data-range-high]').forEach(el => { el.textContent = fmt(total * 1.25); });
+
+    updateGeneratedPackage({
+      type,
+      typeLabel,
+      tier: tierEl.value,
+      size,
+      base,
+      addonRows,
+      productRows,
+    });
   }
 
   // ─── AR Visualizer ───────────────────────────────────────────────────────
+  function updateGeneratedPackage(data) {
+    const packageName = `${data.typeLabel} Package`;
+    const tierName = data.tier.charAt(0).toUpperCase() + data.tier.slice(1);
+    const addonCount = data.addonRows.length;
+    const productCount = data.productRows.reduce((sum, item) => sum + item.qty, 0);
+    const itemCount = 1 + addonCount + productCount;
+
+    document.getElementById('package-title').textContent = packageName;
+    document.getElementById('package-pill').textContent = tierName;
+    document.getElementById('package-area').textContent = `${data.size.toLocaleString()} sq m`;
+    document.getElementById('package-item-count').textContent = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+
+    const visual = TIER_VISUALS[data.tier] || TIER_VISUALS.standard;
+    const visualImage = document.getElementById('package-visual-sprite');
+    visualImage.style.transform = `translateX(${visual.position}%)`;
+    visualImage.alt = visual.alt;
+    const zoomImage = document.getElementById('package-zoom-image');
+    zoomImage.style.transform = `translateX(${visual.position}%)`;
+    zoomImage.alt = visual.alt;
+    document.getElementById('package-visual-title').textContent = visual.title;
+    document.getElementById('package-visual-caption').textContent = visual.caption;
+    document.getElementById('package-zoom-title').textContent = visual.title;
+    document.getElementById('package-zoom-caption').textContent = visual.caption;
+
+    const serviceLine = `
+      <div class="flex items-start justify-between gap-3">
+        <span class="text-xs text-surface-600">Service: ${escapeHtml(data.typeLabel)}</span>
+        <span class="text-xs font-semibold text-surface-800">${fmt(data.base)}</span>
+      </div>
+    `;
+    const tierLines = (TIER_EXAMPLES[data.tier] || []).map(item => `
+      <div class="flex items-start gap-2">
+        <span class="text-brand-600">✓</span>
+        <span class="text-xs text-surface-600">${escapeHtml(item)}</span>
+      </div>
+    `).join('');
+    const addonLines = data.addonRows.map(row => `
+      <div class="flex items-start justify-between gap-3">
+        <span class="text-xs text-surface-600">${escapeHtml(row.label)}</span>
+        <span class="text-xs font-semibold text-surface-800">${fmt(row.amount)}</span>
+      </div>
+    `).join('');
+    const productLines = data.productRows.map(row => `
+      <div class="flex items-start justify-between gap-3">
+        <span class="text-xs text-surface-600">${escapeHtml(row.label)} x ${row.qty}</span>
+        <span class="text-xs font-semibold text-surface-800">${fmt(row.amount)}</span>
+      </div>
+    `).join('');
+
+    document.getElementById('package-includes').innerHTML = serviceLine + tierLines + addonLines + productLines;
+  }
+
+  let packageZoomReturnFocus = null;
+
+  function openPackageZoom() {
+    const dialog = document.getElementById('package-zoom-dialog');
+    packageZoomReturnFocus = document.activeElement;
+    dialog.classList.remove('hidden');
+    dialog.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+    document.getElementById('package-zoom-close').focus();
+  }
+
+  function closePackageZoom() {
+    const dialog = document.getElementById('package-zoom-dialog');
+    if (dialog.classList.contains('hidden')) return;
+    dialog.classList.add('hidden');
+    dialog.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+    packageZoomReturnFocus?.focus();
+  }
+
+  function closePackageZoomFromBackdrop(event) {
+    if (event.target === event.currentTarget) closePackageZoom();
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closePackageZoom();
+  });
+
+  function toggleEstimateProduct(checkbox) {
+    const card = checkbox.closest('.estimate-product');
+    const qty = card.querySelector('.estimate-product-qty');
+    card.classList.toggle('border-brand-500', checkbox.checked);
+    card.classList.toggle('bg-brand-50', checkbox.checked);
+    qty.classList.toggle('hidden', !checkbox.checked);
+    qty.classList.toggle('flex', checkbox.checked);
+    updateProductCount();
+  }
+
+  function updateProductCount() {
+    const checked = document.querySelectorAll('.estimate-product-check:checked').length;
+    const badge = document.getElementById('product-count-badge');
+    const text = document.getElementById('product-count-text');
+    if (!badge || !text) return;
+    text.textContent = checked;
+    badge.classList.toggle('hidden', checked === 0);
+    badge.classList.toggle('inline-flex', checked > 0);
+  }
+
   function openArVisualizer() {
     const type  = document.querySelector('input[name="project_type"]:checked')?.value || 'design';
-    const size  = document.getElementById('size-slider')?.value || '100';
-    const cost  = document.getElementById('total-price')?.textContent?.replace(/[^0-9]/g, '') || '0';
+    const size  = document.getElementById('size-input')?.value || '100';
+    const cost  = document.querySelector('[data-estimate-total]')?.textContent?.replace(/[^0-9]/g, '') || '0';
     const id    = 'est-' + Date.now();
     const link  = `ferosa://ar?designId=${id}&type=${type}&size=${size}&cost=${cost}`;
 
@@ -526,7 +846,7 @@
 
   // ─── Share ────────────────────────────────────────────────────────────────
   function shareEstimate() {
-    const total = document.getElementById('total-price')?.textContent || '';
+    const total = document.querySelector('[data-estimate-total]')?.textContent || '';
     const text  = `My Ferosa landscaping estimate: ${total}. Get yours at ${location.href}`;
     if (navigator.share) {
       navigator.share({ title: 'Ferosa Cost Estimate', text, url: location.href });
@@ -549,6 +869,7 @@
     updateSizeUI();
     calculate();
     updateAddonCount();
+    updateProductCount();
   });
 </script>
 @endsection

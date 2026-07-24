@@ -50,8 +50,9 @@ class AuthController extends Controller
     {
         $data = $request->validated();
 
+        $nameParts = array_filter([$data['first_name'], $data['middle_name'] ?? null, $data['last_name']]);
         $user = User::create([
-            'name'         => $data['name'],
+            'name'         => implode(' ', $nameParts),
             'email'        => $data['email'],
             'phone_number' => $data['phone_number'],
             'password'     => Hash::make($data['password']),
@@ -77,5 +78,17 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    public function logoutFallback(Request $request): RedirectResponse
+    {
+        if (Auth::check()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return redirect()->route('login')
+            ->with('status', 'You have been signed out.');
     }
 }

@@ -8,7 +8,11 @@
   <p>Hi {{ $order->user->name ?? 'there' }},</p>
   <p>Thank you for your order. We received it and will prepare it for fulfillment.</p>
   <p><strong>Order number:</strong> {{ $order->order_number }}<br>
-     <strong>Total:</strong> PHP {{ number_format((float) $order->total_amount, 2) }}</p>
+     <strong>Total:</strong> PHP {{ number_format((float) $order->total_amount, 2) }}<br>
+     <strong>Payment:</strong> {{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'unpaid')) }}</p>
+  @if($order->payment_method === 'gcash')
+    <p>Your GCash receipt was received privately. An administrator will verify the reference and amount before fulfillment.</p>
+  @endif
   @if (is_array($order->items) && count($order->items))
     <p><strong>Items</strong></p>
     <ul>

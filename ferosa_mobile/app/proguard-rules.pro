@@ -1,21 +1,42 @@
 # Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep line numbers for crash reports
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ─── Retrofit / Gson ────────────────────────────────────────────────────────
+# Keep Retrofit service interfaces
+-keep,allowobfuscation interface com.example.ferosa_landscaping.data.api.ApiService
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep Gson serialized model classes (DTOs)
+-keep class com.example.ferosa_landscaping.data.api.models.** { *; }
+
+# Retrofit needs these
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class retrofit2.** { *; }
+-keepclasseswithmembers class * {
+    @retrofit2.http.* <methods>;
+}
+
+# Gson
+-keep class com.google.gson.** { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# ─── OkHttp ─────────────────────────────────────────────────────────────────
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+
+# ─── SceneView / ARCore ─────────────────────────────────────────────────────
+-keep class io.github.sceneview.** { *; }
+-keep class com.google.ar.** { *; }
+-dontwarn com.google.ar.**
+
+# ─── ModelCacheManager metadata (serialized with Gson) ───────────────────────
+-keep class com.example.ferosa_landscaping.data.cache.ModelCacheManager$CacheEntry { *; }
+
+# ─── Kotlin coroutines ──────────────────────────────────────────────────────
+-dontwarn kotlinx.coroutines.**

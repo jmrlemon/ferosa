@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Appointment;
 
 class Feedback extends Model
 {
@@ -12,6 +13,7 @@ class Feedback extends Model
     protected $fillable = [
         'user_id',
         'order_id',
+        'appointment_id',
         'product_id',
         'service_type_id',
         'rating',
@@ -26,6 +28,11 @@ class Feedback extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function appointment(): BelongsTo
+    {
+        return $this->belongsTo(Appointment::class);
     }
 
     public function product(): BelongsTo

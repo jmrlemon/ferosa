@@ -4,24 +4,44 @@
 
 @section('styles')
 <style>
-  .cal-day { transition: background .12s, color .12s; }
+  .cal-day { min-height: 38px; transition: background .12s, color .12s, border-color .12s; }
   .cal-day:not(.past):not(.empty):hover { background: #f0faf0; color: #1a6320; }
   .cal-day.selected { background: #1f7a1f; color: #fff; font-weight: 600; border-radius: 8px; }
   .cal-day.today { outline: 2px solid #1f7a1f; border-radius: 8px; outline-offset: -2px; }
   .cal-day.past { color: #d4d4d4; cursor: not-allowed; }
-  .time-slot { transition: border-color .12s, background .12s, color .12s; }
+  .time-slot { transition: border-color .12s, background .12s, color .12s, opacity .12s; }
   .time-slot.selected { border-color: #1f7a1f; background: #f0faf0; color: #1a6320; font-weight: 600; }
+  .time-slot:disabled,
+  .time-slot.booked {
+    opacity: 0.65;
+    border-color: #e4e4e7;
+    background: #fafafa;
+    color: #a1a1aa;
+    cursor: not-allowed;
+    font-weight: 500;
+  }
 </style>
 @endsection
 
 @section('content')
-<main class="max-w-3xl mx-auto px-4 sm:px-6 py-10 pb-28">
+<main class="customer-page max-w-3xl">
 
   {{-- Page header --}}
   <div class="mb-8">
     <h1 class="text-2xl font-display font-bold text-surface-900 mb-1" id="page-title">Book a Service</h1>
-    <p class="text-surface-400 text-sm">Select a date and time for your landscaping consultation or service.</p>
+    <p class="text-surface-500 text-sm">Choose your service first, then pick an available date and time.</p>
   </div>
+
+  <section class="mb-6 overflow-hidden rounded-2xl border border-brand-100 bg-white" aria-label="Booking progress">
+    <div class="grid grid-cols-2 sm:grid-cols-4">
+      @foreach([['1', 'Service'], ['2', 'Date'], ['3', 'Time'], ['4', 'Confirm']] as [$number, $label])
+        <div class="flex items-center gap-2 border-b border-r border-brand-50 px-3 py-3 last:border-r-0 sm:border-b-0">
+          <span class="flex h-6 w-6 items-center justify-center rounded-full {{ $number === '1' ? 'bg-brand-700 text-white' : 'bg-brand-50 text-brand-700' }} text-[10px] font-bold">{{ $number }}</span>
+          <span class="text-xs font-bold text-surface-700">{{ $label }}</span>
+        </div>
+      @endforeach
+    </div>
+  </section>
 
   {{-- Success flash --}}
   @if (session('status'))
@@ -42,6 +62,20 @@
     </div>
   @endif
 
+  @if ($activeAppointment ?? null)
+    <div class="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+      <p class="font-semibold">You already have an active booking.</p>
+      <p class="mt-1">
+        {{ $activeAppointment->serviceType->name ?? 'Service' }} on
+        {{ $activeAppointment->appointment_at->format('M d, Y \a\t g:i A') }}.
+        Please cancel or complete this booking before scheduling another service.
+      </p>
+      <a href="{{ route('appointments') }}" class="inline-flex mt-2 text-xs font-semibold text-amber-900 hover:text-amber-700">
+        View appointment
+      </a>
+    </div>
+  @endif
+
   {{-- Booking form --}}
   <form method="POST" action="{{ route('schedule.store') }}" id="booking-form">
     @csrf
@@ -53,18 +87,53 @@
 
     <div id="booking-container" class="grid grid-cols-1 md:grid-cols-5 gap-6">
 
+      {{-- Service first --}}
+      <div class="md:col-span-5 customer-card p-5 sm:p-6">
+        <div class="grid md:grid-cols-[1fr_1.25fr] gap-5 md:items-center">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-6 h-6 rounded-full bg-brand-700 text-white text-[10px] font-bold flex items-center justify-center">1</span>
+              <p class="text-[10px] font-bold uppercase tracking-[.13em] text-brand-600">Choose a service</p>
+            </div>
+            <h2 class="font-display text-xl font-bold text-surface-900">What can we help with?</h2>
+            <p class="mt-2 text-xs leading-5 text-surface-500">Starting fees are shown before you choose a visit. The team will confirm final scope and cost with you.</p>
+          </div>
+          <div>
+            <label for="service-type-select" class="block text-xs font-bold text-surface-700 mb-2">Landscaping service</label>
+            <select id="service-type-select"
+              class="w-full border border-surface-200 rounded-xl px-3.5 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition-colors">
+              @forelse (($serviceTypes ?? []) as $st)
+                <option value="{{ $st->id }}" {{ (string) request('service') === (string) $st->id ? 'selected' : '' }}>
+                  {{ $st->name }} - from PHP {{ number_format((float) $st->default_fee, 0) }}
+                </option>
+              @empty
+                <option value="">No services available</option>
+              @endforelse
+            </select>
+            @if(empty($serviceTypes) || count($serviceTypes) === 0)
+              <div class="rounded-lg border border-amber-100 bg-amber-50 text-amber-700 text-xs px-3 py-2 mt-3">
+                No service types are available right now. Please check again later.
+              </div>
+            @endif
+          </div>
+        </div>
+      </div>
+
       {{-- Calendar --}}
-      <div class="md:col-span-3 bg-white rounded-xl border border-surface-100 p-5">
-        <h3 class="text-sm font-semibold text-surface-900 mb-4">Select Date</h3>
+      <div class="md:col-span-3 customer-card p-5">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="w-6 h-6 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold flex items-center justify-center">2</span>
+          <h3 class="text-sm font-bold text-surface-900">Select a date</h3>
+        </div>
         <div class="border border-surface-100 rounded-lg overflow-hidden">
 
           {{-- Month nav --}}
           <div class="flex justify-between items-center px-4 py-3 bg-surface-50 border-b border-surface-100">
-            <button type="button" onclick="prevMonth()" class="p-1 hover:bg-surface-100 rounded text-surface-400 transition-colors">
+            <button type="button" onclick="prevMonth()" aria-label="Previous month" class="w-9 h-9 flex items-center justify-center hover:bg-surface-100 rounded-lg text-surface-500 transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
             <span class="text-xs font-semibold text-surface-700" id="cal-month-label"></span>
-            <button type="button" onclick="nextMonth()" class="p-1 hover:bg-surface-100 rounded text-surface-400 transition-colors">
+            <button type="button" onclick="nextMonth()" aria-label="Next month" class="w-9 h-9 flex items-center justify-center hover:bg-surface-100 rounded-lg text-surface-500 transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
@@ -75,58 +144,80 @@
           </div>
 
           {{-- Day cells rendered by JS --}}
-          <div class="grid grid-cols-7 gap-0.5 p-3" id="cal-grid"></div>
+          <div class="grid grid-cols-7 gap-1 p-3" id="cal-grid" role="grid" aria-label="Choose an appointment date"></div>
         </div>
+        <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-surface-500">
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-brand-700"></span>Selected</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded border-2 border-brand-600"></span>Today</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-surface-200"></span>Unavailable</span>
+        </div>
+        <p class="mt-3 text-[11px] leading-5 text-surface-400">Appointments must be booked at least 24 hours in advance.</p>
       </div>
 
       {{-- Time & Details --}}
       <div class="md:col-span-2 space-y-5">
 
         {{-- Time slots --}}
-        <div class="bg-white rounded-xl border border-surface-100 p-5">
-          <h3 class="text-sm font-semibold text-surface-900 mb-3">Select Time</h3>
+        <div class="customer-card p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <span class="w-6 h-6 rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold flex items-center justify-center">3</span>
+            <h3 class="text-sm font-bold text-surface-900">Select a time</h3>
+          </div>
           <div class="grid grid-cols-2 gap-2" id="time-slots">
             @foreach (['09:00', '10:30', '13:00', '14:30', '16:00'] as $t)
               <button type="button"
-                class="time-slot border border-surface-200 py-2 rounded-lg text-xs font-medium text-surface-500"
+                class="time-slot min-h-[44px] border border-surface-200 py-2 rounded-xl text-xs font-bold text-surface-600"
                 data-time="{{ $t }}"
+                aria-pressed="false"
                 onclick="selectTime(this)">
                 {{ \Carbon\Carbon::createFromFormat('H:i', $t)->format('h:i A') }}
               </button>
             @endforeach
             <button type="button" disabled
-              class="border border-surface-100 py-2 rounded-lg text-xs font-medium text-surface-300 bg-surface-50 cursor-not-allowed">
+              class="time-slot min-h-[44px] border border-surface-100 py-2 rounded-xl text-xs font-medium text-surface-300 bg-surface-50 cursor-not-allowed opacity-65">
               05:30 PM
             </button>
           </div>
+          <p id="time-slots-hint" class="mt-2 text-xs text-amber-700 hidden" role="status"></p>
         </div>
 
-        {{-- Service & Notes --}}
-        <div class="bg-white rounded-xl border border-surface-100 p-5">
-          <h3 class="text-sm font-semibold text-surface-900 mb-3">Service Details</h3>
-          <select id="service-type-select"
-            class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 mb-3 transition-colors">
-            @foreach (($serviceTypes ?? []) as $st)
-              <option value="{{ $st->id }}">{{ $st->name }}</option>
-            @endforeach
-          </select>
+        {{-- Notes --}}
+        <div class="customer-card p-5">
+          <label for="notes-field" class="block text-sm font-bold text-surface-900 mb-1">Project notes <span class="font-normal text-surface-400">(optional)</span></label>
+          <p class="text-[11px] text-surface-400 mb-3">Tell us about your space, goals, or anything we should prepare for.</p>
           <textarea id="notes-field"
-            placeholder="Any specific notes for our team?"
-            class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 h-20 resize-none transition-colors"></textarea>
+            placeholder="For example: front garden, partial shade, easy-care plants..."
+            class="w-full border border-surface-200 rounded-xl px-3.5 py-3 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 h-24 resize-none transition-colors"></textarea>
         </div>
 
         {{-- Submit --}}
-        <div id="selection-summary" class="text-xs text-surface-400 text-center hidden">
+        <div id="selection-summary" class="text-xs text-surface-500 text-center hidden" role="status" aria-live="polite">
           <span id="summary-text"></span>
         </div>
 
-        <button type="button" onclick="submitBooking()"
-          class="w-full bg-surface-900 hover:bg-surface-800 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">
-          Confirm Booking
+        <button type="button" onclick="submitBooking()" id="booking-submit-btn"
+          @if ($activeAppointment ?? null) disabled @endif
+          class="customer-action w-full min-h-[48px] bg-brand-700 hover:bg-brand-800 text-white font-bold py-3 text-sm shadow-soft disabled:opacity-60 disabled:cursor-not-allowed">
+          {{ ($activeAppointment ?? null) ? 'Booking Limit Reached' : 'Confirm Booking' }}
         </button>
       </div>
     </div>
   </form>
+
+  <section class="mt-8 rounded-[1.3rem] border border-brand-100 bg-brand-50 p-5 sm:p-6">
+    <p class="text-[10px] font-bold uppercase tracking-[.15em] text-brand-600">After you submit</p>
+    <h2 class="mt-2 font-display text-xl font-bold text-brand-950">Know what happens next.</h2>
+    <div class="mt-5 grid gap-4 sm:grid-cols-3">
+      @foreach([
+        ['1', 'Booking recorded', 'Your appointment appears immediately in Appointments.'],
+        ['2', 'Team review', 'Ferosa checks the visit details and updates the booking status.'],
+        ['3', 'Stay informed', 'Follow email, Notifications, and Messages for changes or reminders.'],
+      ] as [$number, $title, $copy])
+        <div class="rounded-xl border border-brand-100 bg-white/80 p-4"><span class="flex h-7 w-7 items-center justify-center rounded-full bg-brand-700 text-[10px] font-bold text-white">{{ $number }}</span><h3 class="mt-3 text-sm font-bold text-brand-950">{{ $title }}</h3><p class="mt-1 text-xs leading-5 text-brand-800/70">{{ $copy }}</p></div>
+      @endforeach
+    </div>
+    <p class="mt-4 text-xs leading-5 text-brand-800/75">The displayed fee is a starting amount. Final scope and cost may be confirmed after Ferosa reviews your space and requirements.</p>
+  </section>
 
 </main>
 
@@ -135,18 +226,52 @@
 
 @section('scripts')
 <script>
+  const SCHEDULE_AVAILABILITY_URL = @json(route('schedule.availability'));
+
   // ── Calendar state ────────────────────────────────────────────────────────
   const MONTHS = ['January','February','March','April','May','June',
                   'July','August','September','October','November','December'];
 
   const today = new Date();
   today.setHours(0,0,0,0);
+  const minimumBookingAt = new Date();
+  minimumBookingAt.setHours(minimumBookingAt.getHours() + 24);
 
   let viewYear  = today.getFullYear();
   let viewMonth = today.getMonth();   // 0-based
 
   let selectedDate = null;  // Date object
   let selectedTime = null;  // '09:00'
+
+  function formatDateYmd(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  /** Normalize API/local times to HH:MM for Set lookup */
+  function normalizeHi(t) {
+    if (!t || typeof t !== 'string') return '';
+    const p = t.trim().split(':');
+    const h = String(parseInt(p[0], 10)).padStart(2, '0');
+    const m = String(parseInt(p[1] ?? '0', 10)).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
+  function slotDateTime(date, time) {
+    const [h, m] = time.split(':').map(Number);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m, 0, 0);
+  }
+
+  function isSlotAllowed(date, time) {
+    return slotDateTime(date, time) >= minimumBookingAt;
+  }
+
+  function isDateBookable(date) {
+    const slots = Array.from(document.querySelectorAll('.time-slot[data-time]'));
+    return slots.some(btn => isSlotAllowed(date, btn.dataset.time));
+  }
 
   function renderCalendar() {
     const label = document.getElementById('cal-month-label');
@@ -168,16 +293,22 @@
     // Day cells
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(viewYear, viewMonth, d);
-      const isPast = date < today;
+      const isPast = date < today || !isDateBookable(date);
       const isToday = date.getTime() === today.getTime();
       const isSelected = selectedDate && date.getTime() === selectedDate.getTime();
 
-      const cell = document.createElement('div');
+      const cell = document.createElement('button');
+      cell.type = 'button';
       cell.textContent = d;
       cell.className = 'cal-day py-1.5 text-center text-xs rounded-lg cursor-pointer select-none';
+      cell.setAttribute('role', 'gridcell');
+      cell.setAttribute('aria-label', date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+      cell.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
 
       if (isPast) {
         cell.classList.add('past');
+        cell.disabled = true;
+        cell.setAttribute('aria-disabled', 'true');
       } else {
         if (isToday) cell.classList.add('today');
         if (isSelected) cell.classList.add('selected');
@@ -193,7 +324,7 @@
   function pickDate(date) {
     selectedDate = date;
     renderCalendar();
-    updateSummary();
+    refreshTimeSlotAvailability();
   }
 
   function prevMonth() {
@@ -210,16 +341,114 @@
 
   // ── Time slots ────────────────────────────────────────────────────────────
   function selectTime(btn) {
-    document.querySelectorAll('.time-slot').forEach(t => t.classList.remove('selected'));
+    if (!btn || btn.disabled || btn.classList.contains('booked')) return;
+    document.querySelectorAll('.time-slot[data-time]').forEach(t => {
+      t.classList.remove('selected');
+      t.setAttribute('aria-pressed', 'false');
+    });
     btn.classList.add('selected');
+    btn.setAttribute('aria-pressed', 'true');
     selectedTime = btn.dataset.time;
     updateSummary();
   }
 
-  // Auto-select first time slot
+  function setTimeSlotsHint(message) {
+    const el = document.getElementById('time-slots-hint');
+    if (!el) return;
+    if (message) {
+      el.textContent = message;
+      el.classList.remove('hidden');
+    } else {
+      el.textContent = '';
+      el.classList.add('hidden');
+    }
+  }
+
+  function applyBookedTimes(bookedList) {
+    const booked = new Set((bookedList || []).map(normalizeHi));
+    document.querySelectorAll('.time-slot[data-time]').forEach(btn => {
+      const t = normalizeHi(btn.dataset.time);
+      const isTooSoon = selectedDate && !isSlotAllowed(selectedDate, t);
+      if (booked.has(t) || isTooSoon) {
+        btn.disabled = true;
+        btn.classList.add('booked');
+        btn.classList.remove('selected');
+        if (selectedTime && normalizeHi(selectedTime) === t) selectedTime = null;
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('booked');
+      }
+      btn.setAttribute('aria-pressed', btn.classList.contains('selected') ? 'true' : 'false');
+    });
+
+    const pickable = Array.from(document.querySelectorAll('.time-slot[data-time]:not(:disabled)'));
+    setTimeSlotsHint(pickable.length === 0 && selectedDate
+      ? 'No eligible times are available. Appointments must be booked at least 24 hours in advance.'
+      : '');
+
+    const stillSelected = document.querySelector('.time-slot[data-time].selected:not(:disabled)');
+    if (stillSelected) {
+      selectedTime = stillSelected.dataset.time;
+      updateSummary();
+      return;
+    }
+    if (pickable.length) {
+      pickable[0].classList.add('selected');
+      pickable[0].setAttribute('aria-pressed', 'true');
+      selectedTime = pickable[0].dataset.time;
+    } else {
+      selectedTime = null;
+    }
+    updateSummary();
+  }
+
+  async function refreshTimeSlotAvailability() {
+    const serviceTypeId = document.getElementById('service-type-select')?.value;
+    if (!selectedDate || !serviceTypeId) {
+      document.querySelectorAll('.time-slot[data-time]').forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('booked');
+      });
+      setTimeSlotsHint('');
+      const first = document.querySelector('.time-slot[data-time]:not(:disabled)');
+      if (first && !document.querySelector('.time-slot[data-time].selected')) {
+        first.classList.add('selected');
+        selectedTime = first.dataset.time;
+      }
+      updateSummary();
+      return;
+    }
+
+    const params = new URLSearchParams({
+      service_type_id: serviceTypeId,
+      date: formatDateYmd(selectedDate),
+    });
+    try {
+      const res = await fetch(`${SCHEDULE_AVAILABILITY_URL}?${params}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!res.ok) throw new Error('availability failed');
+      const data = await res.json();
+      applyBookedTimes(data.booked_times);
+    } catch (e) {
+      console.error(e);
+      setTimeSlotsHint('Could not load availability. You can still try to book; the server will reject double bookings.');
+      document.querySelectorAll('.time-slot[data-time]').forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('booked');
+      });
+      updateSummary();
+    }
+  }
+
+  // Auto-select first available time slot (before date is chosen, all slots stay selectable)
   (function () {
-    const first = document.querySelector('.time-slot:not([disabled])');
-    if (first) { first.classList.add('selected'); selectedTime = first.dataset.time; }
+    const first = document.querySelector('.time-slot[data-time]:not(:disabled)');
+    if (first) {
+      first.classList.add('selected');
+      selectedTime = first.dataset.time;
+    }
   })();
 
   // ── Summary ───────────────────────────────────────────────────────────────
@@ -240,8 +469,13 @@
 
   // ── Submit ────────────────────────────────────────────────────────────────
   function submitBooking() {
+    if (@json((bool) ($activeAppointment ?? null))) {
+      alert('You already have an active booking. Please cancel or complete it before booking another service.');
+      return;
+    }
+
     if (!selectedDate) { alert('Please select a date.'); return; }
-    if (!selectedTime)  { alert('Please select a time.'); return; }
+    if (!selectedTime)  { alert('No time slot is available. Please choose another date or service.'); return; }
 
     const serviceTypeId = document.getElementById('service-type-select').value;
     if (!serviceTypeId) { alert('Please select a service type.'); return; }
@@ -252,15 +486,27 @@
     const dd   = String(selectedDate.getDate()).padStart(2, '0');
     const [hh, min] = selectedTime.split(':');
     const appointmentAt = `${yyyy}-${mm}-${dd} ${hh}:${min}:00`;
+    const appointmentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), Number(hh), Number(min), 0, 0);
+    if (appointmentDate < minimumBookingAt) {
+      alert('Appointments must be scheduled at least 24 hours in advance.');
+      return;
+    }
 
     document.getElementById('hidden-service-type').value   = serviceTypeId;
     document.getElementById('hidden-appointment-at').value = appointmentAt;
     document.getElementById('hidden-notes').value          = document.getElementById('notes-field').value;
 
+    const btn = document.getElementById('booking-submit-btn');
+    btn.disabled = true;
+    btn.dataset.loading = 'true';
+    btn.innerHTML = '<span class="inline-block w-3.5 h-3.5 border-2 border-current border-r-transparent rounded-full animate-spin"></span><span>Booking...</span>';
     document.getElementById('booking-form').submit();
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', renderCalendar);
+  document.addEventListener('DOMContentLoaded', () => {
+    renderCalendar();
+    document.getElementById('service-type-select')?.addEventListener('change', refreshTimeSlotAvailability);
+  });
 </script>
 @endsection

@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Ferosa_landscaping" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Ferosa_landscaping" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/ferosa_surface</item>
+        <item name="android:statusBarColor">@color/ferosa_surface</item>
+        <item name="android:navigationBarColor">@color/ferosa_brand</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">@color/ferosa_brand</item>
+    </style>
 </resources>

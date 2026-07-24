@@ -3,12 +3,12 @@
 @section('title', 'Feedback')
 
 @section('content')
-<div class="max-w-2xl mx-auto space-y-6 pb-24 px-4 sm:px-6 pt-8">
+<div class="customer-page max-w-2xl space-y-6">
 
   {{-- Page header --}}
   <div>
-    <h1 class="text-xl font-semibold text-gray-900">Feedback</h1>
-    <p class="text-sm text-gray-500 mt-1">Rate your delivered orders and share your experience.</p>
+    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Feedback</h1>
+    <p class="text-surface-400 text-sm">Rate completed orders and share your experience.</p>
   </div>
 
   @if (session('status'))
@@ -17,7 +17,7 @@
     </div>
   @endif
 
-  {{-- ── Delivered orders awaiting feedback ─────────────────────────── --}}
+  {{-- ── Completed orders awaiting feedback ─────────────────────────── --}}
   @if ($deliveredOrders->isNotEmpty())
     <div class="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
       <div class="px-5 py-3.5 border-b border-amber-200 flex items-center gap-2">
@@ -31,11 +31,11 @@
           <li class="px-4 sm:px-5 py-4">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-900">
+                <p class="text-sm font-medium text-surface-900">
                   Order <span class="font-mono text-brand-600">{{ $order->order_number }}</span>
                 </p>
-                <p class="text-xs text-gray-400 mt-0.5">
-                  Delivered · {{ optional($order->updated_at)->format('M d, Y') }}
+                <p class="text-xs text-surface-400 mt-0.5">
+                  Completed · {{ optional($order->customer_confirmed_at ?? $order->updated_at)->format('M d, Y') }}
                   &nbsp;·&nbsp; &#8369;{{ number_format((float) $order->total_amount, 2) }}
                 </p>
               </div>
@@ -49,102 +49,46 @@
         @endforeach
       </ul>
     </div>
-  @else
-    {{-- General submit form (for service/product feedback not tied to an order) --}}
-    <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-      <h2 class="text-sm font-semibold text-gray-800 mb-4">General Feedback</h2>
-      <form method="POST" action="{{ route('feedback.store') }}" class="space-y-5">
-        @csrf
+  @endif
 
-        {{-- Star rating --}}
-        <div>
-          <label class="block text-xs font-medium text-gray-600 mb-2">Rating <span class="text-red-500">*</span></label>
-          <div class="flex gap-1" id="star-group">
-            @for ($i = 1; $i <= 5; $i++)
-              <button type="button" data-value="{{ $i }}"
-                class="star-btn text-3xl text-gray-300 hover:text-amber-400 transition-colors focus:outline-none"
-                aria-label="{{ $i }} star">&#9733;</button>
-            @endfor
-          </div>
-          <input type="hidden" name="rating" id="rating-input" value="{{ old('rating') }}">
-          @error('rating')
-            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-          @enderror
-        </div>
-
-        {{-- About --}}
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Product (optional)</label>
-            <select name="product_id" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#4caf50]">
-              <option value="">— None —</option>
-              @foreach ($products as $product)
-                <option value="{{ $product->id }}" {{ old('product_id') == $product->id ? 'selected' : '' }}>
-                  {{ $product->name }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Service (optional)</label>
-            <select name="service_type_id" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#4caf50]">
-              <option value="">— None —</option>
-              @foreach ($services as $service)
-                <option value="{{ $service->id }}" {{ old('service_type_id') == $service->id ? 'selected' : '' }}>
-                  {{ $service->name }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-        </div>
-
-        {{-- Comment --}}
-        <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Comment (optional)</label>
-          <textarea name="comment" rows="4"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#4caf50] resize-none"
-            placeholder="Tell us about your experience…">{{ old('comment') }}</textarea>
-          @error('comment')
-            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-          @enderror
-        </div>
-
-        <button type="submit"
-          class="bg-[#4caf50] hover:bg-[#43a047] text-white text-sm font-medium px-6 py-2.5 rounded-lg transition-colors">
-          Submit Feedback
-        </button>
-      </form>
+  @if ($deliveredOrders->isEmpty() && $myFeedbacks->isEmpty())
+    <div class="customer-empty">
+      <div class="customer-empty-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+      </div>
+      <h2 class="text-sm font-semibold text-surface-900 mb-1">No feedback available</h2>
+      <p class="text-surface-400 text-sm">Completed orders that are ready for review will appear here.</p>
     </div>
   @endif
 
   {{-- Past feedback --}}
   @if ($myFeedbacks->isNotEmpty())
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100">
-        <h2 class="text-sm font-semibold text-gray-800">Your Past Feedback</h2>
+    <div class="customer-card overflow-hidden">
+      <div class="px-6 py-4 border-b border-surface-100">
+        <h2 class="text-sm font-semibold text-surface-900">Your Past Feedback</h2>
       </div>
-      <ul class="divide-y divide-gray-100">
+      <ul class="divide-y divide-surface-100">
         @foreach ($myFeedbacks as $fb)
           <li class="px-6 py-4 space-y-1">
             <div class="flex items-center justify-between">
               <span class="text-amber-400 text-lg tracking-tighter">
                 {{ str_repeat('★', $fb->rating) }}<span class="text-gray-200">{{ str_repeat('★', 5 - $fb->rating) }}</span>
               </span>
-              <span class="text-xs text-gray-400">{{ $fb->created_at->format('M d, Y') }}</span>
+              <span class="text-xs text-surface-400">{{ $fb->created_at->format('M d, Y') }}</span>
             </div>
             @if ($fb->order)
-              <p class="text-xs text-gray-500">
+              <p class="text-xs text-surface-500">
                 Order: <span class="font-mono font-medium text-brand-600">{{ $fb->order->order_number }}</span>
               </p>
             @elseif ($fb->product || $fb->serviceType)
-              <p class="text-xs text-gray-500">
-                About: <span class="font-medium text-gray-700">
+              <p class="text-xs text-surface-500">
+                About: <span class="font-medium text-surface-700">
                   {{ $fb->product ? $fb->product->name : $fb->serviceType->name }}
                 </span>
               </p>
             @endif
             @if ($fb->comment)
-              <p class="text-sm text-gray-600">{{ $fb->comment }}</p>
+              <p class="text-sm text-surface-600">{{ $fb->comment }}</p>
             @endif
           </li>
         @endforeach
@@ -190,14 +134,14 @@
           <label class="block text-xs font-medium text-gray-600 mb-1">Comment <span class="text-gray-300">(optional)</span></label>
           <textarea name="comment" rows="3"
             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-[#4caf50] resize-none transition-all"
-            placeholder="Tell us about your experience…"></textarea>
+            placeholder="Tell us about your experience..."></textarea>
         </div>
         <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
           <button type="button" onclick="closeFeedbackModal()"
             class="py-3 sm:py-2.5 sm:px-4 rounded-xl border border-gray-200 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors touch-manipulation">
             Cancel
           </button>
-          <button type="submit"
+          <button type="submit" data-loading-label="Submitting..."
             class="flex-1 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
             Submit Feedback
           </button>
@@ -219,24 +163,6 @@
 
 @section('scripts')
 <script>
-  // General feedback star rating
-  const stars       = document.querySelectorAll('.star-btn');
-  const ratingInput = document.getElementById('rating-input');
-  let selected = parseInt(ratingInput?.value) || 0;
-
-  function paint(upTo) {
-    stars.forEach((s, i) => {
-      s.classList.toggle('text-amber-400', i < upTo);
-      s.classList.toggle('text-gray-300',  i >= upTo);
-    });
-  }
-  paint(selected);
-  stars.forEach((btn, idx) => {
-    btn.addEventListener('mouseenter', () => paint(idx + 1));
-    btn.addEventListener('mouseleave', () => paint(selected));
-    btn.addEventListener('click', () => { selected = idx + 1; if (ratingInput) ratingInput.value = selected; paint(selected); });
-  });
-
   // ── Modal ──────────────────────────────────────────────────────────────
   const feedbackModal    = document.getElementById('feedback-modal');
   const modalOrderId     = document.getElementById('modal-order-id');

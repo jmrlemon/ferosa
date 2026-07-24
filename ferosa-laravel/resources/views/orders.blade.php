@@ -1,25 +1,47 @@
 @extends('layouts.customer')
 
 @section('content')
-<main class="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+<main class="customer-page max-w-4xl">
   <div class="mb-8">
-    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Track Delivery</h1>
-    <p class="text-surface-400 text-sm">Enter your order ID to see the real-time status of your delivery.</p>
+    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Orders & Delivery</h1>
+    <p class="text-surface-500 text-sm">See what needs attention now and follow updates from the Ferosa team.</p>
   </div>
 
+  @if (session('status'))
+    <div class="bg-brand-50 border border-brand-100 text-brand-700 px-4 py-2.5 rounded-lg text-sm mb-6">
+      {{ session('status') }}
+    </div>
+  @endif
+  @if (session('error'))
+    <div class="bg-red-50 border border-red-100 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-6">
+      {{ session('error') }}
+    </div>
+  @endif
+
+  <details class="customer-card mb-8 overflow-hidden group">
+    <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4 text-sm font-bold text-surface-800 hover:bg-surface-50 transition-colors">
+      <span>
+        <span class="block">Track by order reference</span>
+        <span class="block mt-0.5 text-xs font-normal text-surface-400">Use this if you have an order number such as FRS-98243.</span>
+      </span>
+      <span class="w-8 h-8 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </summary>
+    <div class="border-t border-surface-100 p-4 sm:p-5">
   <!-- Search -->
-  <div class="max-w-xl bg-white rounded-xl border border-surface-100 p-2 flex gap-2 mb-10">
+  <div class="max-w-xl border border-surface-200 bg-white rounded-xl p-2 flex gap-2 mb-6">
     <div class="flex-1 relative">
       <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-surface-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input type="text" id="order-id" placeholder="e.g. FRS-98243" class="w-full text-sm pl-9 pr-3 py-2 rounded-lg bg-surface-50 outline-none focus:ring-1 focus:ring-brand-500 transition-all font-mono uppercase">
     </div>
-    <button onclick="trackOrder()" class="bg-surface-900 hover:bg-surface-800 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+    <button onclick="trackOrder()" id="track-btn" class="customer-action bg-brand-700 hover:bg-brand-800 text-white font-bold px-5 py-2 text-sm">
       Track
     </button>
   </div>
 
   <!-- Tracking Result -->
-  <div id="tracking-result" class="hidden max-w-2xl bg-white rounded-xl border border-surface-100 p-5 sm:p-6 mb-10">
+  <div id="tracking-result" class="hidden max-w-2xl rounded-xl border border-surface-200 bg-white p-5 sm:p-6" aria-live="polite">
     <div class="flex justify-between items-start mb-5 pb-4 border-b border-surface-100">
       <div>
         <h3 class="text-sm font-semibold text-surface-900 mb-0.5">Order <span id="display-id" class="text-brand-600 font-mono"></span></h3>
@@ -66,31 +88,45 @@
         </div>
       </div>
     </div>
+
+    <div id="track-proof-card" class="hidden mt-5 pt-4 border-t border-surface-100">
+      <p class="text-xs font-semibold text-surface-900 mb-2">Delivery Proof</p>
+      <a id="track-proof-link" href="#" class="inline-block overflow-hidden rounded-lg border border-surface-100 bg-surface-50">
+        <img id="track-proof-img" src="" alt="Delivery proof" class="w-full max-h-44 object-cover">
+      </a>
+      <p class="text-xs text-surface-500 mt-2" id="track-proof-meta"></p>
+    </div>
   </div>
 
   <!-- Empty State -->
-  <div id="empty-state" class="hidden text-center py-8 mb-10">
-    <svg class="mx-auto mb-2 text-surface-200" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    <p class="text-surface-400 text-sm">Order not found. Please check the ID and try again.</p>
+  <div id="empty-state" class="hidden customer-empty shadow-none mt-5" role="status" aria-live="polite">
+    <div class="customer-empty-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <h2 class="text-sm font-semibold text-surface-900 mb-1">Order not found</h2>
+    <p class="text-surface-400 text-sm">Check the order ID and try again.</p>
   </div>
+    </div>
+  </details>
 
   <!-- Order History -->
-  <div class="border-t border-surface-100 pt-8">
+  <div>
     <div class="flex items-end justify-between gap-4 mb-6">
       <div>
-        <h2 class="text-lg font-display font-bold text-surface-900 mb-0.5">Order History</h2>
-        <p class="text-xs text-surface-400">View your past orders, items, and delivery status.</p>
+        <p class="text-[11px] font-bold uppercase tracking-[.13em] text-brand-600">Your activity</p>
+        <h2 class="mt-1 text-xl font-display font-bold text-surface-900">Order history</h2>
+        <p class="mt-1 text-xs text-surface-400">Your purchases, current status, and delivery details.</p>
       </div>
     </div>
 
     <!-- Filters -->
-    <form method="GET" action="{{ route('orders') }}" class="bg-white border border-surface-100 rounded-xl p-4 mb-5">
+    <form method="GET" action="{{ route('orders') }}" class="customer-card p-4 mb-5" data-loading-label="Filtering...">
       <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
         <div>
           <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
           <select name="status" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
             <option value="">All</option>
-            @foreach (['pending','confirmed','out_for_delivery','delivered','cancelled'] as $st)
+            @foreach (['pending','confirmed','out_for_delivery','delivered','completed','cancelled'] as $st)
               <option value="{{ $st }}" {{ request('status') === $st ? 'selected' : '' }}>
                 {{ ucfirst(str_replace('_',' ', $st)) }}
               </option>
@@ -106,7 +142,7 @@
           <input type="date" name="to" value="{{ request('to') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
         </div>
         <div class="flex gap-2">
-          <button class="flex-1 bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 rounded-lg text-xs transition-colors">Filter</button>
+          <button class="customer-action flex-1 bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 text-xs" data-loading-label="Filtering...">Filter</button>
           <a href="{{ route('orders') }}" class="px-3 py-2 rounded-lg border border-surface-200 text-xs font-medium text-surface-500 hover:bg-surface-50 transition-colors">Reset</a>
         </div>
       </div>
@@ -124,18 +160,21 @@
     <!-- Orders List -->
     <div class="space-y-4">
       @forelse ($orders as $order)
-        @php $order->loadMissing('feedback'); @endphp
         @php
           $status = $order->status ?? 'pending';
           $badge =
             $status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
             ($status === 'confirmed' ? 'bg-blue-50 text-blue-700 border-blue-100' :
             ($status === 'out_for_delivery' ? 'bg-brand-50 text-brand-700 border-brand-100' :
-            ($status === 'delivered' ? 'bg-surface-900 text-white border-surface-900' :
-            'bg-red-50 text-red-600 border-red-100')));
+            ($status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+            ($status === 'completed' ? 'bg-surface-900 text-white border-surface-900' :
+            'bg-red-50 text-red-600 border-red-100'))));
+          $statusLabel = $status === 'delivered' && ! $order->customer_confirmed_at
+            ? 'Delivered - Pending Confirmation'
+            : ucfirst(str_replace('_',' ', $status));
         @endphp
 
-        <div class="bg-white border border-surface-100 rounded-xl overflow-hidden">
+        <div class="customer-card overflow-hidden">
           <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-surface-100">
             <div>
               <div class="flex flex-wrap items-center gap-2">
@@ -143,7 +182,7 @@
                   Order <span class="font-mono text-brand-600">{{ $order->order_number }}</span>
                 </h3>
                 <span class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border {{ $badge }}">
-                  {{ ucfirst(str_replace('_',' ', $status)) }}
+                  {{ $statusLabel }}
                 </span>
               </div>
               <p class="text-xs text-surface-400 mt-0.5">
@@ -156,19 +195,29 @@
                 <p class="text-lg font-display font-bold text-surface-900">&#8369;{{ number_format((float) $order->total_amount, 2) }}</p>
               </div>
               <div class="flex items-center flex-wrap gap-1.5 justify-end">
-                @if ($status === 'delivered' && !$order->feedback)
+                @if ($status === 'delivered' && $order->delivery_proof_url)
+                  <form method="POST" action="{{ route('orders.confirm-received', $order) }}">
+                    @csrf
+                    <button type="submit" data-loading-label="Confirming..."
+                      class="inline-flex items-center gap-1 text-[11px] font-medium text-brand-700 hover:text-brand-800 border border-brand-200 hover:border-brand-400 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      Confirm Received
+                    </button>
+                  </form>
+                @endif
+                @if ($status === 'completed' && !$order->feedback)
                   <button onclick="openFeedbackModal({{ $order->id }}, '{{ $order->order_number }}')"
                     class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                     Leave Feedback
                   </button>
-                @elseif ($status === 'delivered' && $order->feedback)
+                @elseif ($status === 'completed' && $order->feedback)
                   <span class="inline-flex items-center gap-1 text-[11px] font-medium text-green-600 border border-green-200 bg-green-50 px-2.5 py-1.5 rounded-lg min-h-[34px]">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     Reviewed
                   </span>
                 @endif
-                <a href="{{ route('orders.receipt', $order) }}" target="_blank"
+                <a href="{{ route('orders.receipt', $order) }}"
                    class="inline-flex items-center gap-1 text-[11px] font-medium text-surface-400 hover:text-surface-700 border border-surface-200 hover:border-surface-300 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
@@ -176,7 +225,52 @@
                   </svg>
                   Receipt
                 </a>
+                @if (in_array($status, ['pending', 'confirmed']))
+                  <button onclick="openCancelModal({{ $order->id }}, '{{ $order->order_number }}')"
+                    class="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Cancel
+                  </button>
+                @endif
               </div>
+              @if($order->dispatch_proof_url)
+                <div class="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 mt-3 text-xs text-left sm:text-right">
+                  <p class="font-semibold text-indigo-700 mb-1">Dispatch Information</p>
+                  <a href="{{ $order->dispatch_proof_url }}" class="inline-block overflow-hidden rounded-lg border border-indigo-100 bg-white mb-2">
+                    <img src="{{ $order->dispatch_proof_url }}" alt="Dispatch proof for order {{ $order->order_number }}" class="w-full max-h-36 object-cover">
+                  </a>
+                  <p class="text-surface-500">Dispatched: {{ optional($order->dispatched_at)->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
+                  <p class="text-surface-500">Driver: {{ $order->driver_name ?: 'Not recorded' }}{{ $order->driver_phone ? ' · '.$order->driver_phone : '' }}</p>
+                </div>
+              @endif
+              @if($order->delivery_proof_url)
+                <div class="rounded-lg border border-brand-100 bg-brand-50/50 p-3 mt-3 text-xs">
+                  <p class="font-semibold text-brand-700 mb-1">Delivery Proof</p>
+                  <a href="{{ $order->delivery_proof_url }}" class="inline-block overflow-hidden rounded-lg border border-brand-100 bg-white mb-2">
+                    <img src="{{ $order->delivery_proof_url }}" alt="Delivery proof for order {{ $order->order_number }}" class="w-full max-h-36 object-cover">
+                  </a>
+                  <p class="text-surface-500">Delivered: {{ optional($order->delivered_at)->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
+                  @if($order->delivery_recipient_name)<p class="text-surface-500">Received by: {{ $order->delivery_recipient_name }}</p>@endif
+                  @if($order->customer_confirmed_at)
+                    <p class="text-brand-700 font-medium">Confirmed received: {{ optional($order->customer_confirmed_at)->format('M d, Y h:i A') }}</p>
+                  @else
+                    <p class="text-amber-700 font-medium">Waiting for your confirmation.</p>
+                  @endif
+                </div>
+              @endif
+              @if($status === 'cancelled')
+                <div class="rounded-lg border border-red-100 bg-red-50 p-3 mt-3 text-xs text-left sm:text-right">
+                  <p class="font-semibold text-red-700 mb-1">Cancellation Record</p>
+                  <p class="text-surface-500">
+                    Cancelled: {{ optional($order->cancelled_at)->format('M d, Y h:i A') ?? 'Recorded' }}
+                  </p>
+                  @if($order->cancel_reason)
+                    <p class="text-surface-500 mt-1">Reason: {{ $order->cancel_reason }}</p>
+                  @endif
+                </div>
+              @endif
             </div>
           </div>
 
@@ -204,8 +298,26 @@
                     </li>
                   @endforeach
                 </ul>
+                @if (in_array($status, ['pending', 'confirmed']))
+                  <button type="button" onclick="openCancelModal({{ $order->id }}, @js($order->order_number))"
+                    class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors touch-manipulation min-h-[36px]">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Cancel Order
+                  </button>
+                @endif
               @else
                 <p class="text-xs text-surface-400">No line items stored for this order.</p>
+                @if (in_array($status, ['pending', 'confirmed']))
+                  <button type="button" onclick="openCancelModal({{ $order->id }}, @js($order->order_number))"
+                    class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors touch-manipulation min-h-[36px]">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Cancel Order
+                  </button>
+                @endif
               @endif
             </div>
 
@@ -245,6 +357,18 @@
                     <span class="bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide">COD</span>
                   @endif
                 </div>
+                <div class="flex items-center justify-between gap-2 border-t border-surface-100 pt-2">
+                  <span class="text-surface-400">Payment status:</span>
+                  <span class="font-semibold {{ $order->payment_status === 'paid' ? 'text-brand-700' : ($order->payment_status === 'rejected' ? 'text-red-700' : 'text-amber-700') }}">
+                    {{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'unpaid')) }}
+                  </span>
+                </div>
+                @if($order->payment_review_notes)
+                  <p class="rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">{{ $order->payment_review_notes }}</p>
+                @endif
+                @if($order->payment_proof_path)
+                  <a href="{{ route('orders.payment-proof', $order) }}" target="_blank" rel="noopener" class="inline-flex text-xs font-semibold text-sky-700 hover:text-sky-900">View submitted receipt</a>
+                @endif
               </div>
             </div>
 
@@ -252,12 +376,12 @@
             <div>
               <h4 class="text-xs font-semibold text-surface-900 mb-2">Delivery Timeline</h4>
               @php
-                $step = $status === 'pending' ? 1 : ($status === 'confirmed' ? 2 : ($status === 'out_for_delivery' ? 3 : ($status === 'delivered' ? 4 : 0)));
+                $step = $status === 'pending' ? 1 : ($status === 'confirmed' ? 2 : ($status === 'out_for_delivery' ? 3 : (in_array($status, ['delivered','completed']) ? 4 : 0)));
                 $steps = [
                   ['label' => 'Order Placed', 'desc' => optional($order->created_at)->format('M d, Y h:i A')],
                   ['label' => 'Confirmed', 'desc' => $status === 'pending' ? 'Pending' : 'Preparing your items'],
                   ['label' => 'Out for Delivery', 'desc' => $status === 'out_for_delivery' ? 'Driver is on the way' : 'Pending'],
-                  ['label' => 'Delivered', 'desc' => $status === 'delivered' ? 'Delivered' : 'Pending'],
+                  ['label' => 'Delivered', 'desc' => $status === 'completed' ? 'Confirmed received' : ($status === 'delivered' ? 'Waiting for your confirmation' : 'Pending')],
                 ];
               @endphp
 
@@ -299,9 +423,13 @@
           </div>
         </div>
       @empty
-        <div class="bg-white border border-surface-100 rounded-xl p-8 text-center">
-          <svg class="mx-auto mb-2 text-surface-200" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-          <p class="text-surface-400 text-sm">No orders found for your filters.</p>
+        <div class="customer-empty">
+          <div class="customer-empty-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </div>
+          <h2 class="text-sm font-semibold text-surface-900 mb-1">No orders yet</h2>
+          <p class="text-surface-400 text-sm mb-4">Your purchases and delivery updates will appear here.</p>
+          <a href="{{ route('shop') }}" class="customer-action bg-surface-900 text-white text-xs font-medium px-5 py-2 hover:bg-surface-800">Browse products</a>
         </div>
       @endforelse
     </div>
@@ -313,6 +441,46 @@
     @endif
   </div>
 </main>
+
+{{-- ── Cancel Order Modal ──────────────────────────────────────────── --}}
+<div id="cancel-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center sm:p-4">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeCancelModal()"></div>
+  <div class="relative bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl animate-modal-up sm:animate-fade-in">
+    <div class="flex justify-center pt-3 pb-1 sm:hidden">
+      <div class="w-10 h-1 bg-surface-200 rounded-full"></div>
+    </div>
+    <div class="px-4 sm:px-6 pt-4 sm:pt-5 pb-5 sm:pb-6">
+      <div class="flex items-start gap-3 mb-3">
+        <div class="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div>
+          <h3 class="text-base font-semibold text-surface-900">Cancel Order?</h3>
+          <p class="text-xs text-surface-400 mt-0.5">Order <span id="cancel-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
+        </div>
+      </div>
+      <p class="text-sm text-surface-500 mb-5">Are you sure you want to cancel this order? This action cannot be undone.</p>
+      <form id="cancel-order-form" method="POST">
+        @csrf
+        @method('DELETE')
+        <label class="block text-xs font-medium text-surface-600 mb-1">Reason <span class="text-surface-300">(optional)</span></label>
+        <textarea name="cancel_reason" rows="3" maxlength="500"
+          class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 resize-none transition-all mb-4"
+          placeholder="Tell us why you want to cancel this order."></textarea>
+        <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+          <button type="button" onclick="closeCancelModal()"
+            class="py-3 sm:py-2.5 sm:px-5 rounded-xl border border-surface-200 text-sm font-medium text-surface-500 hover:bg-surface-50 transition-colors touch-manipulation">
+            Keep Order
+          </button>
+          <button type="submit" data-loading-label="Cancelling..."
+            class="flex-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
+            Yes, Cancel Order
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 {{-- ── Feedback Modal ─────────────────────────────────────────────── --}}
 <div id="feedback-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center sm:p-4">
@@ -358,7 +526,7 @@
           <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-300">(optional)</span></label>
           <textarea name="comment" rows="3"
             class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-100 resize-none transition-all"
-            placeholder="Tell us about your experience…"></textarea>
+            placeholder="Tell us about your experience..."></textarea>
         </div>
 
         <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
@@ -366,7 +534,7 @@
             class="py-3 sm:py-2.5 sm:px-4 rounded-xl border border-surface-200 text-sm font-medium text-surface-500 hover:bg-surface-50 transition-colors touch-manipulation">
             Cancel
           </button>
-          <button type="submit" id="modal-submit-btn"
+          <button type="submit" id="modal-submit-btn" data-loading-label="Submitting..."
             class="flex-1 bg-surface-900 hover:bg-surface-800 active:bg-surface-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
             Submit Feedback
           </button>
@@ -396,13 +564,14 @@
     pending:          'bg-amber-50 text-amber-700 border-amber-100',
     confirmed:        'bg-blue-50 text-blue-700 border-blue-100',
     out_for_delivery: 'bg-brand-50 text-brand-700 border-brand-100',
-    delivered:        'bg-surface-900 text-white border-surface-900',
+    delivered:        'bg-emerald-50 text-emerald-700 border-emerald-100',
+    completed:        'bg-surface-900 text-white border-surface-900',
     cancelled:        'bg-red-50 text-red-600 border-red-100',
   };
 
-  // step index: pending=1, confirmed=2, out_for_delivery=3, delivered=4
+  // step index: pending=1, confirmed=2, out_for_delivery=3, delivered/completed=4
   function stepOf(status) {
-    return { pending:1, confirmed:2, out_for_delivery:3, delivered:4 }[status] ?? 0;
+    return { pending:1, confirmed:2, out_for_delivery:3, delivered:4, completed:4 }[status] ?? 0;
   }
 
   function applyDot(dotEl, labelEl, descEl, done, active, label, desc) {
@@ -428,10 +597,14 @@
     const val    = document.getElementById('order-id').value.trim().toUpperCase();
     const result = document.getElementById('tracking-result');
     const empty  = document.getElementById('empty-state');
+    const button = document.getElementById('track-btn');
 
     if (!val) { result.classList.add('hidden'); empty.classList.add('hidden'); return; }
 
     try {
+      button.disabled = true;
+      button.dataset.loading = 'true';
+      button.innerHTML = '<span class="inline-block w-3.5 h-3.5 border-2 border-current border-r-transparent rounded-full animate-spin"></span><span>Checking...</span>';
       const res  = await fetch('{{ route('orders.track') }}', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
@@ -452,7 +625,9 @@
       const badgeCls = STATUS_BADGE[data.status] ?? 'bg-surface-100 text-surface-600 border-surface-200';
       const badge    = document.getElementById('track-status-badge');
       badge.className = 'text-[10px] font-semibold px-2 py-1 rounded border uppercase tracking-wide ' + badgeCls;
-      badge.textContent = data.status.replace(/_/g,' ');
+      badge.textContent = data.status === 'delivered' && !data.customer_confirmed_at
+        ? 'delivered - pending confirmation'
+        : data.status.replace(/_/g,' ');
 
       // ── Timeline dots ──────────────────────────────
       const step = stepOf(data.status);
@@ -475,8 +650,20 @@
         document.getElementById('track-dot-delivered'),
         document.getElementById('track-label-delivered'),
         document.getElementById('track-desc-delivered'),
-        step >= 4, false, 'Delivered', step >= 4 ? 'Order delivered' : 'Pending'
+        step >= 4, false, 'Delivered', data.status === 'completed' ? 'Confirmed received' : (step >= 4 ? 'Waiting for customer confirmation' : 'Pending')
       );
+
+      const proofCard = document.getElementById('track-proof-card');
+      if (data.delivery_proof_url) {
+        document.getElementById('track-proof-link').href = data.delivery_proof_url;
+        document.getElementById('track-proof-img').src = data.delivery_proof_url;
+        document.getElementById('track-proof-meta').textContent = data.customer_confirmed_at
+          ? 'Confirmed received on ' + data.customer_confirmed_at
+          : 'Delivered on ' + (data.delivered_at || 'pending timestamp') + '. Waiting for your confirmation.';
+        proofCard.classList.remove('hidden');
+      } else {
+        proofCard.classList.add('hidden');
+      }
 
       // Progress bar height (rough %)
       const pct = { 0:'0%', 1:'8%', 2:'38%', 3:'65%', 4:'100%' }[step] ?? '0%';
@@ -489,6 +676,10 @@
       console.error('Track error', err);
       result.classList.add('hidden');
       empty.classList.remove('hidden');
+    } finally {
+      button.disabled = false;
+      button.dataset.loading = 'false';
+      button.innerHTML = 'Track';
     }
   }
 
@@ -535,6 +726,23 @@
     document.body.style.overflow = '';
   }
 
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFeedbackModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeFeedbackModal(); closeCancelModal(); } });
+
+  // ── Cancel Order Modal ──────────────────────────────────────────────────
+  const cancelModal    = document.getElementById('cancel-modal');
+  const cancelForm     = document.getElementById('cancel-order-form');
+  const cancelOrderNum = document.getElementById('cancel-order-number');
+
+  function openCancelModal(orderId, orderNum) {
+    cancelForm.action = '{{ url('/orders') }}/' + orderId + '/cancel';
+    cancelOrderNum.textContent = orderNum;
+    cancelModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCancelModal() {
+    cancelModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
 </script>
 @endsection

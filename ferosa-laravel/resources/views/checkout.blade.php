@@ -1,7 +1,14 @@
 @extends('layouts.customer')
 
 @section('content')
-<main class="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+@php
+  $gcashName = $gcashSettings['name'] ?? null;
+  $gcashNumber = $gcashSettings['number'] ?? null;
+  $gcashQrUrl = $gcashSettings['qr_url'] ?? null;
+  $gcashAvailable = filled($gcashNumber) || filled($gcashQrUrl);
+  $selectedPaymentMethod = old('payment_method', 'cod');
+@endphp
+<main class="customer-page max-w-4xl">
   <div class="mb-8">
     <a href="{{ route('shop') }}" class="inline-flex items-center gap-1.5 text-xs font-medium text-surface-400 hover:text-surface-600 mb-4">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
@@ -21,8 +28,9 @@
     </div>
   @endif
 
-  <form method="POST" action="{{ route('checkout.store') }}" id="checkout-form">
+  <form method="POST" action="{{ route('checkout.store') }}" id="checkout-form" enctype="multipart/form-data">
     @csrf
+    <input type="hidden" name="checkout_token" value="{{ $checkoutToken }}">
     <input type="hidden" name="cart_data" id="cart-data-input">
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -30,17 +38,20 @@
       <div class="lg:col-span-2 space-y-6">
 
         <!-- Cart Items -->
-        <div id="cart-items-container" class="bg-white rounded-xl border border-surface-100 p-5 sm:p-6">
+        <div id="cart-items-container" class="customer-card p-5 sm:p-6">
           <ul id="cart-list" class="divide-y divide-surface-100"></ul>
-          <div id="empty-cart-msg" class="hidden text-center py-12">
-            <svg class="mx-auto mb-3 text-surface-200" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            <p class="text-surface-400 text-sm mb-3">Your cart is empty.</p>
-            <a href="{{ route('shop') }}" class="bg-surface-900 text-white font-medium text-xs px-5 py-2 rounded-lg inline-block hover:bg-surface-800 transition-colors">Browse Shop</a>
+          <div id="empty-cart-msg" class="hidden customer-empty shadow-none border-0">
+            <div class="customer-empty-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            </div>
+            <h2 class="text-sm font-semibold text-surface-900 mb-1">Your cart is empty</h2>
+            <p class="text-surface-400 text-sm mb-4">Add products from the shop before placing an order.</p>
+            <a href="{{ route('shop') }}" class="customer-action bg-surface-900 text-white font-medium text-xs px-5 py-2 hover:bg-surface-800">Browse Shop</a>
           </div>
         </div>
 
         <!-- Delivery Details -->
-        <div class="bg-white rounded-xl border border-surface-100 p-5 sm:p-6">
+        <div class="customer-card p-5 sm:p-6">
           <h2 class="text-sm font-semibold text-surface-900 mb-4">Delivery Details</h2>
 
           <!-- Toggle Tabs -->
@@ -103,7 +114,7 @@
                 <div>
                   <p class="font-semibold text-brand-900 mb-0.5">Pick up at Ferosa:</p>
                   <p>A. Arellano Ave. Mulawin, Orani,<br>Philippines 2112</p>
-                  <p class="text-brand-600 text-xs mt-1">Mon–Sat &bull; 8:00 AM – 5:00 PM</p>
+                  <p class="text-brand-600 text-xs mt-1">Mon-Sat &bull; 8:00 AM - 5:00 PM</p>
                 </div>
               </div>
             </div>
@@ -111,13 +122,13 @@
         </div>
 
         <!-- Payment Method -->
-        <div class="bg-white rounded-xl border border-surface-100 p-5 sm:p-6">
+        <div class="customer-card p-5 sm:p-6">
           <h2 class="text-sm font-semibold text-surface-900 mb-4">Payment Method</h2>
 
           <div class="space-y-3">
             <!-- COD -->
             <label class="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-surface-200 hover:border-brand-400 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
-              <input type="radio" name="payment_method" value="cod" checked
+              <input type="radio" name="payment_method" value="cod" {{ $selectedPaymentMethod !== 'gcash' || ! $gcashAvailable ? 'checked' : '' }}
                 onchange="setPaymentMethod('cod')"
                 class="mt-0.5 w-4 h-4 text-brand-600 border-surface-300 focus:ring-brand-500">
               <div>
@@ -127,24 +138,62 @@
             </label>
 
             <!-- GCash -->
-            <label class="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-surface-200 hover:border-brand-400 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+            <label class="flex items-start gap-3 {{ $gcashAvailable ? 'cursor-pointer hover:border-brand-400 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50' : 'cursor-not-allowed opacity-60 bg-surface-50' }} p-3 rounded-lg border border-surface-200 transition-colors">
               <input type="radio" name="payment_method" value="gcash"
                 onchange="setPaymentMethod('gcash')"
+                {{ $selectedPaymentMethod === 'gcash' && $gcashAvailable ? 'checked' : '' }}
+                {{ $gcashAvailable ? '' : 'disabled' }}
                 class="mt-0.5 w-4 h-4 text-brand-600 border-surface-300 focus:ring-brand-500">
               <div class="flex-1">
                 <p class="text-sm font-medium text-surface-900">GCash</p>
-                <p class="text-xs text-surface-400">Send payment via GCash and provide the reference number.</p>
+                <p class="text-xs text-surface-400">
+                  {{ $gcashAvailable ? 'Scan the QR or send to the listed number, then provide the reference number.' : 'GCash payment is not available right now.' }}
+                </p>
               </div>
             </label>
           </div>
 
           <!-- GCash reference input -->
           <div id="gcash-reference-field" class="hidden mt-4">
+            <div class="rounded-xl border border-sky-100 bg-sky-50 p-3 mb-4">
+              <div class="grid grid-cols-1 sm:grid-cols-[140px,1fr] gap-3">
+                @if($gcashQrUrl)
+                  <button type="button" onclick="openGcashQrPreview()" class="block rounded-lg overflow-hidden bg-white border border-sky-100 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <img src="{{ $gcashQrUrl }}" alt="GCash QR code" class="w-full aspect-square object-contain">
+                  </button>
+                @else
+                  <div class="rounded-lg bg-white border border-dashed border-sky-100 aspect-square flex items-center justify-center text-xs text-surface-400 text-center px-3">
+                    QR not uploaded
+                  </div>
+                @endif
+                <div class="text-sm">
+                  <p class="text-[10px] uppercase tracking-wider font-semibold text-sky-700 mb-2">Send payment to</p>
+                  <div class="space-y-2">
+                    <div>
+                      <p class="text-xs text-surface-400">Account Name</p>
+                      <p class="font-semibold text-surface-900">{{ $gcashName ?: 'Ferosa Landscaping' }}</p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-surface-400">GCash Number</p>
+                      <p class="font-mono font-semibold text-surface-900">{{ $gcashNumber ?: 'Not set' }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <label class="block text-xs font-medium text-surface-600 mb-1">GCash Reference Number <span class="text-red-500">*</span></label>
             <input type="text" name="payment_reference" value="{{ old('payment_reference') }}"
               placeholder="e.g. 1234567890"
               class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors">
-            <p class="text-xs text-surface-400 mt-1">Send to GCash number: <span class="font-medium text-surface-700">0917-XXX-XXXX</span></p>
+            <p class="text-xs text-surface-400 mt-1">Enter the reference number after sending your payment.</p>
+            <label class="mt-4 block text-xs font-medium text-surface-600">Payment Receipt <span class="text-red-500">*</span>
+              <input type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp"
+                class="mt-2 block w-full rounded-lg border border-surface-200 bg-white text-sm text-surface-600 file:mr-3 file:border-0 file:bg-sky-100 file:px-3 file:py-2.5 file:font-semibold file:text-sky-800">
+            </label>
+            <p class="mt-1 text-xs text-surface-400">Upload the GCash confirmation screen. JPG, PNG, or WebP; maximum 5 MB.</p>
+            <div class="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+              Your payment will show as <strong>Pending verification</strong> until an administrator checks the reference and receipt.
+            </div>
           </div>
         </div>
 
@@ -152,7 +201,7 @@
 
       <!-- Summary -->
       <div class="lg:col-span-1">
-        <div class="bg-white rounded-xl border border-surface-100 p-5 sm:p-6 sticky top-6">
+        <div class="customer-card p-5 sm:p-6 sticky top-6">
           <h2 class="text-sm font-semibold text-surface-900 mb-5">Order Summary</h2>
 
           <div class="flex justify-between items-center mb-3 text-xs text-surface-500">
@@ -169,7 +218,7 @@
             <span id="summary-total" class="text-xl font-display font-bold text-surface-900">&#8369;0.00</span>
           </div>
 
-          <button type="submit" id="checkout-btn" class="w-full bg-surface-900 hover:bg-surface-800 text-white font-medium py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+          <button type="submit" id="checkout-btn" data-loading-label="Placing order..." class="customer-action w-full bg-surface-900 hover:bg-surface-800 text-white font-medium py-2.5 text-sm">
             Place Order
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </button>
@@ -178,6 +227,27 @@
     </div>
   </form>
 </main>
+
+@if($gcashQrUrl)
+<div id="gcash-qr-modal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/70 p-4">
+  <button type="button" onclick="closeGcashQrPreview()" class="absolute inset-0 cursor-default" aria-label="Close QR preview"></button>
+  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-4">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <p class="text-sm font-semibold text-surface-900">GCash QR Code</p>
+        <p class="text-xs text-surface-400">{{ $gcashName ?: 'Ferosa Landscaping' }}</p>
+      </div>
+      <button type="button" onclick="closeGcashQrPreview()" class="w-9 h-9 rounded-full border border-surface-200 text-surface-500 hover:bg-surface-50 flex items-center justify-center">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <img src="{{ $gcashQrUrl }}" alt="GCash QR code enlarged" class="w-full aspect-square object-contain rounded-xl border border-surface-100 bg-white">
+    @if($gcashNumber)
+      <p class="text-center text-sm font-mono font-semibold text-surface-900 mt-3">{{ $gcashNumber }}</p>
+    @endif
+  </div>
+</div>
+@endif
 
 <script>
   // ── Delivery method toggle ───────────────────────────────────────────────
@@ -209,12 +279,38 @@
   // ── Payment method toggle ────────────────────────────────────────────────
   function setPaymentMethod(method) {
     const gcashField = document.getElementById('gcash-reference-field');
+    const referenceInput = document.querySelector('[name="payment_reference"]');
+    const proofInput = document.querySelector('[name="payment_proof"]');
     if (method === 'gcash') {
       gcashField.classList.remove('hidden');
+      if (referenceInput) referenceInput.required = true;
+      if (proofInput) proofInput.required = true;
     } else {
       gcashField.classList.add('hidden');
+      if (referenceInput) referenceInput.required = false;
+      if (proofInput) proofInput.required = false;
     }
   }
+
+  function openGcashQrPreview() {
+    const modal = document.getElementById('gcash-qr-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeGcashQrPreview() {
+    const modal = document.getElementById('gcash-qr-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeGcashQrPreview();
+  });
 
   // ── Cart rendering ───────────────────────────────────────────────────────
   function getCart() {
@@ -226,13 +322,38 @@
     renderCart();
   }
 
-  function updateQty(id, delta) {
-    let cart = getCart();
+  async function cartRequest(url, options = {}) {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || Object.values(data.errors || {})[0]?.[0] || 'Cart update failed.');
+    return data;
+  }
+
+  async function updateQty(id, delta) {
+    const cart = getCart();
     const item = cart.find(i => i.id === id);
     if (!item) return;
-    item.qty += delta;
-    if (item.qty <= 0) cart = cart.filter(i => i.id !== id);
-    saveCart(cart);
+    const quantity = item.qty + delta;
+
+    try {
+      const data = await cartRequest(`{{ url('/api/cart/items') }}/${id}`, {
+        method: quantity <= 0 ? 'DELETE' : 'PUT',
+        body: quantity <= 0 ? undefined : JSON.stringify({ quantity }),
+      });
+      saveCart(data.items);
+      window.dispatchEvent(new CustomEvent('cartUpdated', { detail: data }));
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   function renderCart() {
@@ -297,7 +418,21 @@
     cartDataInput.value = JSON.stringify(cart);
   }
 
-  renderCart();
+  async function loadServerCart() {
+    const legacy = getCart();
+    try {
+      const data = legacy.length
+        ? await cartRequest('{{ url('/api/cart/sync') }}', { method: 'POST', body: JSON.stringify({ items: legacy }) })
+        : await cartRequest('{{ url('/api/cart') }}');
+      saveCart(data.items);
+      window.dispatchEvent(new CustomEvent('cartUpdated', { detail: data }));
+    } catch (error) {
+      renderCart();
+    }
+  }
+
+  setPaymentMethod(@json($selectedPaymentMethod === 'gcash' && $gcashAvailable ? 'gcash' : 'cod'));
+  loadServerCart();
 </script>
 @include('partials.mobile-bottom-customer')
 @endsection

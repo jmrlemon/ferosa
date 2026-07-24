@@ -2,29 +2,45 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\AppointmentStatusUpdated;
-use App\Mail\OrderStatusUpdated;
+use App\Jobs\SendSmsJob;
 use App\Models\Appointment;
+use App\Models\AppSetting;
 use App\Models\AuditLog;
+use App\Models\Conversation;
 use App\Models\Feedback;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\PlantModel;
 use App\Models\Product;
 use App\Models\ServiceType;
 use App\Models\User;
+use App\Notifications\AppointmentStatusChanged;
+use App\Notifications\OrderPaymentReviewed;
+use App\Notifications\OrderStatusChanged;
 use App\Support\Audit;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminController extends Controller
 {
+    private const AR_MODEL_MAX_KB = 102400;
+
+    private const AR_MODEL_JSON_MAX_BYTES = 8 * 1024 * 1024;
+
+    private const GLB_JSON_CHUNK_TYPE = 0x4E4F534A;
+
+    private const GLB_BIN_CHUNK_TYPE = 0x004E4942;
+
     public function archiveOrder(Request $request, Order $order): RedirectResponse
     {
         $before = Audit::snapshot($order, ['status', 'total_amount', 'archived_at']);
@@ -76,7 +92,8 @@ class AdminController extends Controller
         return redirect()->route('admin.dashboard', ['tab' => 'archived'])
             ->with('status', 'Appointment restored.');
     }
-    private const ORDER_STATUSES = ['pending', 'confirmed', 'out_for_delivery', 'delivered', 'cancelled'];
+
+    private const ORDER_STATUSES = ['pending', 'confirmed', 'out_for_delivery', 'delivered', 'completed', 'cancelled'];
 
     public function dashboard(): View
     {
@@ -93,8 +110,12 @@ class AdminController extends Controller
             ->when($salesTo, fn (Builder $q) => $q->whereDate('created_at', '<=', $salesTo));
 
         $totalSales = (float) (clone $ordersBase)->sum('total_amount');
+        $recognizedRevenue = (float) (clone $ordersBase)
+            ->where('payment_status', 'paid')
+            ->where('status', '!=', 'cancelled')
+            ->sum('total_amount');
         $totalOrders = (clone $ordersBase)->count();
-        $deliveredOrders = (clone $ordersBase)->where('status', 'delivered')->count();
+        $deliveredOrders = (clone $ordersBase)->whereIn('status', ['delivered', 'completed'])->count();
         $pendingOrders = (clone $ordersBase)->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])->count();
 
         $salesByStatus = (clone $ordersBase)
@@ -106,7 +127,7 @@ class AdminController extends Controller
         $adminOrders = $this->filteredOrdersQuery()->take(200)->get();
 
         $monthlySalesRows = Order::query()
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, COALESCE(SUM(total_amount), 0) as total")
+            ->selectRaw($this->monthKeyExpression().' as ym, COALESCE(SUM(total_amount), 0) as total')
             ->where('created_at', '>=', now()->startOfMonth()->subMonths(5))
             ->groupBy('ym')
             ->orderBy('ym')
@@ -114,7 +135,6 @@ class AdminController extends Controller
             ->keyBy('ym');
 
         $monthlySales = collect(range(5, 0, -1))
-            ->push(0)
             ->map(function (int $monthsAgo) use ($monthlySalesRows) {
                 $dt = now()->startOfMonth()->subMonths($monthsAgo);
                 $ym = $dt->format('Y-m');
@@ -126,7 +146,23 @@ class AdminController extends Controller
             });
 
         $productQ = trim((string) request('product_q', ''));
+        $productCategory = trim((string) request('product_category', ''));
+        $productCategories = Product::query()
+            ->whereNull('archived_at')
+            ->whereNotNull('category')
+            ->select('category')
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category');
+        $productStats = [
+            'total' => Product::query()->whereNull('archived_at')->count(),
+            'active' => Product::query()->whereNull('archived_at')->where('is_active', true)->count(),
+            'low_stock' => Product::query()->whereNull('archived_at')->where('stock_qty', '<=', 5)->count(),
+            'ar_ready' => Product::query()->whereNull('archived_at')->whereHas('plantModel')->count(),
+        ];
+
         $products = Product::query()
+            ->with('plantModel')
             ->whereNull('archived_at')
             ->when($productQ !== '', function (Builder $q) use ($productQ) {
                 $q->where(function (Builder $qq) use ($productQ) {
@@ -134,6 +170,7 @@ class AdminController extends Controller
                         ->orWhere('category', 'like', '%'.$productQ.'%');
                 });
             })
+            ->when($productCategory !== '', fn (Builder $q) => $q->where('category', $productCategory))
             ->orderBy('name')
             ->paginate(10, ['*'], 'products_page')
             ->withQueryString();
@@ -155,12 +192,62 @@ class AdminController extends Controller
             ->whereNull('archived_at')
             ->whereIn('status', ['scheduled', 'confirmed'])
             ->count();
+
+        $appointmentsNeedingConfirmation = Appointment::query()
+            ->whereNull('archived_at')
+            ->where('status', 'scheduled')
+            ->count();
+
+        $todayAppointments = Appointment::query()
+            ->whereNull('archived_at')
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->whereDate('appointment_at', today())
+            ->count();
+
+        $overdueAppointments = Appointment::query()
+            ->whereNull('archived_at')
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->where('appointment_at', '<', now())
+            ->count();
+
+        $priorityAppointments = Appointment::query()
+            ->with(['user:id,name,email', 'serviceType:id,name'])
+            ->whereNull('archived_at')
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->orderByRaw('CASE WHEN appointment_at < ? THEN 0 ELSE 1 END', [now()])
+            ->orderBy('appointment_at')
+            ->take(5)
+            ->get();
+
+        $ordersAwaitingConfirmation = Order::query()
+            ->whereNull('archived_at')
+            ->where('status', 'delivered')
+            ->whereNotNull('delivery_proof_url')
+            ->whereNull('customer_confirmed_at')
+            ->count();
+
+        $priorityOrders = Order::query()
+            ->with('user:id,name,email')
+            ->whereNull('archived_at')
+            ->where(function (Builder $q) {
+                $q->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])
+                    ->orWhere(function (Builder $delivered) {
+                        $delivered->where('status', 'delivered')
+                            ->whereNull('customer_confirmed_at');
+                    });
+            })
+            ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'out_for_delivery' THEN 2 ELSE 3 END")
+            ->orderByDesc('created_at')
+            ->take(5)
+            ->get();
         $totalUsers = User::query()->count();
 
         $apptQ = trim((string) request('appt_q', ''));
+        $apptStatus = trim((string) request('appt_status', ''));
         $appointments = Appointment::query()
-            ->with(['user', 'serviceType'])
+            ->with(['user', 'serviceType', 'feedback'])
             ->whereNull('archived_at')
+            ->when($apptStatus !== '', fn (Builder $q) => $q->where('status', $apptStatus))
             ->when($apptQ !== '', function (Builder $q) use ($apptQ) {
                 $q->where(function (Builder $qq) use ($apptQ) {
                     $qq->where('notes', 'like', '%'.$apptQ.'%')
@@ -173,7 +260,9 @@ class AdminController extends Controller
                         });
                 });
             })
-            ->latest()
+            ->orderByRaw("CASE status WHEN 'scheduled' THEN 0 WHEN 'confirmed' THEN 1 ELSE 2 END")
+            ->orderByRaw("CASE WHEN status IN ('scheduled', 'confirmed') THEN appointment_at END ASC")
+            ->latest('appointment_at')
             ->paginate(10, ['*'], 'appts_page')
             ->withQueryString();
 
@@ -186,6 +275,10 @@ class AdminController extends Controller
             ->orderBy('name')
             ->paginate(10, ['*'], 'services_page')
             ->withQueryString();
+        $serviceStats = [
+            'total' => ServiceType::query()->whereNull('archived_at')->count(),
+            'active' => ServiceType::query()->whereNull('archived_at')->where('is_active', true)->count(),
+        ];
 
         $archivedServices = ServiceType::query()
             ->whereNotNull('archived_at')
@@ -220,6 +313,12 @@ class AdminController extends Controller
             : null;
 
         $topProducts = $this->topSellingProducts();
+        $orderFlowStats = [
+            'pending' => Order::query()->whereNull('archived_at')->whereIn('status', ['pending', 'confirmed'])->count(),
+            'for_delivery' => Order::query()->whereNull('archived_at')->whereIn('status', ['out_for_delivery', 'delivered'])->count(),
+            'completed' => Order::query()->whereNull('archived_at')->where('status', 'completed')->count(),
+            'unpaid' => Order::query()->whereNull('archived_at')->whereIn('payment_status', ['unpaid', 'pending_verification', 'rejected'])->count(),
+        ];
 
         $auditQ = trim((string) request('audit_q', ''));
         $auditLogs = AuditLog::query()
@@ -241,24 +340,132 @@ class AdminController extends Controller
 
         $feedbackQ = trim((string) request('feedback_q', ''));
         $feedbacks = Feedback::query()
-            ->with(['user:id,name,email', 'product:id,name', 'serviceType:id,name'])
+            ->where(function (Builder $q) {
+                $q->whereNotNull('order_id')
+                    ->orWhereNotNull('appointment_id')
+                    ->orWhereNotNull('product_id')
+                    ->orWhereNotNull('service_type_id');
+            })
+            ->with(['user:id,name,email', 'product:id,name', 'serviceType:id,name', 'order:id,order_number', 'appointment:id,appointment_at'])
             ->when($feedbackQ !== '', function (Builder $q) use ($feedbackQ) {
                 $q->where(function (Builder $qq) use ($feedbackQ) {
                     $qq->where('comment', 'like', '%'.$feedbackQ.'%')
                         ->orWhereHas('user', function (Builder $u) use ($feedbackQ) {
                             $u->where('name', 'like', '%'.$feedbackQ.'%')
-                              ->orWhere('email', 'like', '%'.$feedbackQ.'%');
-                        });
+                                ->orWhere('email', 'like', '%'.$feedbackQ.'%');
+                        })
+                        ->orWhereHas('order', fn (Builder $o) => $o->where('order_number', 'like', '%'.$feedbackQ.'%'))
+                        ->orWhereHas('product', fn (Builder $p) => $p->where('name', 'like', '%'.$feedbackQ.'%'))
+                        ->orWhereHas('serviceType', fn (Builder $s) => $s->where('name', 'like', '%'.$feedbackQ.'%'));
                 });
             })
             ->latest()
             ->paginate(15, ['*'], 'fb_page')
             ->withQueryString();
 
-        $avgRating = Feedback::query()->avg('rating');
+        $avgRating = Feedback::query()
+            ->where(function (Builder $q) {
+                $q->whereNotNull('order_id')
+                    ->orWhereNotNull('appointment_id')
+                    ->orWhereNotNull('product_id')
+                    ->orWhereNotNull('service_type_id');
+            })
+            ->avg('rating');
+
+        $conversations = Conversation::with([
+            'customer:id,name,email',
+            'latestMessage.sender:id,name,role',
+        ])
+            ->whereHas('customer', fn (Builder $q) => $q->where('role', 'user'))
+            ->withCount(['messages as unread_count' => fn ($q) => $q
+                ->whereNull('read_at')
+                ->where('sender_id', '!=', auth()->id()),
+            ])
+            ->orderByDesc('last_message_at')
+            ->get();
+
+        $totalUnreadMessages = $conversations->sum('unread_count');
+        $adminUnreadNotifications = auth()->user()->unreadNotifications()->count();
+        $gcashSettings = AppSetting::getGcashSettings();
+        $isAdmin = auth()->user()?->isAdmin();
+        $moduleCards = [
+            [
+                'name' => 'AR Visualizer',
+                'status' => $productStats['ar_ready'] > 0 ? 'Active' : 'Needs Setup',
+                'metric' => $productStats['ar_ready'].' AR-ready',
+                'description' => 'Products with uploaded 3D models for mobile AR viewing.',
+                'tab' => 'products',
+                'tone' => 'emerald',
+            ],
+            [
+                'name' => 'Cost Estimator',
+                'status' => ($services->total() + $productStats['active']) > 0 ? 'Active' : 'Needs Setup',
+                'metric' => $services->total().' services',
+                'description' => 'Customers can estimate landscaping cost from services and products.',
+                'tab' => null,
+                'tone' => 'brand',
+            ],
+            [
+                'name' => 'Ordering',
+                'status' => 'Active',
+                'metric' => $totalOrders.' orders',
+                'description' => 'Customers can place product orders and track their status.',
+                'tab' => 'orders',
+                'tone' => 'blue',
+            ],
+            [
+                'name' => 'Billing',
+                'status' => ! empty($gcashSettings['name']) || ! empty($gcashSettings['number']) ? 'Configured' : 'Needs Setup',
+                'metric' => Order::query()->whereNull('archived_at')->whereIn('payment_status', ['unpaid', 'pending_verification', 'rejected'])->count().' need attention',
+                'description' => 'Payment status, receipts, and GCash checkout details.',
+                'tab' => $isAdmin ? 'payment' : null,
+                'tone' => 'amber',
+            ],
+            [
+                'name' => 'Service Scheduling',
+                'status' => 'Active',
+                'metric' => $pendingAppointments.' active',
+                'description' => 'Staff can review, confirm, complete, and archive schedules.',
+                'tab' => 'appointments',
+                'tone' => 'indigo',
+            ],
+            [
+                'name' => 'Site Visit Booking',
+                'status' => $services->total() > 0 ? 'Active' : 'Needs Services',
+                'metric' => $appointments->total().' bookings',
+                'description' => 'Customers can book site visits with date/time availability checks.',
+                'tab' => 'appointments',
+                'tone' => 'sky',
+            ],
+            [
+                'name' => 'Delivery Management',
+                'status' => 'Active',
+                'metric' => Order::query()->whereNull('archived_at')->whereIn('status', ['confirmed', 'out_for_delivery', 'delivered'])->count().' in flow',
+                'description' => 'Delivery status, proof upload, and customer receipt confirmation.',
+                'tab' => 'orders',
+                'tone' => 'purple',
+            ],
+            [
+                'name' => 'Inventory',
+                'status' => $productStats['total'] > 0 ? 'Active' : 'Needs Products',
+                'metric' => $productStats['low_stock'].' low stock',
+                'description' => 'Product stock, availability, low-stock warnings, and AR readiness.',
+                'tab' => 'products',
+                'tone' => 'green',
+            ],
+            [
+                'name' => 'Feedback',
+                'status' => 'Active',
+                'metric' => $feedbacks->total().' reviews',
+                'description' => 'Customer ratings, comments, and service/order feedback history.',
+                'tab' => 'feedbacks',
+                'tone' => 'rose',
+            ],
+        ];
 
         return view('admin.dashboard', compact(
             'totalSales',
+            'recognizedRevenue',
             'totalOrders',
             'deliveredOrders',
             'pendingOrders',
@@ -268,18 +475,30 @@ class AdminController extends Controller
             'archivedProducts',
             'monthlySales',
             'pendingAppointments',
+            'appointmentsNeedingConfirmation',
+            'todayAppointments',
+            'overdueAppointments',
+            'priorityAppointments',
+            'ordersAwaitingConfirmation',
+            'priorityOrders',
             'totalUsers',
             'appointments',
             'services',
+            'serviceStats',
             'archivedServices',
             'users',
             'thisWeekSales',
             'lastWeekSales',
             'weekSalesDeltaPct',
             'topProducts',
+            'orderFlowStats',
             'productQ',
+            'productCategory',
+            'productCategories',
+            'productStats',
             'serviceQ',
             'apptQ',
+            'apptStatus',
             'auditLogs',
             'auditQ',
             'salesFrom',
@@ -289,8 +508,127 @@ class AdminController extends Controller
             'feedbacks',
             'feedbackQ',
             'avgRating',
-            'lowStockProducts'
+            'lowStockProducts',
+            'conversations',
+            'totalUnreadMessages',
+            'adminUnreadNotifications',
+            'gcashSettings',
+            'moduleCards'
         ));
+    }
+
+    public function showOrder(Order $order): View
+    {
+        $order->load(['user', 'orderItems.product', 'feedback', 'paymentVerifiedBy:id,name']);
+        $history = AuditLog::query()->with('actor')
+            ->where('auditable_type', Order::class)
+            ->where('auditable_id', $order->id)
+            ->latest('created_at')
+            ->limit(50)
+            ->get();
+
+        return view('admin.order-show', [
+            'order' => $order,
+            'isAdmin' => auth()->user()?->isAdmin(),
+            'history' => $history,
+        ]);
+    }
+
+    public function showAppointment(Appointment $appointment): View
+    {
+        $appointment->load(['user', 'serviceType', 'feedback']);
+        $history = AuditLog::query()->with('actor')
+            ->where('auditable_type', Appointment::class)
+            ->where('auditable_id', $appointment->id)
+            ->latest('created_at')
+            ->limit(50)
+            ->get();
+
+        return view('admin.appointment-show', [
+            'appointment' => $appointment,
+            'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
+            'history' => $history,
+        ]);
+    }
+
+    public function updatePaymentSettings(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'gcash_name' => ['nullable', 'string', 'max:255'],
+            'gcash_number' => ['nullable', 'string', 'max:50'],
+            'gcash_qr' => ['nullable', 'image', 'max:5120'],
+            'remove_gcash_qr' => ['nullable', 'boolean'],
+        ]);
+
+        AppSetting::setValue('gcash_name', $data['gcash_name'] ?? null);
+        AppSetting::setValue('gcash_number', $data['gcash_number'] ?? null);
+
+        if ($request->boolean('remove_gcash_qr')) {
+            AppSetting::setValue('gcash_qr_url', null);
+        }
+
+        if ($request->hasFile('gcash_qr')) {
+            AppSetting::setValue('gcash_qr_url', Storage::disk('public')->url(
+                $request->file('gcash_qr')->store('payment', 'public')
+            ));
+        }
+
+        return redirect()->route('admin.dashboard', ['tab' => 'payment'])
+            ->with('status', 'GCash payment details updated.');
+    }
+
+    public function getConversation(Conversation $conversation): JsonResponse
+    {
+        $conversation->loadMissing('customer:id,name,role');
+        abort_unless($conversation->customer?->isUser(), 403, 'Only customer conversations are available in the admin inbox.');
+
+        $messages = $conversation->messages()
+            ->with('sender:id,name,role')
+            ->oldest()
+            ->get()
+            ->map(fn ($m) => [
+                'id' => $m->id,
+                'body' => $m->body,
+                'created_at' => $m->created_at->format('M j, Y g:i A'),
+                'is_admin' => $m->sender->isStaffOrAdmin(),
+                'sender' => $m->sender->name,
+            ]);
+
+        // Mark customer messages as read
+        $conversation->messages()
+            ->where('sender_id', '!=', auth()->id())
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return response()->json([
+            'messages' => $messages,
+            'customer' => $conversation->customer->name,
+        ]);
+    }
+
+    public function replyMessage(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $conversation->loadMissing('customer:id,name,role');
+        abort_unless($conversation->customer?->isUser(), 403, 'Admins can only reply to customer conversations.');
+
+        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+
+        $conversation->messages()->create([
+            'sender_id' => auth()->id(),
+            'body' => trim($data['body']),
+        ]);
+
+        $conversation->update(['last_message_at' => now()]);
+
+        return redirect()->route('admin.dashboard', ['tab' => 'messages'])
+            ->with('status', 'Reply sent.');
+    }
+
+    public function createProduct(): View
+    {
+        return view('admin.product-create', [
+            'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
+        ]);
     }
 
     public function storeProduct(Request $request): RedirectResponse
@@ -303,21 +641,28 @@ class AdminController extends Controller
                 Rule::unique('products', 'name')->whereNull('archived_at'),
             ],
             'description' => ['nullable', 'string', 'max:2000'],
-            'image_url'   => ['nullable', 'url', 'max:2048'],
-            'price'       => ['required', 'numeric', 'min:0'],
-            'stock_qty'   => ['nullable', 'integer', 'min:0'],
-            'category'    => ['required', 'string', 'max:100'],
-            'is_active'   => ['nullable', 'boolean'],
+            'image' => ['nullable', 'image', 'max:2048'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'stock_qty' => ['nullable', 'integer', 'min:0'],
+            'category' => ['required', 'string', 'max:100'],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
+        $imageUrl = null;
+        if ($request->hasFile('image')) {
+            $imageUrl = Storage::disk('public')->url(
+                $request->file('image')->store('products', 'public')
+            );
+        }
+
         $product = Product::query()->create([
-            'name'        => $data['name'],
+            'name' => $data['name'],
             'description' => $data['description'] ?? '',
-            'image_url'   => $data['image_url'] ?? null,
-            'price'       => $data['price'],
-            'stock_qty'   => (int) ($data['stock_qty'] ?? 0),
-            'category'    => strtolower(trim($data['category'])),
-            'is_active'   => (bool) ($data['is_active'] ?? false),
+            'image_url' => $imageUrl,
+            'price' => $data['price'],
+            'stock_qty' => (int) ($data['stock_qty'] ?? 0),
+            'category' => strtolower(trim($data['category'])),
+            'is_active' => (bool) ($data['is_active'] ?? false),
             'archived_at' => null,
         ]);
 
@@ -333,6 +678,18 @@ class AdminController extends Controller
 
         return redirect()->route('admin.dashboard', ['tab' => 'products'])
             ->with('status', 'Product added successfully.');
+    }
+
+    public function editProduct(Product $product): View
+    {
+        abort_unless($product->archived_at === null, 404);
+
+        $product->load('plantModel');
+
+        return view('admin.product-edit', [
+            'product' => $product,
+            'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
+        ]);
     }
 
     public function updateProduct(Request $request, Product $product): RedirectResponse
@@ -351,21 +708,28 @@ class AdminController extends Controller
                     ->whereNull('archived_at'),
             ],
             'description' => ['nullable', 'string', 'max:2000'],
-            'image_url'   => ['nullable', 'url', 'max:2048'],
-            'price'       => ['required', 'numeric', 'min:0'],
-            'stock_qty'   => ['nullable', 'integer', 'min:0'],
-            'category'    => ['required', 'string', 'max:100'],
-            'is_active'   => ['nullable', 'boolean'],
+            'image' => ['nullable', 'image', 'max:2048'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'stock_qty' => ['nullable', 'integer', 'min:0'],
+            'category' => ['required', 'string', 'max:100'],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
+        $imageUrl = $product->image_url;
+        if ($request->hasFile('image')) {
+            $imageUrl = Storage::disk('public')->url(
+                $request->file('image')->store('products', 'public')
+            );
+        }
+
         $product->update([
-            'name'        => $data['name'],
+            'name' => $data['name'],
             'description' => $data['description'] ?? '',
-            'image_url'   => $data['image_url'] ?? null,
-            'price'       => $data['price'],
-            'stock_qty'   => (int) ($data['stock_qty'] ?? 0),
-            'category'    => strtolower(trim($data['category'])),
-            'is_active'   => (bool) ($data['is_active'] ?? false),
+            'image_url' => $imageUrl,
+            'price' => $data['price'],
+            'stock_qty' => (int) ($data['stock_qty'] ?? 0),
+            'category' => strtolower(trim($data['category'])),
+            'is_active' => (bool) ($data['is_active'] ?? false),
         ]);
 
         Cache::forget('shop_products_active');
@@ -378,6 +742,11 @@ class AdminController extends Controller
             $before,
             Audit::snapshot($product, ['name', 'description', 'image_url', 'price', 'stock_qty', 'category', 'is_active', 'archived_at'])
         );
+
+        if ($request->input('redirect_to') === 'edit') {
+            return redirect()->route('admin.products.edit', $product)
+                ->with('status', 'Product updated successfully.');
+        }
 
         return redirect()->route('admin.dashboard', ['tab' => 'products'])
             ->with('status', 'Product updated successfully.');
@@ -425,27 +794,228 @@ class AdminController extends Controller
             ->with('status', 'Product restored successfully.');
     }
 
-    public function updateOrderStatus(Request $request, Order $order): RedirectResponse
+    public function updateOrderStatus(Request $request, Order $order): RedirectResponse|JsonResponse
     {
+        $isDeliveryOrder = ($order->delivery_method ?? 'delivery') === 'delivery';
+
         $data = $request->validate([
             'status' => ['required', 'string', 'in:'.implode(',', self::ORDER_STATUSES)],
-            'payment_status' => ['required', 'string', 'in:unpaid,paid'],
+            'payment_status' => ['required', 'string', 'in:unpaid,pending_verification,paid,rejected,refunded'],
+            'payment_review_notes' => ['nullable', 'string', 'max:1000', Rule::requiredIf(
+                fn () => $request->input('payment_status') === 'rejected'
+                    && $order->payment_status !== 'rejected'
+                    && blank($order->payment_review_notes)
+            )],
+            'dispatch_proof' => ['nullable', 'image', 'max:5120'],
+            'delivery_proof' => ['nullable', 'image', 'max:5120'],
+            'driver_name' => ['nullable', 'string', 'max:255'],
+            'driver_phone' => ['nullable', 'string', 'max:50'],
+            'dispatch_notes' => ['nullable', 'string', 'max:1000'],
+            'delivery_recipient_name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $order->update([
+        if (! $order->canTransitionTo($data['status'])) {
+            $message = 'Order cannot move from '.str_replace('_', ' ', $order->status).' to '.str_replace('_', ' ', $data['status']).'.';
+
+            return $request->expectsJson()
+                ? response()->json(['message' => $message], 422)
+                : back()->withErrors(['status' => $message]);
+        }
+
+        if (($order->payment_method ?? 'cod') === 'gcash'
+            && $data['payment_status'] === 'paid'
+            && ! $order->payment_proof_path) {
+            return $this->orderStatusError(
+                $request,
+                'payment_status',
+                'A GCash payment receipt is required before the payment can be verified.'
+            );
+        }
+
+        if ($isDeliveryOrder
+            && in_array($data['status'], ['out_for_delivery', 'delivered'], true)
+            && ! $request->hasFile('dispatch_proof')
+            && ! $order->dispatch_proof_url) {
+            return $this->orderStatusError(
+                $request,
+                'dispatch_proof',
+                'Please upload a dispatch proof photo before sending this order for delivery.'
+            );
+        }
+
+        if ($isDeliveryOrder
+            && in_array($data['status'], ['out_for_delivery', 'delivered'], true)
+            && blank($data['driver_name'] ?? $order->driver_name)) {
+            return $this->orderStatusError($request, 'driver_name', 'Please provide the assigned driver or rider name.');
+        }
+
+        if ($isDeliveryOrder
+            && $data['status'] === 'delivered'
+            && ! $request->hasFile('delivery_proof')
+            && ! $order->delivery_proof_url) {
+            $message = 'Please upload a delivery proof photo before marking this order as delivered.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['delivery_proof' => $message]);
+        }
+
+        if ($isDeliveryOrder
+            && $data['status'] === 'delivered'
+            && blank($data['delivery_recipient_name'] ?? $order->delivery_recipient_name)) {
+            return $this->orderStatusError(
+                $request,
+                'delivery_recipient_name',
+                'Please record the name of the person who received the delivery.'
+            );
+        }
+
+        $updates = [
             'status' => $data['status'],
             'payment_status' => $data['payment_status'],
-        ]);
-        $order->load('user');
+        ];
 
-        try {
-            Mail::to($order->user->email)->send(new OrderStatusUpdated($order));
-        } catch (\Throwable $e) {
-            report($e);
+        if (array_key_exists('payment_review_notes', $data)) {
+            $updates['payment_review_notes'] = $data['payment_review_notes'];
+        }
+
+        if ($data['payment_status'] === 'paid' && $order->payment_status !== 'paid') {
+            $updates['payment_verified_at'] = now();
+            $updates['payment_verified_by'] = $request->user()->id;
+        } elseif (in_array($data['payment_status'], ['unpaid', 'pending_verification', 'rejected'], true)) {
+            $updates['payment_verified_at'] = null;
+            $updates['payment_verified_by'] = null;
+        }
+
+        if ($isDeliveryOrder) {
+            foreach (['driver_name', 'driver_phone', 'dispatch_notes', 'delivery_recipient_name'] as $field) {
+                if (array_key_exists($field, $data)) {
+                    $updates[$field] = $data[$field];
+                }
+            }
+
+            if ($request->hasFile('dispatch_proof')) {
+                $updates['dispatch_proof_url'] = Storage::disk('public')->url(
+                    $request->file('dispatch_proof')->store('dispatch-proofs', 'public')
+                );
+            }
+
+            if ($request->hasFile('delivery_proof')) {
+                $updates['delivery_proof_url'] = Storage::disk('public')->url(
+                    $request->file('delivery_proof')->store('delivery-proofs', 'public')
+                );
+            }
+        }
+
+        if ($data['status'] === 'delivered') {
+            $updates['delivered_at'] = $order->delivered_at ?? now();
+            $updates['customer_confirmed_at'] = null;
+        }
+
+        if ($isDeliveryOrder && $data['status'] === 'out_for_delivery') {
+            $updates['dispatched_at'] = $order->dispatched_at ?? now();
+        }
+
+        if ($data['status'] === 'completed') {
+            $updates['delivered_at'] = $order->delivered_at ?? now();
+            $updates['customer_confirmed_at'] = $order->customer_confirmed_at ?? now();
+        }
+
+        if ($data['status'] === 'cancelled' && $order->status !== 'cancelled') {
+            $updates['cancel_reason'] = 'Cancelled by admin.';
+            $updates['cancelled_at'] = now();
+            $updates['cancelled_by'] = $request->user()->id;
+        }
+
+        if ($data['status'] !== 'cancelled') {
+            $updates['cancel_reason'] = null;
+            $updates['cancelled_at'] = null;
+            $updates['cancelled_by'] = null;
+        }
+
+        $workflowFields = ['status', 'payment_status', 'payment_review_notes', 'payment_verified_at', 'payment_verified_by', 'dispatch_proof_url', 'dispatched_at', 'driver_name', 'driver_phone', 'dispatch_notes', 'delivery_proof_url', 'delivery_recipient_name', 'delivered_at', 'customer_confirmed_at', 'cancel_reason', 'cancelled_at', 'cancelled_by'];
+        $before = Audit::snapshot($order, $workflowFields);
+        $orderStatusChanged = $order->status !== $data['status'];
+        $paymentStatusChanged = $order->payment_status !== $data['payment_status'];
+        DB::transaction(function () use ($order, $updates, $data): void {
+            $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+            abort_unless($lockedOrder->canTransitionTo($data['status']), 422, 'Order status changed. Refresh and try again.');
+
+            if ($data['status'] === 'cancelled' && $lockedOrder->status !== 'cancelled') {
+                foreach ($lockedOrder->orderItems()->with('product')->get() as $item) {
+                    $item->product?->increment('stock_qty', $item->qty);
+                }
+            }
+
+            $lockedOrder->update($updates);
+        }, 3);
+
+        $order->refresh()->load('user');
+        Audit::log($request, 'order.status.update', $order, $before, Audit::snapshot($order, $workflowFields));
+
+        if ($orderStatusChanged) {
+            try {
+                $order->user->notify(new OrderStatusChanged($order));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        if ($paymentStatusChanged) {
+            try {
+                $order->user->notify(new OrderPaymentReviewed($order));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        if ($orderStatusChanged && $order->user->phone_number) {
+            try {
+                $label = match ($order->status) {
+                    'confirmed' => 'confirmed',
+                    'out_for_delivery' => 'out for delivery',
+                    'delivered' => 'delivered',
+                    'completed' => 'completed',
+                    'cancelled' => 'cancelled',
+                    default => $order->status,
+                };
+                SendSmsJob::dispatch(
+                    $order->user->phone_number,
+                    "Ferosa: Your order #{$order->order_number} has been {$label}."
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $message = "Order {$order->order_number} updated to ".str_replace('_', ' ', $data['status']).'.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'status' => $order->status,
+                'status_label' => ucfirst(str_replace('_', ' ', $order->status)),
+                'payment_status' => $order->payment_status ?? 'unpaid',
+                'payment_label' => ucfirst(str_replace('_', ' ', $order->payment_status ?? 'unpaid')),
+                'delivery_proof_url' => $order->delivery_proof_url,
+                'dispatch_proof_url' => $order->dispatch_proof_url,
+                'dispatched_at' => optional($order->dispatched_at)->format('M d, Y h:i A'),
+                'driver_name' => $order->driver_name,
+                'delivery_recipient_name' => $order->delivery_recipient_name,
+                'delivered_at' => optional($order->delivered_at)->format('M d, Y h:i A'),
+                'customer_confirmed_at' => optional($order->customer_confirmed_at)->format('M d, Y h:i A'),
+            ]);
+        }
+
+        if ($request->input('redirect_to') === 'show') {
+            return redirect()->route('admin.orders.show', $order)
+                ->with('status', $message);
         }
 
         return redirect()->route('admin.dashboard', ['tab' => 'orders'])
-            ->with('status', "Order {$order->order_number} updated to ".str_replace('_', ' ', $data['status']).'.');
+            ->with('status', $message);
     }
 
     public function bulkOrderStatus(Request $request): RedirectResponse
@@ -456,12 +1026,84 @@ class AdminController extends Controller
             'status' => ['required', 'string', 'in:'.implode(',', self::ORDER_STATUSES)],
         ]);
 
-        $count = Order::query()->whereIn('id', $data['order_ids'])->update([
-            'status' => $data['status'],
-        ]);
+        if (in_array($data['status'], ['out_for_delivery', 'delivered', 'completed'], true)) {
+            return redirect()->route('admin.dashboard', ['tab' => 'orders'])
+                ->withErrors(['status' => 'Dispatch and delivery updates must be completed one order at a time with the required proof and recipient details.']);
+        }
+
+        $orders = Order::query()
+            ->with('user')
+            ->whereIn('id', $data['order_ids'])
+            ->get();
+
+        $bulkUpdates = ['status' => $data['status']];
+
+        if ($data['status'] === 'cancelled') {
+            $bulkUpdates['cancel_reason'] = 'Cancelled by admin.';
+            $bulkUpdates['cancelled_at'] = now();
+            $bulkUpdates['cancelled_by'] = $request->user()->id;
+        } else {
+            $bulkUpdates['cancel_reason'] = null;
+            $bulkUpdates['cancelled_at'] = null;
+            $bulkUpdates['cancelled_by'] = null;
+        }
+
+        $updatedOrders = collect();
+        foreach ($orders as $order) {
+            if (! $order->canTransitionTo($data['status'])) {
+                continue;
+            }
+
+            $before = Audit::snapshot($order, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
+            DB::transaction(function () use ($order, $bulkUpdates, $data): void {
+                $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
+                if (! $lockedOrder->canTransitionTo($data['status'])) {
+                    return;
+                }
+
+                if ($data['status'] === 'cancelled' && $lockedOrder->status !== 'cancelled') {
+                    foreach ($lockedOrder->orderItems()->with('product')->get() as $item) {
+                        $item->product?->increment('stock_qty', $item->qty);
+                    }
+                }
+
+                $lockedOrder->update($bulkUpdates);
+            }, 3);
+
+            $order->refresh();
+            if ($order->status === $data['status']) {
+                Audit::log($request, 'order.status.bulk-update', $order, $before, Audit::snapshot($order, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']));
+                $updatedOrders->push($order);
+            }
+        }
+
+        $orders = $updatedOrders;
+
+        $label = match ($data['status']) {
+            'confirmed' => 'confirmed',
+            'out_for_delivery' => 'out for delivery',
+            'delivered' => 'delivered',
+            'completed' => 'completed',
+            'cancelled' => 'cancelled',
+            default => $data['status'],
+        };
+
+        foreach ($orders as $order) {
+            try {
+                $order->user->notify(new OrderStatusChanged($order));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+            if ($order->user->phone_number) {
+                SendSmsJob::dispatch(
+                    $order->user->phone_number,
+                    "Ferosa: Your order #{$order->order_number} has been {$label}."
+                );
+            }
+        }
 
         return redirect()->route('admin.dashboard', ['tab' => 'orders'])
-            ->with('status', "Updated {$count} order(s) to ".str_replace('_', ' ', $data['status']).'.');
+            ->with('status', "Updated {$orders->count()} order(s) to ".str_replace('_', ' ', $data['status']).'.');
     }
 
     public function exportOrdersCsv(): StreamedResponse
@@ -487,6 +1129,138 @@ class AdminController extends Controller
             fclose($out);
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    public function overviewReport(Request $request): View
+    {
+        return view('admin.overview-report', $this->overviewReportData($request));
+    }
+
+    public function exportOverviewCsv(Request $request): StreamedResponse
+    {
+        $data = $this->overviewReportData($request);
+        $filename = 'overview-report-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($data) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($out, ['Ferosa Revenue Overview Report']);
+            fputcsv($out, ['Generated', $data['generatedAt']->format('M d, Y h:i A')]);
+            fputcsv($out, ['From', $data['salesFrom'] ?: 'Any']);
+            fputcsv($out, ['To', $data['salesTo'] ?: 'Any']);
+            fputcsv($out, []);
+
+            fputcsv($out, ['Summary']);
+            fputcsv($out, ['Total Sales', $data['totalSales']]);
+            fputcsv($out, ['Total Orders', $data['totalOrders']]);
+            fputcsv($out, ['Delivered Orders', $data['deliveredOrders']]);
+            fputcsv($out, ['Pending Orders', $data['pendingOrders']]);
+            fputcsv($out, []);
+
+            fputcsv($out, ['Sales by Status']);
+            fputcsv($out, ['Status', 'Orders', 'Sales']);
+            foreach ($data['salesByStatus'] as $row) {
+                fputcsv($out, [ucfirst(str_replace('_', ' ', $row->status)), $row->order_count, (float) $row->sales_total]);
+            }
+            fputcsv($out, []);
+
+            fputcsv($out, ['Monthly Sales']);
+            fputcsv($out, ['Month', 'Sales']);
+            foreach ($data['monthlySales'] as $row) {
+                fputcsv($out, [$row['label'], $row['total']]);
+            }
+            fputcsv($out, []);
+
+            fputcsv($out, ['Week vs Week Revenue']);
+            fputcsv($out, ['This Week', $data['thisWeekSales']]);
+            fputcsv($out, ['Last Week', $data['lastWeekSales']]);
+            fputcsv($out, ['Change %', $data['weekSalesDeltaPct'] === null ? 'N/A' : $data['weekSalesDeltaPct']]);
+            fputcsv($out, []);
+
+            fputcsv($out, ['Top Products']);
+            fputcsv($out, ['Product', 'Units Sold']);
+            foreach ($data['topProducts'] as $row) {
+                fputcsv($out, [$row['name'], $row['qty']]);
+            }
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function overviewReportData(Request $request): array
+    {
+        $range = $request->validate([
+            'sales_from' => ['nullable', 'date'],
+            'sales_to' => ['nullable', 'date', 'after_or_equal:sales_from'],
+        ]);
+
+        $salesFrom = $range['sales_from'] ?? null;
+        $salesTo = $range['sales_to'] ?? null;
+        $ordersBase = Order::query()
+            ->when($salesFrom, fn (Builder $q) => $q->whereDate('created_at', '>=', $salesFrom))
+            ->when($salesTo, fn (Builder $q) => $q->whereDate('created_at', '<=', $salesTo));
+
+        $salesByStatus = (clone $ordersBase)
+            ->selectRaw('status, COUNT(*) as order_count, COALESCE(SUM(total_amount), 0) as sales_total')
+            ->groupBy('status')
+            ->orderBy('status')
+            ->get();
+
+        $monthlySalesRows = Order::query()
+            ->selectRaw($this->monthKeyExpression().' as ym, COALESCE(SUM(total_amount), 0) as total')
+            ->where('created_at', '>=', now()->startOfMonth()->subMonths(5))
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->get()
+            ->keyBy('ym');
+
+        $monthlySales = collect(range(5, 0, -1))
+            ->map(function (int $monthsAgo) use ($monthlySalesRows) {
+                $dt = now()->startOfMonth()->subMonths($monthsAgo);
+                $ym = $dt->format('Y-m');
+
+                return [
+                    'label' => $dt->format('M Y'),
+                    'total' => (float) ($monthlySalesRows[$ym]->total ?? 0),
+                ];
+            });
+
+        $thisWeekStart = now()->startOfWeek();
+        $thisWeekEnd = now();
+        $lastWeekStart = now()->subWeek()->startOfWeek();
+        $lastWeekEnd = now()->subWeek()->endOfWeek();
+
+        $thisWeekSales = (float) Order::query()->whereBetween('created_at', [$thisWeekStart, $thisWeekEnd])->sum('total_amount');
+        $lastWeekSales = (float) Order::query()->whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])->sum('total_amount');
+        $weekSalesDeltaPct = $lastWeekSales > 0
+            ? round((($thisWeekSales - $lastWeekSales) / $lastWeekSales) * 100, 1)
+            : null;
+
+        return [
+            'generatedAt' => now(),
+            'salesFrom' => $salesFrom,
+            'salesTo' => $salesTo,
+            'totalSales' => (float) (clone $ordersBase)->sum('total_amount'),
+            'totalOrders' => (clone $ordersBase)->count(),
+            'deliveredOrders' => (clone $ordersBase)->whereIn('status', ['delivered', 'completed'])->count(),
+            'pendingOrders' => (clone $ordersBase)->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])->count(),
+            'salesByStatus' => $salesByStatus,
+            'monthlySales' => $monthlySales,
+            'thisWeekSales' => $thisWeekSales,
+            'lastWeekSales' => $lastWeekSales,
+            'weekSalesDeltaPct' => $weekSalesDeltaPct,
+            'topProducts' => $this->topSellingProducts(),
+        ];
+    }
+
+    public function createService(): View
+    {
+        return view('admin.service-create', [
+            'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
         ]);
     }
 
@@ -522,6 +1296,16 @@ class AdminController extends Controller
             ->with('status', 'Service added successfully.');
     }
 
+    public function editService(ServiceType $serviceType): View
+    {
+        abort_unless($serviceType->archived_at === null, 404);
+
+        return view('admin.service-edit', [
+            'service' => $serviceType,
+            'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
+        ]);
+    }
+
     public function updateService(Request $request, ServiceType $serviceType): RedirectResponse
     {
         abort_unless($serviceType->archived_at === null, 404);
@@ -555,6 +1339,11 @@ class AdminController extends Controller
             $before,
             Audit::snapshot($serviceType, ['name', 'default_fee', 'is_active', 'archived_at'])
         );
+
+        if ($request->input('redirect_to') === 'edit') {
+            return redirect()->route('admin.services.edit', $serviceType)
+                ->with('status', 'Service updated successfully.');
+        }
 
         return redirect()->route('admin.dashboard', ['tab' => 'services'])
             ->with('status', 'Service updated successfully.');
@@ -618,27 +1407,138 @@ class AdminController extends Controller
         ]);
     }
 
-    public function updateAppointmentStatus(Request $request, Appointment $appointment): RedirectResponse
+    public function cancelAppointment(Request $request, Appointment $appointment): RedirectResponse
+    {
+        abort_unless($appointment->archived_at === null, 404);
+        abort_unless(in_array($appointment->status, ['scheduled', 'confirmed']), 422);
+
+        $data = $request->validate([
+            'cancel_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $before = Audit::snapshot($appointment, ['status', 'appointment_at', 'cancel_reason', 'cancelled_at', 'cancelled_by', 'archived_at']);
+        $appointment->update([
+            'status' => 'cancelled',
+            'slot_key' => null,
+            'cancel_reason' => $data['cancel_reason'] ?? 'Cancelled by admin.',
+            'cancelled_at' => now(),
+            'cancelled_by' => $request->user()->id,
+        ]);
+        $appointment->load(['user', 'serviceType']);
+
+        try {
+            $appointment->user->notify(new AppointmentStatusChanged($appointment));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        if ($appointment->user->phone_number) {
+            try {
+                $service = $appointment->serviceType->name ?? 'Service';
+                SendSmsJob::dispatch(
+                    $appointment->user->phone_number,
+                    "Ferosa: Your {$service} appointment has been cancelled."
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $appointment->refresh();
+        Audit::log($request, 'appointment.cancel', $appointment, $before, Audit::snapshot($appointment, ['status', 'appointment_at', 'cancel_reason', 'cancelled_at', 'cancelled_by', 'archived_at']));
+
+        return redirect()->route('admin.dashboard', ['tab' => 'appointments'])
+            ->with('status', 'Appointment cancelled and customer notified.');
+    }
+
+    public function updateAppointmentStatus(Request $request, Appointment $appointment): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'status' => ['required', 'string', 'in:scheduled,confirmed,completed,cancelled'],
             'payment_status' => ['required', 'string', 'in:unpaid,paid'],
         ]);
 
-        $appointment->update([
+        if (! $appointment->canTransitionTo($data['status'])) {
+            $message = 'Appointment cannot move from '.$appointment->status.' to '.$data['status'].'.';
+
+            return $request->expectsJson()
+                ? response()->json(['message' => $message], 422)
+                : back()->withErrors(['status' => $message]);
+        }
+
+        $updates = [
             'status' => $data['status'],
             'payment_status' => $data['payment_status'],
-        ]);
-        $appointment->load(['user', 'serviceType']);
+            'slot_key' => in_array($data['status'], ['scheduled', 'confirmed'], true)
+                ? Appointment::slotKey($appointment->service_type_id, $appointment->appointment_at)
+                : null,
+        ];
+
+        if ($data['status'] === 'cancelled' && $appointment->status !== 'cancelled') {
+            $updates['cancel_reason'] = 'Cancelled by admin.';
+            $updates['cancelled_at'] = now();
+            $updates['cancelled_by'] = $request->user()->id;
+        }
+
+        if ($data['status'] !== 'cancelled') {
+            $updates['cancel_reason'] = null;
+            $updates['cancelled_at'] = null;
+            $updates['cancelled_by'] = null;
+        }
+
+        $before = Audit::snapshot($appointment, ['status', 'payment_status', 'slot_key', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
+        DB::transaction(function () use ($appointment, $updates, $data): void {
+            $lockedAppointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+            abort_unless($lockedAppointment->canTransitionTo($data['status']), 422, 'Appointment status changed. Refresh and try again.');
+            $lockedAppointment->update($updates);
+        }, 3);
+
+        $appointment->refresh()->load(['user', 'serviceType']);
+        Audit::log($request, 'appointment.status.update', $appointment, $before, Audit::snapshot($appointment, ['status', 'payment_status', 'slot_key', 'cancel_reason', 'cancelled_at', 'cancelled_by']));
 
         try {
-            Mail::to($appointment->user->email)->send(new AppointmentStatusUpdated($appointment));
+            $appointment->user->notify(new AppointmentStatusChanged($appointment));
         } catch (\Throwable $e) {
             report($e);
         }
 
+        if ($appointment->user->phone_number) {
+            try {
+                $service = $appointment->serviceType->name ?? 'Service';
+                $label = match ($appointment->status) {
+                    'confirmed' => 'confirmed',
+                    'completed' => 'completed',
+                    'cancelled' => 'cancelled',
+                    default => $appointment->status,
+                };
+                SendSmsJob::dispatch(
+                    $appointment->user->phone_number,
+                    "Ferosa: Your {$service} appointment has been {$label}."
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        $message = 'Appointment updated to '.ucfirst($data['status']).'.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'status' => $appointment->status,
+                'status_label' => ucfirst(str_replace('_', ' ', $appointment->status)),
+                'payment_status' => $appointment->payment_status ?? 'unpaid',
+                'payment_label' => ucfirst($appointment->payment_status ?? 'unpaid'),
+            ]);
+        }
+
+        if ($request->input('redirect_to') === 'show') {
+            return redirect()->route('admin.appointments.show', $appointment)
+                ->with('status', $message);
+        }
+
         return redirect()->route('admin.dashboard', ['tab' => 'appointments'])
-            ->with('status', 'Appointment updated to '.ucfirst($data['status']).'.');
+            ->with('status', $message);
     }
 
     public function updateUserRole(Request $request, User $user): RedirectResponse
@@ -664,8 +1564,7 @@ class AdminController extends Controller
     {
         $ordersQuery = Order::query()
             ->with('user:id,name,email')
-            ->whereNull('archived_at')
-            ->latest();
+            ->whereNull('archived_at');
 
         if ($status = request('order_status')) {
             $ordersQuery->where('status', $status);
@@ -681,7 +1580,16 @@ class AdminController extends Controller
             });
         }
 
-        return $ordersQuery;
+        return $ordersQuery
+            ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'out_for_delivery' THEN 2 WHEN 'delivered' THEN 3 WHEN 'completed' THEN 4 ELSE 5 END")
+            ->orderByDesc('created_at');
+    }
+
+    private function monthKeyExpression(): string
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "strftime('%Y-%m', created_at)"
+            : "DATE_FORMAT(created_at, '%Y-%m')";
     }
 
     private function topSellingProducts(): Collection
@@ -698,5 +1606,323 @@ class AdminController extends Controller
         } catch (\Throwable) {
             return collect();
         }
+    }
+
+    /**
+     * Upload or replace an AR 3D model for a product.
+     */
+    public function uploadArModel(Request $request, Product $product): RedirectResponse
+    {
+        $rules = [
+            'height_cm' => ['required', 'numeric', 'min:1', 'max:500'],
+        ];
+
+        // File is required only when no existing model (new upload)
+        if (! $product->plantModel) {
+            $rules['ar_model'] = ['required', 'file', 'max:'.self::AR_MODEL_MAX_KB];
+        } else {
+            $rules['ar_model'] = ['nullable', 'file', 'max:'.self::AR_MODEL_MAX_KB];
+        }
+
+        $data = $request->validate($rules);
+
+        // Validate file extension if a file is uploaded
+        if ($request->hasFile('ar_model')) {
+            $file = $request->file('ar_model');
+            $extension = strtolower($file->getClientOriginalExtension());
+
+            if ($extension !== 'glb') {
+                return redirect()->route('admin.products.edit', $product)
+                    ->withErrors(['ar_model' => 'Upload a self-contained .glb file. Separate .gltf assets are not supported.'])
+                    ->withInput();
+            }
+
+            if ($validationError = $this->validateGlb($file)) {
+                return redirect()->route('admin.products.edit', $product)
+                    ->withErrors(['ar_model' => $validationError])
+                    ->withInput();
+            }
+
+            $oldPath = $product->plantModel?->file_path;
+            $storedPath = $file->store('ar-models', 'public');
+            if (! $storedPath) {
+                return redirect()->route('admin.products.edit', $product)
+                    ->withErrors(['ar_model' => 'The model could not be stored. Please try again.'])
+                    ->withInput();
+            }
+            $fileName = $file->getClientOriginalName();
+            $fileSize = $file->getSize();
+
+            try {
+                $product->plantModel()->updateOrCreate(
+                    ['product_id' => $product->id],
+                    [
+                        'file_path' => $storedPath,
+                        'file_name' => $fileName,
+                        'file_size' => $fileSize,
+                        'height_cm' => $data['height_cm'],
+                    ]
+                );
+            } catch (\Throwable $exception) {
+                Storage::disk('public')->delete($storedPath);
+                throw $exception;
+            }
+
+            // Keep the existing working model until the replacement is stored
+            // and its database record has been updated successfully.
+            if ($oldPath && $oldPath !== $storedPath) {
+                Storage::disk('public')->delete($oldPath);
+            }
+        } else {
+            // Only updating height_cm (no new file uploaded)
+            if ($product->plantModel) {
+                $product->plantModel->update([
+                    'height_cm' => $data['height_cm'],
+                ]);
+            }
+        }
+
+        return redirect()->route('admin.products.edit', $product)
+            ->with('status', "AR model for \"{$product->name}\" updated successfully.");
+    }
+
+    /**
+     * Remove the AR 3D model from a product.
+     */
+    public function deleteArModel(Request $request, Product $product): RedirectResponse
+    {
+        if ($product->plantModel) {
+            // Delete the file from storage
+            if ($product->plantModel->file_path) {
+                Storage::disk('public')->delete($product->plantModel->file_path);
+            }
+
+            // Delete the PlantModel record
+            $product->plantModel->delete();
+        }
+
+        return redirect()->route('admin.products.edit', $product)
+            ->with('status', "AR model removed from \"{$product->name}\".");
+    }
+
+    /**
+     * Validate the GLB container before it can replace a working product model.
+     */
+    private function validateGlb(UploadedFile $file): ?string
+    {
+        $path = $file->getRealPath();
+        $actualLength = $file->getSize();
+
+        if (! is_string($path) || $path === '' || ! is_int($actualLength) || $actualLength < 28) {
+            return 'This GLB is incomplete. Upload a complete, self-contained GLB 2.0 file.';
+        }
+
+        $handle = @fopen($path, 'rb');
+        if (! is_resource($handle)) {
+            return 'The GLB could not be read. Please export it again and retry.';
+        }
+
+        try {
+            $header = $this->readGlbBytes($handle, 12);
+            if ($header === null || substr($header, 0, 4) !== 'glTF') {
+                return 'This file is not a valid binary GLB model.';
+            }
+
+            $headerValues = unpack('Vversion/Vlength', substr($header, 4));
+            if (! is_array($headerValues) || (int) ($headerValues['version'] ?? 0) !== 2) {
+                return 'This model must use the GLB 2.0 format.';
+            }
+
+            $declaredLength = (int) ($headerValues['length'] ?? 0);
+            if ($declaredLength !== $actualLength) {
+                return 'The GLB file length is inconsistent. Export the model again before uploading.';
+            }
+
+            $offset = 12;
+            $chunkIndex = 0;
+            $jsonDocument = null;
+            $binChunkLength = null;
+
+            while ($offset < $declaredLength) {
+                if (($declaredLength - $offset) < 8) {
+                    return 'The GLB contains a truncated chunk header.';
+                }
+
+                $chunkHeader = $this->readGlbBytes($handle, 8);
+                if ($chunkHeader === null) {
+                    return 'The GLB contains a truncated chunk header.';
+                }
+
+                $chunkValues = unpack('Vlength/Vtype', $chunkHeader);
+                if (! is_array($chunkValues)) {
+                    return 'The GLB chunk table could not be read.';
+                }
+
+                $chunkLength = (int) ($chunkValues['length'] ?? -1);
+                $chunkType = (int) ($chunkValues['type'] ?? -1);
+                $offset += 8;
+
+                if ($chunkLength < 0 || ($chunkLength % 4) !== 0) {
+                    return 'The GLB contains a chunk with an invalid length.';
+                }
+
+                if ($chunkLength > ($declaredLength - $offset)) {
+                    return 'The GLB contains truncated chunk data.';
+                }
+
+                if ($chunkIndex === 0 && $chunkType !== self::GLB_JSON_CHUNK_TYPE) {
+                    return 'The first GLB chunk must contain the model JSON.';
+                }
+
+                if ($chunkType === self::GLB_JSON_CHUNK_TYPE) {
+                    if ($chunkIndex !== 0 || $jsonDocument !== null) {
+                        return 'The GLB contains an unexpected additional JSON chunk.';
+                    }
+
+                    if ($chunkLength === 0 || $chunkLength > self::AR_MODEL_JSON_MAX_BYTES) {
+                        return 'The GLB model JSON is empty or too large to validate safely.';
+                    }
+
+                    $jsonChunk = $this->readGlbBytes($handle, $chunkLength);
+                    if ($jsonChunk === null) {
+                        return 'The GLB contains truncated model JSON.';
+                    }
+
+                    try {
+                        $jsonDocument = json_decode(rtrim($jsonChunk, " \t\r\n"), true, 512, JSON_THROW_ON_ERROR);
+                    } catch (\JsonException) {
+                        return 'The GLB contains invalid model JSON.';
+                    }
+
+                    if (! is_array($jsonDocument)) {
+                        return 'The GLB model JSON must be an object.';
+                    }
+                } else {
+                    if (! $this->skipGlbBytes($handle, $chunkLength)) {
+                        return 'The GLB contains truncated chunk data.';
+                    }
+
+                    if ($chunkType === self::GLB_BIN_CHUNK_TYPE) {
+                        if ($binChunkLength !== null) {
+                            return 'The GLB contains more than one binary data chunk.';
+                        }
+
+                        $binChunkLength = $chunkLength;
+                    }
+                }
+
+                $offset += $chunkLength;
+                $chunkIndex++;
+            }
+
+            if ($offset !== $declaredLength || $jsonDocument === null) {
+                return 'The GLB container is incomplete.';
+            }
+
+            if ($binChunkLength === null) {
+                return 'The GLB must include its binary model data in a BIN chunk.';
+            }
+
+            if ($resourceError = $this->validateGlbResources($jsonDocument, $binChunkLength)) {
+                return $resourceError;
+            }
+
+            return null;
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    private function readGlbBytes($handle, int $length): ?string
+    {
+        if ($length === 0) {
+            return '';
+        }
+
+        $data = '';
+        while (strlen($data) < $length && ! feof($handle)) {
+            $part = fread($handle, $length - strlen($data));
+            if ($part === false || $part === '') {
+                break;
+            }
+
+            $data .= $part;
+        }
+
+        return strlen($data) === $length ? $data : null;
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    private function skipGlbBytes($handle, int $length): bool
+    {
+        $remaining = $length;
+        while ($remaining > 0) {
+            $part = fread($handle, min($remaining, 1024 * 1024));
+            if ($part === false || $part === '') {
+                return false;
+            }
+
+            $remaining -= strlen($part);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $document
+     */
+    private function validateGlbResources(array $document, int $binChunkLength): ?string
+    {
+        $assetVersion = data_get($document, 'asset.version');
+        if (! is_string($assetVersion) || ! str_starts_with($assetVersion, '2.')) {
+            return 'The GLB model JSON must declare glTF asset version 2.x.';
+        }
+
+        foreach (['buffers', 'images'] as $resourceType) {
+            $resources = $document[$resourceType] ?? [];
+            if (! is_array($resources)) {
+                return "The GLB {$resourceType} list is invalid.";
+            }
+
+            foreach ($resources as $resource) {
+                if (! is_array($resource) || ! array_key_exists('uri', $resource)) {
+                    continue;
+                }
+
+                $uri = $resource['uri'];
+                if (! is_string($uri) || ! str_starts_with(strtolower(trim($uri)), 'data:')) {
+                    return 'The GLB references an external file. Embed all buffers and images before uploading.';
+                }
+            }
+        }
+
+        $buffers = $document['buffers'] ?? null;
+        if (! is_array($buffers) || $buffers === [] || ! is_array($buffers[0] ?? null)) {
+            return 'The GLB model JSON must describe its embedded binary buffer.';
+        }
+
+        $embeddedBufferLength = $buffers[0]['byteLength'] ?? null;
+        if (! is_int($embeddedBufferLength) || $embeddedBufferLength < 0) {
+            return 'The GLB embedded buffer length is invalid.';
+        }
+
+        // A GLB BIN chunk can contain up to three trailing padding bytes.
+        if ($embeddedBufferLength > $binChunkLength || ($binChunkLength - $embeddedBufferLength) > 3) {
+            return 'The GLB binary chunk does not match the buffer length declared by the model.';
+        }
+
+        return null;
+    }
+
+    private function orderStatusError(Request $request, string $field, string $message): RedirectResponse|JsonResponse
+    {
+        return $request->expectsJson()
+            ? response()->json(['message' => $message, 'errors' => [$field => [$message]]], 422)
+            : back()->withErrors([$field => $message])->withInput();
     }
 }

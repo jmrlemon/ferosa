@@ -3,12 +3,23 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\PasswordResetOtpController;
 use App\Http\Controllers\SocialAuthController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\AdminProjectController;
+use App\Http\Controllers\AdminBusinessProfileController;
+use App\Http\Controllers\AdminAccountController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => redirect()->route('login'));
+Route::get('/', function () {
+    if ($user = auth()->user()) {
+        return redirect()->route($user->isStaffOrAdmin() ? 'admin.dashboard' : 'home');
+    }
+
+    return app(AuthController::class)->showLogin();
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -28,41 +39,85 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
+Route::get('/logout', [AuthController::class, 'logoutFallback'])->name('logout.fallback');
 
 Route::middleware('auth')->group(function () {
     Route::get('/home', [PageController::class, 'home'])->name('home');
     Route::get('/shop', [PageController::class, 'shop'])->name('shop');
+    Route::get('/shop/{product}', [PageController::class, 'product'])->name('products.show');
+    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
     Route::get('/checkout', [PageController::class, 'checkout'])->name('checkout');
     Route::post('/checkout', [PageController::class, 'storeCheckout'])->name('checkout.store');
     Route::get('/orders/confirmation/{order}', [PageController::class, 'orderConfirmation'])->name('orders.confirmation');
     Route::get('/orders/{order}/receipt', [PageController::class, 'orderReceipt'])->name('orders.receipt');
+    Route::get('/orders/{order}/payment-proof', [PageController::class, 'paymentProof'])->name('orders.payment-proof');
     Route::get('/orders', [PageController::class, 'orders'])->name('orders');
+    Route::get('/appointments', [PageController::class, 'appointments'])->name('appointments');
+    Route::get('/appointments/{appointment}/receipt', [PageController::class, 'appointmentReceipt'])->name('appointments.receipt');
     Route::post('/orders/track', [PageController::class, 'trackOrder'])->name('orders.track');
+    Route::post('/orders/{order}/confirm-received', [PageController::class, 'confirmOrderReceived'])->name('orders.confirm-received');
     Route::get('/schedule', [PageController::class, 'schedule'])->name('schedule');
     Route::post('/schedule', [PageController::class, 'storeSchedule'])->name('schedule.store');
     Route::get('/schedule/availability', [PageController::class, 'scheduleAvailability'])->name('schedule.availability');
+    Route::delete('/appointments/{appointment}/cancel', [PageController::class, 'cancelAppointment'])->name('appointments.cancel');
+    Route::delete('/orders/{order}/cancel', [PageController::class, 'cancelOrder'])->name('orders.cancel');
     Route::get('/estimator', [PageController::class, 'estimator'])->name('estimator');
     Route::get('/account', [PageController::class, 'account'])->name('account');
     Route::put('/account', [PageController::class, 'updateAccount'])->name('account.update');
     Route::get('/feedback', [FeedbackController::class, 'index'])->name('feedback');
     Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 
+    Route::get('/messages', [MessageController::class, 'index'])->name('messages');
+    Route::post('/messages', [MessageController::class, 'store'])->name('messages.store');
+    Route::get('/messages/poll', [MessageController::class, 'poll'])->name('messages.poll');
+
+    Route::get('/notifications', [PageController::class, 'notifications'])->name('notifications');
+    Route::post('/notifications/{id}/read', [PageController::class, 'markNotificationRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [PageController::class, 'markAllNotificationsRead'])->name('notifications.read-all');
+
     // Staff/Admin: dashboard + products, services, appointments, archive
     Route::middleware('staff')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/account', [AdminAccountController::class, 'edit'])->name('account.edit');
+        Route::put('/account', [AdminAccountController::class, 'update'])->name('account.update');
+        Route::get('/service-scheduling', [AdminController::class, 'dashboard'])->name('service-scheduling');
+        Route::get('/ordering-delivery', [AdminController::class, 'dashboard'])->name('ordering-delivery');
+        Route::get('/service-scheduling/{appointment}', [AdminController::class, 'showAppointment'])->name('appointments.show');
+        Route::get('/ordering-delivery/{order}', [AdminController::class, 'showOrder'])->name('orders.show');
+        Route::get('/reports/overview', [AdminController::class, 'overviewReport'])->name('reports.overview');
+        Route::get('/reports/overview-export', [AdminController::class, 'exportOverviewCsv'])->name('reports.overview-csv');
         Route::get('/reports/orders-export', [AdminController::class, 'exportOrdersCsv'])->name('reports.orders-csv');
 
+        Route::get('/products/create', [AdminController::class, 'createProduct'])->name('products.create');
         Route::post('/products', [AdminController::class, 'storeProduct'])->name('products.store');
+        Route::get('/products/{product}/edit', [AdminController::class, 'editProduct'])->name('products.edit');
         Route::put('/products/{product}', [AdminController::class, 'updateProduct'])->name('products.update');
         Route::delete('/products/{product}', [AdminController::class, 'deleteProduct'])->name('products.delete');
         Route::put('/products/{product}/restore', [AdminController::class, 'restoreProduct'])->name('products.restore');
 
+        Route::post('/products/{product}/ar-model', [AdminController::class, 'uploadArModel'])->name('ar-models.upload');
+        Route::delete('/products/{product}/ar-model', [AdminController::class, 'deleteArModel'])->name('ar-models.delete');
+
+        Route::get('/projects', [AdminProjectController::class, 'index'])->name('projects.index');
+        Route::get('/projects/create', [AdminProjectController::class, 'create'])->name('projects.create');
+        Route::post('/projects', [AdminProjectController::class, 'store'])->name('projects.store');
+        Route::get('/projects/{project}/edit', [AdminProjectController::class, 'edit'])->name('projects.edit');
+        Route::put('/projects/{project}', [AdminProjectController::class, 'update'])->name('projects.update');
+        Route::delete('/projects/{project}', [AdminProjectController::class, 'destroy'])->name('projects.destroy');
+
+        Route::get('/services/create', [AdminController::class, 'createService'])->name('services.create');
         Route::post('/services', [AdminController::class, 'storeService'])->name('services.store');
+        Route::get('/services/{serviceType}/edit', [AdminController::class, 'editService'])->name('services.edit');
         Route::put('/services/{serviceType}', [AdminController::class, 'updateService'])->name('services.update');
         Route::delete('/services/{serviceType}', [AdminController::class, 'deleteService'])->name('services.delete');
         Route::put('/services/{serviceType}/restore', [AdminController::class, 'restoreService'])->name('services.restore');
 
+        Route::get('/conversations/{conversation}', [AdminController::class, 'getConversation'])->name('conversations.show');
+        Route::post('/conversations/{conversation}/reply', [AdminController::class, 'replyMessage'])->name('conversations.reply');
+
         Route::put('/appointments/{appointment}/status', [AdminController::class, 'updateAppointmentStatus'])->name('appointments.status');
+        Route::put('/appointments/{appointment}/cancel', [AdminController::class, 'cancelAppointment'])->name('appointments.cancel');
         Route::put('/appointments/{appointment}/archive', [AdminController::class, 'archiveAppointment'])->name('appointments.archive');
         Route::put('/appointments/{appointment}/restore', [AdminController::class, 'restoreAppointment'])->name('appointments.restore');
     });
@@ -73,6 +128,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/orders/bulk-status', [AdminController::class, 'bulkOrderStatus'])->name('orders.bulk-status');
         Route::put('/orders/{order}/archive', [AdminController::class, 'archiveOrder'])->name('orders.archive');
         Route::put('/orders/{order}/restore', [AdminController::class, 'restoreOrder'])->name('orders.restore');
+        Route::put('/payment-settings', [AdminController::class, 'updatePaymentSettings'])->name('payment-settings.update');
+        Route::get('/business-profile', [AdminBusinessProfileController::class, 'edit'])->name('business-profile.edit');
+        Route::put('/business-profile', [AdminBusinessProfileController::class, 'update'])->name('business-profile.update');
 
         Route::put('/users/{user}/role', [AdminController::class, 'updateUserRole'])->name('users.role');
     });

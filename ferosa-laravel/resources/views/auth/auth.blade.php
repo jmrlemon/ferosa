@@ -11,10 +11,11 @@
 <meta property="og:image" content="{{ asset('og.png') }}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{{ asset('og.png') }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
-<link rel="preload" as="image" href="{{ asset('images/ferosa-login-hero.png') }}">
+<link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
+{{-- Fonts load async: as a plain stylesheet this blocks first paint on a
+     round-trip to Google. Swapping media to "all" once it arrives lets the page
+     paint immediately in the fallback face, then upgrade (display=swap). --}}
+<link rel="preload" as="image" fetchpriority="high" href="{{ asset('images/ferosa-login-hero.jpg') }}">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -183,7 +184,7 @@ html, body {
 .form-title {
   font-family: 'Playfair Display', serif;
   font-size: 36px; font-weight: 700;
-  color: #111827; line-height: 1.15;
+  color: #181714; line-height: 1.15;
   margin-bottom: 7px;
 }
 .form-subtitle { font-size: 14px; color: #4b5563; }
@@ -192,7 +193,7 @@ html, body {
 .field { margin-bottom:13px; }
 .field-label {
   display:block; font-size:12.5px; font-weight:600;
-  color:#374151; margin-bottom:6px; letter-spacing:0.2px;
+  color:#3b3833; margin-bottom:6px; letter-spacing:0.2px;
 }
 .field-label-row {
   display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;
@@ -205,11 +206,11 @@ html, body {
 
 .input-wrap { position:relative; display:flex; align-items:center; }
 .input-icon {
-  position:absolute; left:13px; color:#9ca3af;
+  position:absolute; left:13px; color:#a8a196;
   display:flex; align-items:center; pointer-events:none;
 }
 .input-eye {
-  position:absolute; right:13px; color:#9ca3af;
+  position:absolute; right:13px; color:#a8a196;
   cursor:pointer; display:flex; align-items:center;
 }
 .field input {
@@ -219,12 +220,12 @@ html, body {
   background:rgba(255,255,255,0.88);
   font-family:'Inter',sans-serif;
   /* 16px minimum: prevents Android IME batch-composition (backward typing) bug */
-  font-size:16px; color:#111827; outline:none;
+  font-size:16px; color:#181714; outline:none;
   direction: ltr;
   unicode-bidi: plaintext;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.field input::placeholder { color:#9ca3af; }
+.field input::placeholder { color:#a8a196; }
 .field input:focus {
   border-color:var(--green);
   background:white;
@@ -265,7 +266,7 @@ html, body {
 .terms-title {
   font-size: 13px;
   font-weight: 800;
-  color: #111827;
+  color: #181714;
   text-transform: uppercase;
   letter-spacing: 0.4px;
   margin-bottom: 3px;
@@ -282,7 +283,7 @@ html, body {
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 50%;
   background: rgba(243,244,246,0.9);
-  color: #374151;
+  color: #3b3833;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -298,12 +299,12 @@ html, body {
   max-height: calc(min(78vh, 680px) - 112px);
   overflow-y: auto;
   padding-right: 8px;
-  color: #374151;
+  color: #3b3833;
   font-size: 12px;
   line-height: 1.55;
 }
 .terms-scroll h3 {
-  color: #111827;
+  color: #181714;
   font-size: 12.5px;
   margin: 12px 0 4px;
 }
@@ -317,7 +318,7 @@ html, body {
   align-items: flex-start;
   gap: 10px;
   margin: 0 0 15px;
-  color: #374151;
+  color: #3b3833;
   font-size: 12.5px;
   line-height: 1.45;
 }
@@ -361,7 +362,7 @@ html, body {
 
 .acct-label {
   display:block; font-size:12.5px; font-weight:600;
-  color:#374151; margin-bottom:8px;
+  color:#3b3833; margin-bottom:8px;
 }
 .acct-row { display:flex; gap:10px; margin-bottom:20px; }
 .acct-btn {
@@ -372,8 +373,8 @@ html, body {
   text-align:left; cursor:pointer;
   transition:all 0.2s; font-family:'Inter',sans-serif;
 }
-.acct-btn .aname { font-size:14px; font-weight:600; color:#111827; display:block; margin-bottom:2px; }
-.acct-btn .adesc { font-size:11.5px; color:#6b7280; }
+.acct-btn .aname { font-size:14px; font-weight:600; color:#181714; display:block; margin-bottom:2px; }
+.acct-btn .adesc { font-size:11.5px; color:#514d46; }
 .acct-btn.selected { border-color:var(--green); background:rgba(220,252,231,0.72); }
 .acct-btn.selected .aname { color:var(--green-dark); }
 
@@ -470,7 +471,12 @@ html, body {
 .scene-bg {
   transform: none;
   background-color: #102f23;
-  background-image: url("{{ asset('images/ferosa-login-hero.png') }}");
+  /* Two layers: the hero photo sits on top of a 40px inline placeholder.
+     The placeholder needs no network round-trip, so the panel never flashes
+     the flat #102f23 base colour while the hero jpeg is still downloading. */
+  background-image:
+    url("{{ asset('images/ferosa-login-hero.jpg') }}"),
+    url("data:image/png;base64,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");
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -696,7 +702,7 @@ html, body {
     <radialGradient id="sky" cx="50%" cy="40%" r="70%">
       <stop offset="0%" stop-color="#c8e6c9"/>
       <stop offset="40%" stop-color="#81c784"/>
-      <stop offset="100%" stop-color="#1b5e20"/>
+      <stop offset="100%" stop-color="#1b5239"/>
     </radialGradient>
     <radialGradient id="bgGlow" cx="55%" cy="45%" r="50%">
       <stop offset="0%" stop-color="#f8bbd0" stop-opacity="0.6"/>
@@ -731,36 +737,36 @@ html, body {
   <rect width="1440" height="900" fill="url(#sky)"/>
 
   <!-- Background bokeh blobs -->
-  <circle cx="120" cy="80" r="90" fill="#4caf50" opacity="0.25" filter="url(#blur1)"/>
-  <circle cx="1350" cy="120" r="110" fill="#2e7d32" opacity="0.3" filter="url(#blur1)"/>
-  <circle cx="200" cy="800" r="130" fill="#388e3c" opacity="0.28" filter="url(#blur1)"/>
-  <circle cx="1300" cy="780" r="100" fill="#1b5e20" opacity="0.35" filter="url(#blur1)"/>
+  <circle cx="120" cy="80" r="90" fill="#559e74" opacity="0.25" filter="url(#blur1)"/>
+  <circle cx="1350" cy="120" r="110" fill="#236746" opacity="0.3" filter="url(#blur1)"/>
+  <circle cx="200" cy="800" r="130" fill="#347f57" opacity="0.28" filter="url(#blur1)"/>
+  <circle cx="1300" cy="780" r="100" fill="#1b5239" opacity="0.35" filter="url(#blur1)"/>
   <circle cx="700" cy="50" r="80" fill="#66bb6a" opacity="0.2" filter="url(#blur1)"/>
-  <circle cx="900" cy="860" r="120" fill="#2e7d32" opacity="0.3" filter="url(#blur1)"/>
+  <circle cx="900" cy="860" r="120" fill="#236746" opacity="0.3" filter="url(#blur1)"/>
 
   <!-- Far background leaves (large, blurred) -->
-  <ellipse cx="100" cy="300" rx="180" ry="60" fill="#2e7d32" opacity="0.5" transform="rotate(-35 100 300)" filter="url(#blur2)"/>
-  <ellipse cx="1380" cy="250" rx="200" ry="65" fill="#1b5e20" opacity="0.55" transform="rotate(40 1380 250)" filter="url(#blur2)"/>
-  <ellipse cx="50" cy="650" rx="160" ry="55" fill="#388e3c" opacity="0.45" transform="rotate(-50 50 650)" filter="url(#blur2)"/>
-  <ellipse cx="1420" cy="700" rx="170" ry="60" fill="#2e7d32" opacity="0.5" transform="rotate(45 1420 700)" filter="url(#blur2)"/>
-  <ellipse cx="600" cy="880" rx="200" ry="70" fill="#1b5e20" opacity="0.4" transform="rotate(-10 600 880)" filter="url(#blur1)"/>
-  <ellipse cx="880" cy="30" rx="180" ry="58" fill="#388e3c" opacity="0.35" transform="rotate(15 880 30)" filter="url(#blur2)"/>
+  <ellipse cx="100" cy="300" rx="180" ry="60" fill="#236746" opacity="0.5" transform="rotate(-35 100 300)" filter="url(#blur2)"/>
+  <ellipse cx="1380" cy="250" rx="200" ry="65" fill="#1b5239" opacity="0.55" transform="rotate(40 1380 250)" filter="url(#blur2)"/>
+  <ellipse cx="50" cy="650" rx="160" ry="55" fill="#347f57" opacity="0.45" transform="rotate(-50 50 650)" filter="url(#blur2)"/>
+  <ellipse cx="1420" cy="700" rx="170" ry="60" fill="#236746" opacity="0.5" transform="rotate(45 1420 700)" filter="url(#blur2)"/>
+  <ellipse cx="600" cy="880" rx="200" ry="70" fill="#1b5239" opacity="0.4" transform="rotate(-10 600 880)" filter="url(#blur1)"/>
+  <ellipse cx="880" cy="30" rx="180" ry="58" fill="#347f57" opacity="0.35" transform="rotate(15 880 30)" filter="url(#blur2)"/>
 
   <!-- Mid background stems & leaves -->
-  <line x1="720" y1="900" x2="720" y2="380" stroke="#2e7d32" stroke-width="14" stroke-linecap="round" opacity="0.7"/>
-  <line x1="720" y1="700" x2="550" y2="550" stroke="#388e3c" stroke-width="10" stroke-linecap="round" opacity="0.6"/>
-  <line x1="720" y1="620" x2="900" y2="500" stroke="#388e3c" stroke-width="10" stroke-linecap="round" opacity="0.6"/>
-  <line x1="720" y1="780" x2="400" y2="700" stroke="#2e7d32" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
-  <line x1="720" y1="750" x2="1020" y2="660" stroke="#2e7d32" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
+  <line x1="720" y1="900" x2="720" y2="380" stroke="#236746" stroke-width="14" stroke-linecap="round" opacity="0.7"/>
+  <line x1="720" y1="700" x2="550" y2="550" stroke="#347f57" stroke-width="10" stroke-linecap="round" opacity="0.6"/>
+  <line x1="720" y1="620" x2="900" y2="500" stroke="#347f57" stroke-width="10" stroke-linecap="round" opacity="0.6"/>
+  <line x1="720" y1="780" x2="400" y2="700" stroke="#236746" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
+  <line x1="720" y1="750" x2="1020" y2="660" stroke="#236746" stroke-width="8" stroke-linecap="round" opacity="0.5"/>
 
   <!-- Leaves mid -->
   <ellipse cx="490" cy="510" rx="110" ry="38" fill="#33691e" transform="rotate(-38 490 510)"/>
   <ellipse cx="940" cy="470" rx="105" ry="36" fill="#33691e" transform="rotate(32 940 470)"/>
-  <ellipse cx="340" cy="675" rx="90" ry="30" fill="#388e3c" transform="rotate(-52 340 675)"/>
-  <ellipse cx="1060" cy="635" rx="95" ry="32" fill="#388e3c" transform="rotate(48 1060 635)"/>
+  <ellipse cx="340" cy="675" rx="90" ry="30" fill="#347f57" transform="rotate(-52 340 675)"/>
+  <ellipse cx="1060" cy="635" rx="95" ry="32" fill="#347f57" transform="rotate(48 1060 635)"/>
   <!-- Leaf veins -->
-  <line x1="430" y1="488" x2="555" y2="535" stroke="#4caf50" stroke-width="2" opacity="0.5"/>
-  <line x1="885" y1="445" x2="998" y2="498" stroke="#4caf50" stroke-width="2" opacity="0.5"/>
+  <line x1="430" y1="488" x2="555" y2="535" stroke="#559e74" stroke-width="2" opacity="0.5"/>
+  <line x1="885" y1="445" x2="998" y2="498" stroke="#559e74" stroke-width="2" opacity="0.5"/>
 
   <!-- Small buds on stems -->
   <ellipse cx="560" cy="430" rx="14" ry="26" fill="#f48fb1" transform="rotate(-25 560 430)"/>
@@ -813,10 +819,10 @@ html, body {
   </g>
 
   <!-- Foreground leaf overlaps (adds depth) -->
-  <ellipse cx="150" cy="500" rx="200" ry="70" fill="#1b5e20" opacity="0.7" transform="rotate(-30 150 500)"/>
-  <ellipse cx="1310" cy="480" rx="190" ry="68" fill="#1b5e20" opacity="0.65" transform="rotate(28 1310 480)"/>
-  <ellipse cx="0" cy="750" rx="220" ry="75" fill="#2e7d32" opacity="0.6" transform="rotate(-45 0 750)"/>
-  <ellipse cx="1450" cy="750" rx="210" ry="72" fill="#2e7d32" opacity="0.6" transform="rotate(42 1450 750)"/>
+  <ellipse cx="150" cy="500" rx="200" ry="70" fill="#1b5239" opacity="0.7" transform="rotate(-30 150 500)"/>
+  <ellipse cx="1310" cy="480" rx="190" ry="68" fill="#1b5239" opacity="0.65" transform="rotate(28 1310 480)"/>
+  <ellipse cx="0" cy="750" rx="220" ry="75" fill="#236746" opacity="0.6" transform="rotate(-45 0 750)"/>
+  <ellipse cx="1450" cy="750" rx="210" ry="72" fill="#236746" opacity="0.6" transform="rotate(42 1450 750)"/>
 
   <!-- Bokeh light spots (foreground) -->
   <circle cx="250" cy="180" r="22" fill="rgba(255,255,255,0.12)" filter="url(#blur2)"/>
@@ -922,7 +928,7 @@ html, body {
       </div>
 
       <div class="field">
-        <label class="field-label">Middle Name <span style="font-weight:400;color:#9ca3af">(Optional)</span></label>
+        <label class="field-label">Middle Name <span style="font-weight:400;color:#a8a196">(Optional)</span></label>
         <div class="input-wrap">
           <span class="input-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
           <input id="signup-middle-name" type="text" placeholder="Santos" dir="ltr" autocomplete="additional-name" autocorrect="off" autocapitalize="words" spellcheck="false">

@@ -12,70 +12,93 @@
 @endsection
 
 @section('content')
+@php
+  $activeFilters = collect([
+    filled($q) ? 'search' : null,
+    $category !== 'all' ? 'category' : null,
+    filled($maxPrice) ? 'price' : null,
+  ])->filter()->count();
+@endphp
 <main class="customer-page max-w-5xl">
 
   {{-- Header --}}
-  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
-    <div>
-      <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Shop</h1>
-      <p class="text-surface-400 text-sm">Premium plants, tools, and materials curated by Ferosa.</p>
-    </div>
-    <span class="text-xs text-surface-400" id="product-count-label">
-      {{ $products->count() }} product{{ $products->count() !== 1 ? 's' : '' }}
+  <x-page-head
+    kicker="From the nursery"
+    title="Plants and garden essentials"
+    sub="Everything Ferosa uses on site — healthy stock, honest pricing, and delivery across Orani, Bataan.">
+    <span class="badge badge-neutral" id="product-count-label">
+      {{ $products->count() }} item{{ $products->count() !== 1 ? 's' : '' }}
     </span>
+    <a href="{{ route('checkout') }}" class="btn btn-secondary btn-sm">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      View cart
+    </a>
+  </x-page-head>
+
+  {{-- Category quick filters --}}
+  <div class="mb-4 flex flex-wrap items-center gap-2 reveal reveal-1">
+    <a href="{{ route('shop', array_filter(['q' => $q, 'sort' => $sort, 'max_price' => $maxPrice])) }}"
+       class="chip {{ $category === 'all' ? 'chip-active' : '' }}">All</a>
+    @foreach ($categories as $cat)
+      <a href="{{ route('shop', array_filter(['category' => $cat, 'q' => $q, 'sort' => $sort, 'max_price' => $maxPrice])) }}"
+         class="chip {{ $category === $cat ? 'chip-active' : '' }}">{{ ucfirst($cat) }}</a>
+    @endforeach
   </div>
 
   {{-- Filters bar --}}
   <form method="GET" action="{{ route('shop') }}" id="filter-form"
-        class="customer-card p-4 mb-6 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-    {{-- Search --}}
-    <div class="sm:col-span-2 relative">
-      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input type="search" name="q" value="{{ $q }}" placeholder="Search products..."
-             class="w-full pl-8 pr-3 py-2 border border-surface-200 rounded-lg text-xs text-surface-700 outline-none focus:border-brand-500 transition-colors">
-    </div>
-    {{-- Category --}}
-    <select name="category" onchange="this.form.submit()"
-            class="border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
-      <option value="all" {{ $category === 'all' ? 'selected' : '' }}>All categories</option>
-      @foreach ($categories as $cat)
-        <option value="{{ $cat }}" {{ $category === $cat ? 'selected' : '' }}>{{ ucfirst($cat) }}</option>
-      @endforeach
-    </select>
-    {{-- Sort --}}
-    <select name="sort" onchange="this.form.submit()"
-            class="border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
-      <option value="name_asc"  {{ $sort === 'name_asc'  ? 'selected' : '' }}>Name A-Z</option>
-      <option value="price_asc" {{ $sort === 'price_asc' ? 'selected' : '' }}>Price: Low to High</option>
-      <option value="price_desc"{{ $sort === 'price_desc'? 'selected' : '' }}>Price: High to Low</option>
-      <option value="newest"    {{ $sort === 'newest'    ? 'selected' : '' }}>Newest</option>
-    </select>
-    {{-- Price filter + submit --}}
-    <div class="sm:col-span-2 flex items-center gap-2">
-      <label class="text-[10px] text-surface-400 whitespace-nowrap">Max price (PHP)</label>
-      <input type="number" name="max_price" value="{{ $maxPrice ?? '' }}" min="0" step="100" placeholder="Any"
-             class="w-28 border border-surface-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-brand-500 transition-colors">
-      <button type="submit" data-loading-label="Filtering..." class="customer-action bg-surface-900 text-white px-4 py-2 text-xs font-medium hover:bg-surface-800">Filter</button>
-      <a href="{{ route('shop') }}" class="text-xs text-surface-400 hover:text-surface-700 transition-colors">Reset</a>
+        class="toolbar mb-6 reveal reveal-1">
+    <input type="hidden" name="category" value="{{ $category }}">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-end">
+      {{-- Search --}}
+      <div class="sm:col-span-5">
+        <label for="shop-search" class="field-label">Search</label>
+        <div class="field-icon">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="search" id="shop-search" name="q" value="{{ $q }}" placeholder="Try “fern”, “soil”, “shears”…" class="field">
+        </div>
+      </div>
+      {{-- Sort --}}
+      <div class="sm:col-span-3">
+        <label for="shop-sort" class="field-label">Sort by</label>
+        <select id="shop-sort" name="sort" onchange="this.form.submit()" class="field">
+          <option value="name_asc"  {{ $sort === 'name_asc'  ? 'selected' : '' }}>Name A-Z</option>
+          <option value="price_asc" {{ $sort === 'price_asc' ? 'selected' : '' }}>Price: Low to High</option>
+          <option value="price_desc"{{ $sort === 'price_desc'? 'selected' : '' }}>Price: High to Low</option>
+          <option value="newest"    {{ $sort === 'newest'    ? 'selected' : '' }}>Newest</option>
+        </select>
+      </div>
+      {{-- Max price --}}
+      <div class="sm:col-span-2">
+        <label for="shop-max-price" class="field-label">Max price</label>
+        <input type="number" id="shop-max-price" name="max_price" value="{{ $maxPrice ?? '' }}" min="0" step="100" placeholder="Any" class="field">
+      </div>
+      {{-- Actions --}}
+      <div class="flex items-center gap-2 sm:col-span-2">
+        <button type="submit" data-loading-label="Filtering..." class="btn btn-primary btn-sm flex-1">Apply</button>
+        @if($activeFilters)
+          <a href="{{ route('shop') }}" class="btn btn-ghost btn-sm" title="Clear all filters">Reset</a>
+        @endif
+      </div>
     </div>
   </form>
 
   {{-- Products grid --}}
   @if ($products->isEmpty())
-    <div class="customer-empty">
+    <div class="customer-empty reveal reveal-2">
       <div class="customer-empty-icon">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
       </div>
-      <h2 class="text-sm font-semibold text-surface-900 mb-1">No products found</h2>
-      <p class="text-surface-400 text-sm mb-4">Try a different keyword, category, or price range.</p>
-      <a href="{{ route('shop') }}" class="customer-action bg-surface-900 text-white text-xs font-medium px-5 py-2 hover:bg-surface-800">Reset filters</a>
+      <h2 class="text-base font-bold text-surface-900 mb-1">No products found</h2>
+      <p class="text-surface-500 text-sm mb-5">Try a different keyword, category, or price range.</p>
+      <a href="{{ route('shop') }}" class="btn btn-primary btn-sm">Reset filters</a>
     </div>
   @else
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 reveal reveal-2">
       @foreach ($products as $product)
         @php
           $catBg = match(strtolower($product->category)) {
@@ -97,7 +120,11 @@
           {{-- Image / placeholder --}}
           <a href="{{ route('products.show', $product) }}" class="aspect-[4/3] {{ $catBg }} relative flex items-center justify-center overflow-hidden" aria-label="View {{ $product->name }} details">
             @if ($product->image_url)
+              {{-- Product images are remote URLs, so the whole grid used to be
+                   fetched at once on page load. Lazy loading keeps the shop
+                   usable on a phone: only the cards actually on screen fetch. --}}
               <img src="{{ $product->image_url }}" alt="{{ $product->name }}"
+                   loading="lazy" decoding="async"
                    class="w-full h-full object-cover">
             @else
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.2">
@@ -112,19 +139,20 @@
             </span>
 
             @if($product->plantModel)
-              <span class="absolute bottom-3 left-3 bg-brand-800/90 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm">
-                AR preview ready
+              <span class="absolute bottom-3 left-3 inline-flex items-center gap-1 bg-brand-800/90 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3M9 9h6v6H9z"/></svg>
+                AR preview
               </span>
             @endif
 
             {{-- Stock badge --}}
             @if (! $inStock)
-              <span class="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                Out of Stock
+              <span class="absolute top-3 right-3 rounded-full bg-white/92 backdrop-blur px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-600 shadow-sm">
+                Out of stock
               </span>
             @elseif ($lowStock)
-              <span class="absolute top-3 right-3 bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                Only {{ $product->stock_qty }} left
+              <span class="absolute top-3 right-3 rounded-full bg-white/92 backdrop-blur px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 shadow-sm">
+                {{ $product->stock_qty }} left
               </span>
             @endif
 
@@ -132,27 +160,33 @@
 
           {{-- Info --}}
           <div class="p-5 flex-1 flex flex-col">
-            <h3 class="font-bold text-surface-900 text-base leading-snug mb-1.5"><a href="{{ route('products.show', $product) }}" class="hover:text-brand-700">{{ $product->name }}</a></h3>
+            <h3 class="font-bold text-surface-900 text-base leading-snug mb-1.5"><a href="{{ route('products.show', $product) }}" class="hover:text-brand-700 transition-colors">{{ $product->name }}</a></h3>
             @if ($product->description)
               <p class="text-[13px] text-surface-500 leading-5 mb-3 line-clamp-2">{{ $product->description }}</p>
             @endif
-            <a href="{{ route('products.show', $product) }}" class="mb-3 inline-flex text-[11px] font-bold text-brand-700">View details &amp; guidance &rarr;</a>
-            <div class="mt-auto pt-4 flex items-center justify-between gap-3 border-t border-surface-100">
+            <a href="{{ route('products.show', $product) }}" class="mb-3 inline-flex items-center gap-1 text-[11px] font-bold text-brand-700 hover:text-brand-900 transition-colors">
+              View details &amp; guidance
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg>
+            </a>
+            <div class="mt-auto pt-4 flex items-end justify-between gap-3 border-t border-surface-100">
               <div>
-                <p class="text-lg font-display font-bold text-surface-900">&#8369;{{ number_format((float) $product->price, 2) }}</p>
-                @if($inStock && !$lowStock)
-                  <p class="mt-0.5 text-[10px] font-semibold text-brand-600">In stock</p>
+                <p class="font-display text-xl font-bold leading-none text-surface-900">&#8369;{{ number_format((float) $product->price, 2) }}</p>
+                @if($inStock)
+                  <p class="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide {{ $lowStock ? 'text-amber-700' : 'text-brand-600' }}">
+                    <span class="h-1.5 w-1.5 rounded-full {{ $lowStock ? 'bg-amber-500' : 'bg-brand-500' }}"></span>
+                    {{ $lowStock ? 'Low stock' : 'In stock' }}
+                  </p>
                 @endif
               </div>
               @if ($inStock)
                 <button onclick="addToCart({{ $product->id }}, '{{ addslashes($product->name) }}', {{ (float) $product->price }})"
                         aria-label="Add {{ $product->name }} to cart"
-                        class="customer-action min-h-[42px] bg-brand-700 hover:bg-brand-800 text-white px-3.5 py-2 text-xs font-bold">
+                        class="btn btn-primary btn-sm">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                  Add to cart
+                  Add
                 </button>
               @else
-                <span class="text-[10px] text-red-400 font-medium">Unavailable</span>
+                <span class="badge badge-danger">Unavailable</span>
               @endif
             </div>
           </div>
@@ -204,9 +238,9 @@
 
   function showCartToast(message, success = true) {
     const toast = document.createElement('div');
-    toast.className = 'bg-surface-900 text-white text-xs font-medium px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transform translate-x-full transition-transform duration-200';
+    toast.className = 'text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transform translate-x-full transition-transform duration-200 '
+      + (success ? 'bg-brand-700' : 'bg-red-600');
     toast.textContent = message;
-    if (!success) toast.classList.add('bg-red-700');
     toastCont.appendChild(toast);
     setTimeout(() => toast.classList.remove('translate-x-full'), 10);
     setTimeout(() => { toast.classList.add('translate-x-full'); setTimeout(() => toast.remove(), 200); }, 2200);

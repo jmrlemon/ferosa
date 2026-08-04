@@ -155,6 +155,70 @@ class FunctionalWorkflowTest extends TestCase
         $this->assertSame([], Storage::disk('public')->allFiles('ar-models'));
     }
 
+    public function test_glbs_without_reachable_geometry_or_measurable_height_are_rejected(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create(['role' => 'admin']);
+        $product = $this->product(stock: 5);
+
+        $withoutGeometry = $this->validGlb([
+            'asset' => ['version' => '2.0'],
+            'buffers' => [['byteLength' => 4]],
+        ]);
+        $withoutReachableMesh = $this->validGlb([
+            'asset' => ['version' => '2.0'],
+            'scene' => 0,
+            'scenes' => [['nodes' => [0]]],
+            'nodes' => [[]],
+            'meshes' => [[
+                'primitives' => [[
+                    'attributes' => ['POSITION' => 0],
+                ]],
+            ]],
+            'accessors' => [[
+                'componentType' => 5126,
+                'count' => 3,
+                'type' => 'VEC3',
+                'min' => [0, 0, 0],
+                'max' => [1, 1, 1],
+            ]],
+            'buffers' => [['byteLength' => 4]],
+        ]);
+        $withoutHeight = $this->validGlb([
+            'asset' => ['version' => '2.0'],
+            'scene' => 0,
+            'scenes' => [['nodes' => [0]]],
+            'nodes' => [['mesh' => 0]],
+            'meshes' => [[
+                'primitives' => [[
+                    'attributes' => ['POSITION' => 0],
+                ]],
+            ]],
+            'accessors' => [[
+                'componentType' => 5126,
+                'count' => 3,
+                'type' => 'VEC3',
+                'min' => [0, 1, 0],
+                'max' => [1, 1, 1],
+            ]],
+            'buffers' => [['byteLength' => 4]],
+        ]);
+
+        foreach ([
+            'no-geometry.glb' => $withoutGeometry,
+            'orphan-mesh.glb' => $withoutReachableMesh,
+            'zero-height.glb' => $withoutHeight,
+        ] as $name => $contents) {
+            $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+                'ar_model' => UploadedFile::fake()->createWithContent($name, $contents),
+                'height_cm' => 120,
+            ])->assertSessionHasErrors('ar_model');
+        }
+
+        $this->assertNull($product->fresh()->plantModel);
+        $this->assertSame([], Storage::disk('public')->allFiles('ar-models'));
+    }
+
     public function test_legacy_cart_merge_does_not_double_existing_quantities(): void
     {
         $customer = User::factory()->create(['role' => 'user']);
@@ -409,10 +473,57 @@ class FunctionalWorkflowTest extends TestCase
      */
     private function validGlb(?array $document = null, string $binary = "\0\0\0\0"): string
     {
-        $document ??= [
-            'asset' => ['version' => '2.0'],
-            'buffers' => [['byteLength' => strlen($binary)]],
-        ];
+        if ($document === null) {
+            $binary = pack(
+                'g*',
+                0.0, 0.0, 0.0,
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.1,
+            ).pack('v*', 0, 1, 2);
+            $document = [
+                'asset' => ['version' => '2.0'],
+                'scene' => 0,
+                'scenes' => [['nodes' => [0]]],
+                'nodes' => [['mesh' => 0]],
+                'meshes' => [[
+                    'primitives' => [[
+                        'attributes' => ['POSITION' => 0],
+                        'indices' => 1,
+                    ]],
+                ]],
+                'accessors' => [
+                    [
+                        'bufferView' => 0,
+                        'componentType' => 5126,
+                        'count' => 3,
+                        'type' => 'VEC3',
+                        'min' => [0, 0, 0],
+                        'max' => [1, 1, 0.1],
+                    ],
+                    [
+                        'bufferView' => 1,
+                        'componentType' => 5123,
+                        'count' => 3,
+                        'type' => 'SCALAR',
+                    ],
+                ],
+                'bufferViews' => [
+                    [
+                        'buffer' => 0,
+                        'byteOffset' => 0,
+                        'byteLength' => 36,
+                        'target' => 34962,
+                    ],
+                    [
+                        'buffer' => 0,
+                        'byteOffset' => 36,
+                        'byteLength' => 6,
+                        'target' => 34963,
+                    ],
+                ],
+                'buffers' => [['byteLength' => strlen($binary)]],
+            ];
+        }
 
         $json = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         $json .= str_repeat(' ', (4 - (strlen($json) % 4)) % 4);

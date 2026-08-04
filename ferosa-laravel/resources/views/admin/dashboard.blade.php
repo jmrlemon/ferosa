@@ -7,9 +7,7 @@
   <meta name="ferosa-user-role" content="{{ auth()->user()?->role ?? 'staff' }}">
   <title>Admin Dashboard - Ferosa Landscaping</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
 
   @vite(['resources/css/app.css', 'resources/js/app.js'])
   <style>
@@ -84,6 +82,7 @@
       *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; }
     }
   </style>
+  @include('admin.partials.type-scale')
   <script>
     window.addEventListener('pageshow', function (event) {
       if (event.persisted) window.location.reload();
@@ -143,10 +142,20 @@
         'admin.ordering-delivery' => 'orders',
         default => null,
     };
-    $activeTab = $routeTab ?? (in_array(request('tab'), $availableTabs, true) ? request('tab') : 'overview');
+    // $activeTab is resolved by AdminController so it can load only this tab's
+    // data; the fallback keeps the view renderable on its own.
+    $activeTab = $activeTab ?? $routeTab ?? (in_array(request('tab'), $availableTabs, true) ? request('tab') : 'overview');
     $tabClass = fn (string $tab, string $extra = '') => trim('tab-content '.$extra.' '.($activeTab === $tab ? 'active' : ''));
     $tabButtonClass = fn (string $tab) => 'tab-btn '.($activeTab === $tab ? 'active ' : '').'flex items-center gap-2.5 w-full text-left px-2.5 py-2 text-[13px] text-surface-500 rounded-lg';
     $badgeCount = fn (int $count) => $count > 9 ? '9+' : (string) $count;
+    // Tabs navigate server-side: the controller loads only the active tab's
+    // data, so switching client-side would show empty tables.
+    $tabUrl = fn (string $tab) => match ($tab) {
+        'appointments' => route('admin.service-scheduling'),
+        'orders' => route('admin.ordering-delivery'),
+        'overview' => route('admin.dashboard'),
+        default => route('admin.dashboard', ['tab' => $tab]),
+    };
   @endphp
 
   <div id="admin-overlay" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50" onclick="toggleAdminSidebar()" aria-hidden="true"></div>
@@ -169,10 +178,10 @@
 
       <nav aria-label="Primary admin" class="flex flex-col w-full py-3 px-3 space-y-0.5">
         <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-2 mb-1">Dashboard</p>
-        <button onclick="switchTab('overview')" class="{{ $tabButtonClass('overview') }}" id="btn-overview">
+        <a href="{{ $tabUrl('overview') }}" class="{{ $tabButtonClass('overview') }}" id="btn-overview">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
           Overview
-        </button>
+        </a>
 
         <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-2 mt-4 mb-1">Operations</p>
         <a href="{{ route('admin.service-scheduling') }}" class="{{ $tabButtonClass('appointments') }}" id="btn-appointments">
@@ -191,35 +200,35 @@
             <span aria-label="{{ $orderFlowStats['pending'] }} order{{ $orderFlowStats['pending'] !== 1 ? 's' : '' }} awaiting processing" title="{{ $orderFlowStats['pending'] }} order{{ $orderFlowStats['pending'] !== 1 ? 's' : '' }} awaiting processing" class="ml-auto inline-flex min-h-[20px] flex-shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 text-[9px] font-bold leading-none text-amber-700">{{ $badgeCount($orderFlowStats['pending']) }} actions</span>
           @endif
         </a>
-        <button onclick="switchTab('services')" class="{{ $tabButtonClass('services') }}" id="btn-services">
+        <a href="{{ $tabUrl('services') }}" class="{{ $tabButtonClass('services') }}" id="btn-services">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
           Services
-        </button>
-        <button onclick="switchTab('products')" class="{{ $tabButtonClass('products') }}" id="btn-products">
+        </a>
+        <a href="{{ $tabUrl('products') }}" class="{{ $tabButtonClass('products') }}" id="btn-products">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
           Inventory
           @if($lowStockProducts->count() > 0)
             <span title="{{ $lowStockProducts->count() }} low-stock product{{ $lowStockProducts->count() !== 1 ? 's' : '' }}" class="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center leading-none">{{ $badgeCount($lowStockProducts->count()) }}</span>
           @endif
-        </button>
+        </a>
         <a href="{{ route('admin.projects.index') }}" class="{{ $tabButtonClass('projects') }}">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6"/></svg>
           Project Portfolio
         </a>
 
-        <button onclick="switchTab('messages')" class="{{ $tabButtonClass('messages') }}" id="btn-messages">
+        <a href="{{ $tabUrl('messages') }}" class="{{ $tabButtonClass('messages') }}" id="btn-messages">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
           Messages
           @if($totalUnreadMessages > 0)
             <span title="{{ $totalUnreadMessages }} unread message{{ $totalUnreadMessages !== 1 ? 's' : '' }}" class="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center leading-none">{{ $badgeCount($totalUnreadMessages) }}</span>
           @endif
-        </button>
+        </a>
 
         @if($isAdmin)
-        <button onclick="switchTab('payment')" class="{{ $tabButtonClass('payment') }}" id="btn-payment">
+        <a href="{{ $tabUrl('payment') }}" class="{{ $tabButtonClass('payment') }}" id="btn-payment">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2m2-6h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m0-6v6"/></svg>
           Billing
-        </button>
+        </a>
         @endif
 
         <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-2 mt-4 mb-1">System</p>
@@ -229,26 +238,26 @@
             Business Profile
           </a>
         @endif
-        <button onclick="switchTab('archived')" class="{{ $tabButtonClass('archived') }}" id="btn-archived">
+        <a href="{{ $tabUrl('archived') }}" class="{{ $tabButtonClass('archived') }}" id="btn-archived">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
           Archived
-        </button>
-        <button onclick="switchTab('audit')" class="{{ $tabButtonClass('audit') }}" id="btn-audit">
+        </a>
+        <a href="{{ $tabUrl('audit') }}" class="{{ $tabButtonClass('audit') }}" id="btn-audit">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Audit Logs
-        </button>
-        <button onclick="switchTab('feedbacks')" class="{{ $tabButtonClass('feedbacks') }}" id="btn-feedbacks">
+        </a>
+        <a href="{{ $tabUrl('feedbacks') }}" class="{{ $tabButtonClass('feedbacks') }}" id="btn-feedbacks">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
           Feedback
           @if($feedbacks->total() > 0)
             <span id="admin-feedback-badge" data-count="{{ $feedbacks->total() }}" title="{{ $feedbacks->total() }} feedback submission{{ $feedbacks->total() !== 1 ? 's' : '' }}" class="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center leading-none">{{ $badgeCount($feedbacks->total()) }}</span>
           @endif
-        </button>
+        </a>
         @if($isAdmin)
-          <button onclick="switchTab('users')" class="{{ $tabButtonClass('users') }}" id="btn-users">
+          <a href="{{ $tabUrl('users') }}" class="{{ $tabButtonClass('users') }}" id="btn-users">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             Users
-          </button>
+          </a>
         @endif
       </nav>
     </div>
@@ -285,12 +294,12 @@
         </div>
       </div>
       <div class="flex items-center justify-end gap-1.5">
-      <button type="button" onclick="switchTab('messages')" class="w-9 h-9 flex items-center justify-center text-surface-400 hover:text-surface-700 hover:bg-surface-50 rounded-lg transition-colors relative" title="Messages" aria-label="Open messages">
+      <a href="{{ $tabUrl('messages') }}" class="w-9 h-9 flex items-center justify-center text-surface-400 hover:text-surface-700 hover:bg-surface-50 rounded-lg transition-colors relative" title="Messages" aria-label="Open messages">
         <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
         @if($totalUnreadMessages > 0)
           <span class="absolute top-1 right-1 bg-red-500 text-white text-[8px] font-bold min-w-[13px] h-[13px] px-0.5 rounded-full flex items-center justify-center leading-none">{{ $totalUnreadMessages > 9 ? '9+' : $totalUnreadMessages }}</span>
         @endif
-      </button>
+      </a>
 
       <div class="relative">
         <button id="admin-notif-trigger" type="button" onclick="toggleAdminNotifPanel()" class="w-9 h-9 flex items-center justify-center text-surface-400 hover:text-surface-700 hover:bg-surface-50 rounded-lg transition-colors relative" title="Notifications" aria-label="Open notifications" aria-controls="admin-notif-panel" aria-expanded="false">
@@ -401,14 +410,40 @@
 
             {{-- Compose --}}
             <div class="border-t border-surface-100 bg-white px-4 py-3 flex-shrink-0">
-              <form id="reply-form" method="POST" class="flex items-end gap-2">
+              {{-- Selected-file chip --}}
+              <div id="reply-attach-preview" class="hidden items-center gap-2 mb-2 rounded-xl border border-surface-200 bg-surface-50 px-3 py-2">
+                <img id="reply-attach-thumb" alt="" class="hidden h-10 w-10 rounded-lg object-cover">
+                <svg id="reply-attach-icon" class="hidden w-5 h-5 text-brand-600 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6"/>
+                </svg>
+                <span class="min-w-0 flex-1">
+                  <span id="reply-attach-name" class="block truncate text-[12px] font-semibold text-surface-800"></span>
+                  <span id="reply-attach-size" class="block text-[10px] text-surface-400"></span>
+                </span>
+                <button type="button" id="reply-attach-clear" aria-label="Remove attachment"
+                  class="shrink-0 w-7 h-7 rounded-full hover:bg-surface-200 flex items-center justify-center text-surface-500">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+
+              <form id="reply-form" method="POST" enctype="multipart/form-data" class="flex items-end gap-2">
                 @csrf
+                <input type="file" id="reply-attachment" name="attachment" class="hidden"
+                       accept="{{ \App\Support\MessageAttachment::accept() }}">
+                <button type="button" id="reply-attach-btn" aria-label="Attach a file or picture"
+                  class="flex-shrink-0 w-11 h-11 rounded-full border border-surface-200 hover:bg-surface-50 flex items-center justify-center transition-colors text-surface-500">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/>
+                  </svg>
+                </button>
                 <textarea
                   id="reply-body"
                   name="body"
                   rows="1"
                   placeholder="Type a reply&hellip;"
-                  required
                   maxlength="2000"
                   class="flex-1 resize-none border border-surface-200 rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition-all overflow-y-auto"
                   style="min-height:42px;max-height:120px"
@@ -505,7 +540,7 @@
           <p class="hidden text-xs text-surface-400 sm:block">Select a queue to start working</p>
         </div>
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <button type="button" onclick="switchTab('orders')" class="group min-h-[122px] rounded-2xl border border-amber-200/70 bg-amber-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-amber-50 hover:shadow-md">
+          <a href="{{ $tabUrl('orders') }}" class="group min-h-[122px] rounded-2xl border border-amber-200/70 bg-amber-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-amber-50 hover:shadow-md">
             <div class="flex items-start justify-between gap-3">
               <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
@@ -517,9 +552,9 @@
             @if($ordersAwaitingConfirmation > 0)
               <p class="mt-1 text-[10px] text-amber-700">{{ $ordersAwaitingConfirmation }} awaiting receipt</p>
             @endif
-          </button>
+          </a>
 
-          <button type="button" onclick="switchTab('appointments')" class="group min-h-[122px] rounded-2xl border border-blue-200/70 bg-blue-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-md">
+          <a href="{{ $tabUrl('appointments') }}" class="group min-h-[122px] rounded-2xl border border-blue-200/70 bg-blue-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-md">
             <div class="flex items-start justify-between gap-3">
               <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -534,9 +569,9 @@
                 &middot; {{ $overdueAppointments }} overdue
               @endif
             </p>
-          </button>
+          </a>
 
-          <button type="button" onclick="{{ $isAdmin ? "switchTab('payment')" : "switchTab('orders')" }}" class="group min-h-[122px] rounded-2xl border border-rose-200/70 bg-rose-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-rose-50 hover:shadow-md">
+          <a href="{{ $tabUrl($isAdmin ? 'payment' : 'orders') }}" class="group min-h-[122px] rounded-2xl border border-rose-200/70 bg-rose-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-rose-50 hover:shadow-md">
             <div class="flex items-start justify-between gap-3">
               <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h2m4 0h4M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/></svg>
@@ -546,9 +581,9 @@
             <p class="mt-4 text-2xl font-bold text-rose-900">{{ $orderFlowStats['unpaid'] ?? 0 }}</p>
             <p class="mt-0.5 text-xs font-semibold text-rose-800">Unpaid orders</p>
             <p class="mt-1 text-[10px] text-rose-700">Review billing status</p>
-          </button>
+          </a>
 
-          <button type="button" onclick="switchTab('products')" class="group min-h-[122px] rounded-2xl border {{ $lowStockProducts->count() > 0 ? 'border-orange-200/70 bg-orange-50/70 hover:bg-orange-50' : 'border-brand-200/70 bg-brand-50/70 hover:bg-brand-50' }} p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md">
+          <a href="{{ $tabUrl('products') }}" class="group min-h-[122px] rounded-2xl border {{ $lowStockProducts->count() > 0 ? 'border-orange-200/70 bg-orange-50/70 hover:bg-orange-50' : 'border-brand-200/70 bg-brand-50/70 hover:bg-brand-50' }} p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md">
             <div class="flex items-start justify-between gap-3">
               <span class="flex h-9 w-9 items-center justify-center rounded-xl {{ $lowStockProducts->count() > 0 ? 'bg-orange-100 text-orange-700' : 'bg-brand-100 text-brand-700' }}">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
@@ -558,9 +593,9 @@
             <p class="mt-4 text-2xl font-bold {{ $lowStockProducts->count() > 0 ? 'text-orange-900' : 'text-brand-900' }}">{{ $lowStockProducts->count() }}</p>
             <p class="mt-0.5 text-xs font-semibold {{ $lowStockProducts->count() > 0 ? 'text-orange-800' : 'text-brand-800' }}">Low-stock items</p>
             <p class="mt-1 text-[10px] {{ $lowStockProducts->count() > 0 ? 'text-orange-700' : 'text-brand-700' }}">{{ $lowStockProducts->count() > 0 ? 'Reorder soon' : 'Inventory is healthy' }}</p>
-          </button>
+          </a>
 
-          <button type="button" onclick="switchTab('messages')" class="group col-span-2 min-h-[122px] rounded-2xl border border-violet-200/70 bg-violet-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-violet-50 hover:shadow-md lg:col-span-1">
+          <a href="{{ $tabUrl('messages') }}" class="group col-span-2 min-h-[122px] rounded-2xl border border-violet-200/70 bg-violet-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:bg-violet-50 hover:shadow-md lg:col-span-1">
             <div class="flex items-start justify-between gap-3">
               <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
@@ -570,7 +605,7 @@
             <p class="mt-4 text-2xl font-bold text-violet-900">{{ $totalUnreadMessages }}</p>
             <p class="mt-0.5 text-xs font-semibold text-violet-800">Unread messages</p>
             <p class="mt-1 text-[10px] text-violet-700">Reply to customers</p>
-          </button>
+          </a>
         </div>
       </section>
 
@@ -756,7 +791,7 @@
               <div class="mt-3 flex items-center justify-between gap-3">
                 <span class="text-xs font-semibold text-surface-700">{{ $module['metric'] }}</span>
                 @if(!empty($module['tab']))
-                  <button type="button" onclick="switchTab('{{ $module['tab'] }}')" class="text-xs font-semibold text-brand-700 hover:text-brand-800">Open</button>
+                  <a href="{{ $tabUrl($module['tab']) }}" class="text-xs font-semibold text-brand-700 hover:text-brand-800">Open</a>
                 @else
                   <span class="text-xs font-medium text-surface-400">Customer side</span>
                 @endif
@@ -1797,13 +1832,13 @@
         <div class="p-5 border-b border-surface-100 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
             <h2 class="text-sm font-semibold text-surface-900">Audit Logs</h2>
-            <p class="text-xs text-surface-400 mt-0.5">Tracks create, update, archive, and restore actions.</p>
+            <p class="text-xs text-surface-400 mt-0.5">See who changed a record, what they did, and when it happened.</p>
           </div>
           <form method="GET" action="{{ route('admin.dashboard') }}" class="flex items-end gap-2">
             <input type="hidden" name="tab" value="audit">
             <div class="relative">
               <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input type="search" name="audit_q" value="{{ $auditQ ?? request('audit_q') }}" placeholder="Action, user, type, id"
+              <input type="search" name="audit_q" value="{{ $auditQ ?? request('audit_q') }}" placeholder="Activity, user, target, or ID"
                      class="pl-8 pr-3 py-1.5 border border-surface-200 rounded-lg text-xs outline-none focus:border-brand-500 w-52 transition-colors">
             </div>
             <button type="submit" class="bg-surface-900 text-white rounded-lg px-4 py-1.5 text-xs font-medium hover:bg-surface-800 transition-colors">Search</button>
@@ -1817,7 +1852,7 @@
               <tr class="text-left text-surface-400 text-[10px] uppercase tracking-wider border-b border-surface-100">
                 <th class="px-5 py-3 font-medium">Time</th>
                 <th class="px-5 py-3 font-medium">Actor</th>
-                <th class="px-5 py-3 font-medium">Action</th>
+                <th class="px-5 py-3 font-medium">What the user did</th>
                 <th class="px-5 py-3 font-medium">Target</th>
                 <th class="px-5 py-3 font-medium">IP</th>
               </tr>
@@ -1838,18 +1873,23 @@
                   </td>
                   <td class="px-5 py-3">
                     @php
-                      $actionBadge = match($log->action) {
-                        'created' => 'bg-brand-50 text-brand-700 border-brand-100',
-                        'updated' => 'bg-blue-50 text-blue-700 border-blue-100',
+                      $actionBadge = match(true) {
+                        str_contains($log->action, 'create') => 'bg-brand-50 text-brand-700 border-brand-100',
+                        str_contains($log->action, 'restore') => 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                        str_contains($log->action, 'archive'),
+                        str_contains($log->action, 'cancel') => 'bg-red-50 text-red-700 border-red-100',
+                        str_contains($log->action, 'update'),
+                        str_contains($log->action, 'confirmed') => 'bg-blue-50 text-blue-700 border-blue-100',
                         default => 'bg-surface-50 text-surface-600 border-surface-200',
                       };
                     @endphp
-                    <span class="px-2 py-0.5 rounded text-[10px] font-medium border {{ $actionBadge }}">
-                      {{ $log->action }}
+                    <p class="max-w-lg whitespace-normal font-medium leading-5 text-surface-800">{{ $log->description }}</p>
+                    <span class="mt-1 inline-flex px-2 py-0.5 rounded text-[10px] font-medium border {{ $actionBadge }}" title="Technical action code">
+                      {{ $log->action_label }}
                     </span>
                   </td>
                   <td class="px-5 py-3">
-                    <span class="text-[10px] font-mono bg-surface-50 px-1.5 py-0.5 rounded text-surface-600">{{ class_basename($log->auditable_type) }} #{{ $log->auditable_id }}</span>
+                    <span class="text-[10px] bg-surface-50 px-1.5 py-0.5 rounded text-surface-600">{{ $log->target_label }}</span>
                   </td>
                   <td class="px-5 py-3 font-mono text-[10px] text-surface-400">{{ $log->ip ?? '-' }}</td>
                 </tr>
@@ -1961,7 +2001,8 @@
               {{ $feedbacks->total() }} submission{{ $feedbacks->total() !== 1 ? 's' : '' }}
               @if($avgRating)
                 &mdash; avg rating
-                <span class="font-semibold text-amber-500">{{ number_format($avgRating, 1) }}&nbsp;★</span>
+                <span class="font-semibold text-amber-500">{{ number_format($avgRating, 1) }}&nbsp;�
+</span>
               @endif
             </p>
           </div>
@@ -1995,7 +2036,9 @@
                   </td>
                   <td class="px-5 py-3">
                     <span class="text-amber-400 tracking-tighter text-sm">
-                      {{ str_repeat('★', $fb->rating) }}<span class="text-surface-200">{{ str_repeat('★', 5 - $fb->rating) }}</span>
+                      {{ str_repeat('�
+', $fb->rating) }}<span class="text-surface-200">{{ str_repeat('�
+', 5 - $fb->rating) }}</span>
                     </span>
                   </td>
                   <td class="px-5 py-3">
@@ -2342,40 +2385,8 @@
       if (seen >= current) badge.remove();
     }
 
-    function switchTab(tabId) {
-      const tabsMain = document.getElementById('tabs-main');
-      const msgPanel = document.getElementById('tab-messages');
-
-      if (tabId === 'messages') {
-        tabsMain.style.display = 'none';
-        msgPanel.style.display = 'flex';
-      } else {
-        tabsMain.style.display = '';
-        msgPanel.style.display = 'none';
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        const target = document.getElementById('tab-' + tabId);
-        if (target) target.classList.add('active');
-      }
-
-      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-      const btn = document.getElementById('btn-' + tabId);
-      if (btn) btn.classList.add('active');
-      if (tabId === 'feedbacks') clearFeedbackBadge();
-      localStorage.setItem('adminActiveTab', tabId);
-
-      const moduleUrls = {
-        appointments: @json(route('admin.service-scheduling')),
-        orders: @json(route('admin.ordering-delivery')),
-      };
-      const dashboardUrl = @json(route('admin.dashboard'));
-      let nextUrl = moduleUrls[tabId] || dashboardUrl;
-      if (!moduleUrls[tabId] && tabId !== 'overview') {
-        const url = new URL(dashboardUrl);
-        url.searchParams.set('tab', tabId);
-        nextUrl = url.toString();
-      }
-      window.history.replaceState({}, '', nextUrl);
-    }
+    /* Tabs are server-rendered: AdminController loads only the active tab's data
+       and every tab control is a real link, so there is no client-side switch. */
 
     function enhanceServiceCards() {
       document.querySelectorAll('#tab-services form[action*="/services/"]').forEach(form => {
@@ -2476,17 +2487,8 @@
       enhanceServiceCards();
       enhanceStatusControls();
 
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab');
-      const routeTab = @json($routeTab);
-      if (tabParam && document.getElementById('tab-' + tabParam)) {
-        switchTab(tabParam);
-      } else if (routeTab && document.getElementById('tab-' + routeTab)) {
-        switchTab(routeTab);
-      } else {
-        const savedTab = localStorage.getItem('adminActiveTab') || 'overview';
-        if (document.getElementById('tab-' + savedTab)) switchTab(savedTab);
-      }
+      // The active tab arrives already rendered from the server.
+      if (@json($activeTab) === 'feedbacks') clearFeedbackBadge();
 
       const selectAll = document.getElementById('admin-select-all-orders');
       if (selectAll) {
@@ -2845,7 +2847,8 @@
         starsEl.innerHTML = '';
         for (let i = 1; i <= 5; i++) {
           const s = document.createElement('span');
-          s.textContent = '★';
+          s.textContent = '�
+';
           s.className = 'text-lg ' + (i <= appt.feedback_rating ? 'text-amber-400' : 'text-surface-200');
           starsEl.appendChild(s);
         }
@@ -2871,12 +2874,25 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeOrderDetail(); closeApptDetail(); } });
 
     /* ── Messages Tab ── */
-    let _activeConvoId = null;
-    let _convoTimer    = null;
+    let _activeConvoId  = null;
+
+    // Real implementation is installed once the picker is wired up below; the
+    // no-op keeps the reply handler safe if the elements are not on the page.
+    let clearReplyAttachment = () => {};
+    let _convoTimer     = null;
+    const _renderedMsgIds = new Set();
 
     function openConversation(convoId, customerName) {
       _activeConvoId = convoId;
+      _renderedMsgIds.clear();
       document.getElementById('tab-messages')?.classList.add('thread-open');
+
+      // Keep the open thread in the URL so a refresh (or a link passed to a
+      // colleague) lands back on the same conversation.
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'messages');
+      url.searchParams.set('convo', convoId);
+      window.history.replaceState({}, '', url);
 
       // Show thread panel, hide empty state
       document.getElementById('thread-empty').style.display  = 'none';
@@ -2903,16 +2919,38 @@
       const form = document.getElementById('reply-form');
       form.onsubmit = async function (e) {
         e.preventDefault();
-        const body = document.getElementById('reply-body');
-        if (!body.value.trim()) return;
+        const body  = document.getElementById('reply-body');
+        const files = document.getElementById('reply-attachment');
+
+        // An attachment on its own is a valid reply, so this cannot bail out
+        // on empty text alone.
+        if (!body.value.trim() && !files?.files[0]) return;
+
         const fd   = new FormData(form);
         const sbtn = form.querySelector('button[type=submit]');
         sbtn.disabled = true;
         try {
-          const response = await fetch(`{{ url('/admin/conversations') }}/${convoId}/reply`, { method: 'POST', body: fd });
-          if (!response.ok) throw new Error('Message could not be sent.');
+          // Ask for JSON so a rejected file comes back as a 422 we can read.
+          // Without this Laravel answers with a redirect, fetch follows it, and
+          // a failed upload looks like success.
+          const response = await fetch(`{{ url('/admin/conversations') }}/${convoId}/reply`, {
+            method: 'POST',
+            body: fd,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const problem = await response.json().catch(() => null);
+            const detail = problem?.errors ? Object.values(problem.errors).flat()[0] : problem?.message;
+            throw new Error(detail || 'Message could not be sent.');
+          }
+
           body.value = '';
           body.style.height = 'auto';
+          clearReplyAttachment();
           loadThread(convoId, true);
         } catch (error) {
           showAdminToast(error.message || 'Message could not be sent. Please try again.', 'error');
@@ -2932,10 +2970,51 @@
       document.getElementById('tab-messages')?.classList.remove('thread-open');
       _activeConvoId = null;
       clearInterval(_convoTimer);
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete('convo');
+      window.history.replaceState({}, '', url);
+
       document.querySelector('.convo-btn')?.focus();
     }
 
-    function loadThread(convoId, scrollToBottom) {
+    // Filenames come from customers, so they are set with textContent rather
+    // than interpolated into markup.
+    function buildAdminAttachment(att) {
+      const link = document.createElement('a');
+      link.href = att.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+
+      if (att.is_image) {
+        link.className = 'block overflow-hidden rounded-xl border border-surface-200 max-w-[220px]';
+        const img = document.createElement('img');
+        img.src = att.url;
+        img.alt = att.name || '';
+        img.loading = 'lazy';
+        img.className = 'block w-full h-auto';
+        link.appendChild(img);
+        return link;
+      }
+
+      link.className = 'flex items-center gap-2.5 rounded-xl border border-surface-200 bg-white px-3 py-2.5 max-w-[220px] hover:border-brand-400 transition-colors';
+      link.innerHTML = '<svg class="w-5 h-5 text-brand-600 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6"/></svg>';
+
+      const meta = document.createElement('span');
+      meta.className = 'min-w-0';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'block truncate text-[12px] font-semibold text-surface-800';
+      nameEl.textContent = att.name || 'Attachment';
+      const sizeEl = document.createElement('span');
+      sizeEl.className = 'block text-[10px] text-surface-400';
+      sizeEl.textContent = att.size_label || '';
+      meta.append(nameEl, sizeEl);
+      link.appendChild(meta);
+      return link;
+    }
+
+    function loadThread(convoId, initial) {
+      const scrollToBottom = initial;
       fetch(`{{ url('/admin/conversations') }}/${convoId}`, {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       })
@@ -2944,13 +3023,23 @@
         const box = document.getElementById('thread-messages');
         const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
 
-        box.innerHTML = '';
         if (!data.messages || !data.messages.length) {
           box.innerHTML = '<p class="text-sm text-surface-400 text-center py-12">No messages yet.</p>';
+          _renderedMsgIds.clear();
           return;
         }
 
+        // Only append messages that are not on screen yet. Rebuilding the whole
+        // thread every poll wiped text selection and fought the scroll position
+        // while staff were reading.
+        if (initial) {
+          box.innerHTML = '';
+          _renderedMsgIds.clear();
+        }
+
         data.messages.forEach(msg => {
+          if (_renderedMsgIds.has(msg.id)) return;
+          _renderedMsgIds.add(msg.id);
           const wrap = document.createElement('div');
           wrap.className = `flex items-end gap-2 ${msg.is_admin ? 'justify-end' : 'justify-start'}`;
 
@@ -2964,12 +3053,17 @@
           const inner = document.createElement('div');
           inner.className = `max-w-[75%] flex flex-col ${msg.is_admin ? 'items-end' : 'items-start'} gap-0.5`;
 
-          const bbl = document.createElement('div');
-          bbl.className = msg.is_admin
-            ? 'admin-chat-bubble admin-chat-bubble--mine'
-            : 'admin-chat-bubble admin-chat-bubble--customer';
-          bbl.textContent = msg.body;
-          inner.appendChild(bbl);
+          if (msg.attachment) inner.appendChild(buildAdminAttachment(msg.attachment));
+
+          // Attachment-only messages carry no body, so skip the empty bubble.
+          if (msg.body) {
+            const bbl = document.createElement('div');
+            bbl.className = msg.is_admin
+              ? 'admin-chat-bubble admin-chat-bubble--mine'
+              : 'admin-chat-bubble admin-chat-bubble--customer';
+            bbl.textContent = msg.body;
+            inner.appendChild(bbl);
+          }
 
           const ts = document.createElement('span');
           ts.className = 'text-[10px] text-surface-400 px-1';
@@ -2993,6 +3087,84 @@
           rb.style.height = 'auto';
           rb.style.height = Math.min(rb.scrollHeight, 120) + 'px';
         });
+      }
+
+      // --- Reply attachment picker ---------------------------------------
+      const REPLY_MAX_BYTES = {{ \App\Support\MessageAttachment::MAX_KB }} * 1024;
+      const rInput   = document.getElementById('reply-attachment');
+      const rBtn     = document.getElementById('reply-attach-btn');
+      const rPreview = document.getElementById('reply-attach-preview');
+      const rThumb   = document.getElementById('reply-attach-thumb');
+      const rIcon    = document.getElementById('reply-attach-icon');
+      const rName    = document.getElementById('reply-attach-name');
+      const rSize    = document.getElementById('reply-attach-size');
+      let rThumbUrl = null;
+
+      if (rInput && rBtn) {
+        // Assigned to the outer binding so the reply handler in
+        // openConversation() can reset the picker after a successful send.
+        clearReplyAttachment = () => {
+          rInput.value = '';
+          rPreview.classList.add('hidden');
+          rPreview.classList.remove('flex');
+          if (rThumbUrl) { URL.revokeObjectURL(rThumbUrl); rThumbUrl = null; }
+          rThumb.classList.add('hidden');
+          rIcon.classList.add('hidden');
+        };
+
+        rBtn.addEventListener('click', () => rInput.click());
+        document.getElementById('reply-attach-clear').addEventListener('click', clearReplyAttachment);
+
+        rInput.addEventListener('change', () => {
+          const file = rInput.files[0];
+          if (!file) return clearReplyAttachment();
+
+          if (file.size > REPLY_MAX_BYTES) {
+            alert('That file is larger than {{ round(\App\Support\MessageAttachment::MAX_KB / 1024) }} MB. Please choose a smaller one.');
+            return clearReplyAttachment();
+          }
+
+          rName.textContent = file.name;
+          rSize.textContent = file.size >= 1048576
+            ? (file.size / 1048576).toFixed(1) + ' MB'
+            : Math.max(1, Math.round(file.size / 1024)) + ' KB';
+
+          if (rThumbUrl) URL.revokeObjectURL(rThumbUrl);
+          if (file.type.startsWith('image/')) {
+            rThumbUrl = URL.createObjectURL(file);
+            rThumb.src = rThumbUrl;
+            rThumb.classList.remove('hidden');
+            rIcon.classList.add('hidden');
+          } else {
+            rThumbUrl = null;
+            rThumb.classList.add('hidden');
+            rIcon.classList.remove('hidden');
+          }
+
+          rPreview.classList.remove('hidden');
+          rPreview.classList.add('flex');
+        });
+
+      }
+
+      // Reopen the conversation named in ?convo= after a reload.
+      const wanted = new URLSearchParams(window.location.search).get('convo');
+      if (!wanted) return;
+
+      const btn = document.querySelector(`.convo-btn[data-convo-id="${CSS.escape(wanted)}"]`);
+      if (btn) openConversation(parseInt(wanted, 10), btn.dataset.customerName);
+    });
+
+    // Stop polling a thread nobody is looking at.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        clearInterval(_convoTimer);
+      } else if (_activeConvoId !== null) {
+        loadThread(_activeConvoId, false);
+        clearInterval(_convoTimer);
+        _convoTimer = setInterval(() => {
+          if (_activeConvoId !== null) loadThread(_activeConvoId, false);
+        }, 5000);
       }
     });
   </script>

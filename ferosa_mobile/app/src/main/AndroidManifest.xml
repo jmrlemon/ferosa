@@ -37,13 +37,18 @@
             </intent-filter>
         </activity>
 
-        <!-- AR Activity with deep link support -->
+        <!-- AR Activity with deep link support.
+             The portrait lock is deliberate: ARCore session tracking and the
+             placement reticle are calibrated for portrait, and letting the
+             activity recreate on rotation drops every placed model. Lint flags
+             this generically, so it is suppressed here rather than repo-wide. -->
         <activity
             android:name=".ArActivity"
             android:exported="true"
             android:label="Ferosa AR"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.Ferosa_landscaping">
+            android:theme="@style/Theme.Ferosa_landscaping"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi">
 
             <!-- Custom scheme deep link: ferosa://ar -->
             <intent-filter>

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\SendSmsJob;
+use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Support\MessageAttachment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,12 +34,23 @@ class MessageController extends Controller
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
 
-        return view('messages', compact('conversation'));
+        // Real opening hours set expectations better than a vague promise.
+        $businessHours = AppSetting::getBusinessProfile()['business_hours'] ?? null;
+
+        return view('messages', compact('conversation', 'businessHours'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
-        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        // Either half can stand alone: a caption with no file, or a photo with
+        // no caption. Requiring both would block the common "here's a picture"
+        // case, but an entirely empty message is still rejected.
+        $data = $request->validate([
+            'body'       => ['nullable', 'string', 'max:2000', 'required_without:attachment'],
+            'attachment' => MessageAttachment::rules(),
+        ], [
+            'body.required_without' => 'Type a message or attach a file.',
+        ]);
 
         $user = auth()->user();
         abort_if($user->isStaffOrAdmin(), 403, 'Staff accounts must reply from the admin inbox.');
@@ -47,9 +60,14 @@ class MessageController extends Controller
             ['last_message_at' => now()]
         );
 
-        $conversation->messages()->create([
+        $attachment = $request->hasFile('attachment')
+            ? MessageAttachment::store($request->file('attachment'))
+            : [];
+
+        $message = $conversation->messages()->create([
             'sender_id' => $user->id,
-            'body'      => trim($data['body']),
+            'body'      => trim((string) ($data['body'] ?? '')) ?: null,
+            ...$attachment,
         ]);
 
         $conversation->update(['last_message_at' => now()]);
@@ -68,6 +86,21 @@ class MessageController extends Controller
                     "Ferosa: {$user->name} sent you a new message. Reply on the admin dashboard."
                 );
             }
+        }
+
+        // The chat sends over fetch(); the plain form post is kept as the
+        // no-JavaScript fallback.
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'message' => [
+                    'id'         => $message->id,
+                    'body'       => $message->body,
+                    'created_at' => $message->created_at->toISOString(),
+                    'is_mine'    => true,
+                    'sender'     => $user->name,
+                    'attachment' => $message->attachmentPayload(),
+                ],
+            ], 201);
         }
 
         return back();
@@ -97,6 +130,7 @@ class MessageController extends Controller
                 'created_at' => $m->created_at->toISOString(),
                 'is_mine'    => $m->sender_id === $user->id,
                 'sender'     => $m->sender->name,
+                'attachment' => $m->attachmentPayload(),
             ]);
 
         // Mark newly-fetched admin messages as read

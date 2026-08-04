@@ -1,6 +1,7 @@
 package com.example.ferosa_landscaping
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -11,8 +12,10 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.provider.Settings
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.PixelCopy
@@ -52,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import androidx.core.view.GestureDetectorCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -65,14 +70,21 @@ import com.example.ferosa_landscaping.ui.ar.ArError
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.ArViewModel
 import com.example.ferosa_landscaping.ui.ar.PlacedModel
+import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
+import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
 import com.example.ferosa_landscaping.util.ArAvailability
 import com.example.ferosa_landscaping.util.ArCompatibilityChecker
 import com.example.ferosa_landscaping.util.ConnectivityMonitor
+import com.google.ar.core.Config
+import com.google.ar.core.Plane
+import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
+import io.github.sceneview.math.Position
+import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
 import kotlinx.coroutines.*
 import java.util.Collections
@@ -129,6 +141,12 @@ private fun saveBitmapToGallery(context: Context, bitmap: Bitmap): Boolean {
 }
 
 // ─── Activity ──────────────────────────────────────────────────────────────────
+
+private enum class ModelPlacementStage(val progressMessage: String) {
+    Idle(""),
+    Downloading("Downloading 3D product..."),
+    Preparing("Preparing real-size preview..."),
+}
 
 class ArActivity : ComponentActivity() {
 
@@ -619,7 +637,7 @@ class ArActivity : ComponentActivity() {
                                     startActivity(
                                         Intent(
                                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                            Uri.parse("package:$packageName")
+                                            "package:$packageName".toUri()
                                         )
                                     )
                                 },
@@ -638,6 +656,11 @@ class ArActivity : ComponentActivity() {
 
 // ─── AR Screen ─────────────────────────────────────────────────────────────────
 
+// ARSceneView ships from io.github.sceneview and cannot be made to override
+// performClick without subclassing the renderer, which would mean taking over
+// its session setup. The touch listener below already routes taps through
+// performClick, which is the part we control.
+@SuppressLint("ClickableViewAccessibility")
 @Composable
 private fun ArScreen(
     viewModel: ArViewModel,
@@ -665,8 +688,10 @@ private fun ArScreen(
     val selectedInfoModel by viewModel.selectedInfoModel.collectAsState()
     val cartActionState by viewModel.cartActionState.collectAsState()
 
-    // Local UI state for model loading (placing animation)
-    val isPlacingModel = remember { mutableStateOf(false) }
+    // Local UI state for surface discovery and the model placement pipeline.
+    var placementStage by remember { mutableStateOf(ModelPlacementStage.Idle) }
+    var isPlacementSurfaceReady by remember { mutableStateOf(false) }
+    var placementNotice by remember { mutableStateOf<String?>(null) }
     val modelPlaced    = remember { mutableStateOf(false) }
     var showInfoPanel  by remember { mutableStateOf(false) }
     var showPlacementCoach by rememberSaveable { mutableStateOf(true) }
@@ -687,6 +712,12 @@ private fun ArScreen(
     var screenshotMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(screenshotMsg) {
         if (screenshotMsg != null) { delay(2500); screenshotMsg = null }
+    }
+    LaunchedEffect(placementNotice) {
+        if (placementNotice != null) {
+            delay(3000)
+            placementNotice = null
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -765,18 +796,40 @@ private fun ArScreen(
             lifecycleOwner.lifecycle.currentState != Lifecycle.State.DESTROYED
     }
 
+    fun findPlacementHit(sv: ARSceneView, x: Float, y: Float) = sv.hitTestAR(
+        xPx = x,
+        yPx = y,
+        planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING),
+        point = false,
+        depthPoint = true,
+        instantPlacementPoint = false,
+        trackingStates = setOf(TrackingState.TRACKING),
+        planePoseInPolygon = true,
+    )
+
     fun placeModel(sv: ARSceneView, x: Float, y: Float, product: ArProduct) {
-        if (!canPlaceRef.value) return
-        val hit = sv.hitTestAR(x, y) ?: return
+        if (!canPlaceRef.value || placementStage != ModelPlacementStage.Idle) return
+        val hit = findPlacementHit(sv, x, y)
+        if (hit == null) {
+            isPlacementSurfaceReady = false
+            placementNotice = "No ground found here. Move your phone slowly and aim at a textured floor or lawn."
+            return
+        }
+
         val anchor = hit.createAnchor()
         val placementGeneration = sceneGeneration.get()
-        isPlacingModel.value = true
+        placementNotice = null
+        viewModel.clearError()
+        placementStage = ModelPlacementStage.Downloading
 
         // Download via ModelRepository (handles caching + retry with exponential backoff)
         // then load the cached local file into SceneView
         coroutineScope.launch {
             try {
                 val modelResult = modelRepository.getModel(product.id)
+                withContext(Dispatchers.IO) {
+                    validateGlbFile(modelResult.file)
+                }
                 val localFilePath = modelResult.file.absolutePath
 
                 // Load the cached local file into SceneView
@@ -786,6 +839,7 @@ private fun ArScreen(
                         return@withContext
                     }
 
+                    placementStage = ModelPlacementStage.Preparing
                     val loadJob = sv.modelLoader.loadModelInstanceAsync(
                         fileLocation = localFilePath
                     ) { instance ->
@@ -799,32 +853,84 @@ private fun ArScreen(
                                 return@callback
                             }
 
-                            isPlacingModel.value = false
-                            instance ?: run {
+                            placementStage = ModelPlacementStage.Idle
+                            try {
+                                requireNotNull(instance) {
+                                    "This 3D model could not be opened. Try another item."
+                                }
+
+                                val anchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
+                                val modelNode = ModelNode(modelInstance = instance)
+                                require(modelNode.renderableNodes.isNotEmpty()) {
+                                    "This 3D model does not contain visible geometry."
+                                }
+
+                                val transform = calculateGroundedModelTransform(
+                                    centerX = modelNode.center.x,
+                                    centerY = modelNode.center.y,
+                                    centerZ = modelNode.center.z,
+                                    halfExtentX = modelNode.halfExtent.x,
+                                    halfExtentY = modelNode.halfExtent.y,
+                                    halfExtentZ = modelNode.halfExtent.z,
+                                    desiredHeightMeters = product.heightCm / 100f,
+                                )
+                                modelNode.scale = Scale(
+                                    x = transform.uniformScale,
+                                    y = transform.uniformScale,
+                                    z = transform.uniformScale,
+                                )
+                                modelNode.position = Position(
+                                    x = transform.positionX,
+                                    y = transform.positionY,
+                                    z = transform.positionZ,
+                                )
+                                modelNode.isShadowCaster = true
+
+                                if (BuildConfig.DEBUG) {
+                                    Log.d(
+                                        "FerosaAR",
+                                        "Placed product=${product.id}, center=${modelNode.center}, " +
+                                            "halfExtent=${modelNode.halfExtent}, " +
+                                            "heightMeters=${product.heightCm / 100f}, " +
+                                            "scale=${transform.uniformScale}, " +
+                                            "position=${modelNode.position}, " +
+                                            "renderables=${modelNode.renderableNodes.size}"
+                                    )
+                                }
+
+                                anchorNode.addChildNode(modelNode)
+                                if (viewModel.placeModel(anchorNode, product)) {
+                                    sv.addChildNode(anchorNode)
+                                } else {
+                                    // The limit may have been reached while the model loaded.
+                                    // A rejected node must never become visible or untracked.
+                                    anchor.detach()
+                                }
+                            } catch (exception: Exception) {
                                 anchor.detach()
-                                viewModel.setModelLoadError("This 3D model could not be opened. Try another item.")
-                                return@callback
-                            }
-                            val anchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
-                            val modelNode = ModelNode(
-                                modelInstance = instance,
-                                scaleToUnits = product.heightCm / 100f // Convert cm to meters for SceneView
-                            )
-                            anchorNode.addChildNode(modelNode)
-                            if (viewModel.placeModel(anchorNode, product)) {
-                                sv.addChildNode(anchorNode)
-                            } else {
-                                // The limit may have been reached while the model loaded.
-                                // A rejected node must never become visible or untracked.
-                                anchor.detach()
+                                viewModel.setModelLoadError(
+                                    exception.message
+                                        ?: "This 3D model could not be prepared for AR."
+                                )
                             }
                         }
                     }
                     pendingModelLoads += loadJob
                     loadJob.invokeOnCompletion { cause ->
                         pendingModelLoads -= loadJob
-                        if (cause is CancellationException) {
-                            mainHandler.post { anchor.detach() }
+                        if (cause != null) {
+                            mainHandler.post {
+                                anchor.detach()
+                                if (cause !is CancellationException &&
+                                    isSceneCurrent(sv, placementGeneration)
+                                ) {
+                                    placementStage = ModelPlacementStage.Idle
+                                    viewModel.setModelLoadError(
+                                        cause.message
+                                            ?: "This 3D model could not be loaded by the renderer."
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -835,7 +941,7 @@ private fun ArScreen(
                 withContext(Dispatchers.Main) {
                     anchor.detach()
                     if (isSceneCurrent(sv, placementGeneration)) {
-                        isPlacingModel.value = false
+                        placementStage = ModelPlacementStage.Idle
                         viewModel.clearError()
                         // Show error from the download failure
                         val errorMsg = e.message ?: "Failed to download model"
@@ -856,7 +962,8 @@ private fun ArScreen(
             }
         }
         loadsToCancel.forEach { it.cancel() }
-        isPlacingModel.value = false
+        placementStage = ModelPlacementStage.Idle
+        placementNotice = null
         val currentPlacements = viewModel.placedModels.value
         sceneViewRef.value?.let { sv ->
             for (placed in currentPlacements) {
@@ -904,7 +1011,7 @@ private fun ArScreen(
             screenshotMsg = "AR view is not ready yet"
             return
         }
-        val bitmap = Bitmap.createBitmap(sv.width, sv.height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(sv.width, sv.height)
         PixelCopy.request(sv, bitmap, { result ->
             screenshotMsg = if (result == PixelCopy.SUCCESS && saveBitmapToGallery(context, bitmap))
                 "📸 Screenshot saved to gallery" else "Failed to capture"
@@ -936,10 +1043,11 @@ private fun ArScreen(
     }
 
     // Combined loading state
-    val isLoading = isViewModelLoading || isPlacingModel.value
+    val isLoading = isViewModelLoading || placementStage != ModelPlacementStage.Idle
     val noticeMessage = when {
         error != null -> error?.message
         screenshotMsg != null -> screenshotMsg
+        placementNotice != null -> placementNotice
         isOffline -> "Offline · cached AR items only"
         else -> null
     }
@@ -951,6 +1059,7 @@ private fun ArScreen(
     val noticeIcon = when {
         error != null -> Icons.Default.ErrorOutline
         screenshotMsg != null -> Icons.Default.CheckCircle
+        placementNotice != null -> Icons.Default.TouchApp
         else -> Icons.Default.CloudOff
     }
 
@@ -967,19 +1076,40 @@ private fun ArScreen(
                 }).also { sv ->
                     sceneViewRef.value = sv
                     onSceneViewReady(sv)
+                    sv.sessionConfiguration = { session, config ->
+                        config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
+                        config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
+
+                        val supportsDepth =
+                            session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
+                        config.depthMode = if (supportsDepth) {
+                            Config.DepthMode.AUTOMATIC
+                        } else {
+                            Config.DepthMode.DISABLED
+                        }
+                        sv.cameraStream?.isDepthOcclusionEnabled = supportsDepth
+                    }
                     sv.planeRenderer.isEnabled = true
+                    sv.planeRenderer.isVisible = true
+                    sv.planeRenderer.isShadowReceiver = true
                     var lastDragAnchorUpdateAt = 0L
+                    var lastSurfaceProbeAt = 0L
                     sv.onSessionCreated = {
                         arSessionMessage = "Starting camera..."
+                        isPlacementSurfaceReady = false
                     }
                     sv.onSessionResumed = {
                         arSessionMessage = null
                     }
                     sv.onSessionFailed = { exception ->
+                        isPlacementSurfaceReady = false
                         arSessionMessage = exception.message
                             ?: "AR camera could not start. Close other apps using the camera, then try again."
                     }
                     sv.onTrackingFailureChanged = { reason ->
+                        if (reason != null) {
+                            isPlacementSurfaceReady = false
+                        }
                         arSessionMessage = when (reason?.name) {
                             null, "NONE" -> null
                             "BAD_STATE" -> "Move your phone slowly so AR can start tracking."
@@ -996,6 +1126,21 @@ private fun ArScreen(
                             arSessionMessage == "Camera is taking too long to start. Check camera permission and Google Play Services for AR."
                         ) {
                             arSessionMessage = null
+                        }
+
+                        val now = SystemClock.elapsedRealtime()
+                        if (sv.width > 0 && sv.height > 0 && now - lastSurfaceProbeAt >= 150L) {
+                            lastSurfaceProbeAt = now
+                            isPlacementSurfaceReady = findPlacementHit(
+                                sv,
+                                sv.width / 2f,
+                                sv.height / 2f,
+                            ) != null
+                            if (isPlacementSurfaceReady &&
+                                placementNotice?.startsWith("No ground found") == true
+                            ) {
+                                placementNotice = null
+                            }
                         }
                     }
 
@@ -1037,7 +1182,7 @@ private fun ArScreen(
                         object : GestureDetector.SimpleOnGestureListener() {
 
                             override fun onSingleTapUp(e: MotionEvent): Boolean {
-                                if (isPlacingModel.value) return false
+                                if (placementStage != ModelPlacementStage.Idle) return false
 
                                 // If repositioning, don't handle single tap here
                                 // (ACTION_UP in onTouchEvent handles finalization)
@@ -1069,7 +1214,7 @@ private fun ArScreen(
                         }
                     )
 
-                    sv.setOnTouchListener { _, event ->
+                    sv.setOnTouchListener { touchedView, event ->
                         // Handle repositioning drag and drop
                         val currentRepositioning = repositioningRef.value
                         if (currentRepositioning != null) {
@@ -1084,7 +1229,7 @@ private fun ArScreen(
                                     lastDragAnchorUpdateAt = event.eventTime
 
                                     // Real-time drag: move model along surfaces
-                                    val hit = sv.hitTestAR(event.x, event.y)
+                                    val hit = findPlacementHit(sv, event.x, event.y)
                                     if (hit != null) {
                                         // Valid surface: move model to the latest hit position.
                                         val newAnchor = hit.createAnchor()
@@ -1117,7 +1262,7 @@ private fun ArScreen(
                                 }
                                 MotionEvent.ACTION_UP -> {
                                     // Finalize repositioning
-                                    val hit = sv.hitTestAR(event.x, event.y)
+                                    val hit = findPlacementHit(sv, event.x, event.y)
                                     if (hit != null) {
                                         // Over valid surface → finish repositioning with new anchor
                                         val newAnchor = hit.createAnchor()
@@ -1159,6 +1304,13 @@ private fun ArScreen(
                                     return@setOnTouchListener true
                                 }
                             }
+                        }
+
+                        // Lifting a finger without an active drag is a tap. Routing
+                        // it through performClick keeps accessibility services
+                        // (TalkBack, switch access) able to trigger the same action.
+                        if (event.action == MotionEvent.ACTION_UP) {
+                            touchedView.performClick()
                         }
 
                         gestureDetector.onTouchEvent(event)
@@ -1390,7 +1542,11 @@ private fun ArScreen(
                 )
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    if (isViewModelLoading) "Loading products..." else "Placing element...",
+                    if (isViewModelLoading) {
+                        "Loading products..."
+                    } else {
+                        placementStage.progressMessage
+                    },
                     color = Color.White,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -1473,7 +1629,10 @@ private fun ArScreen(
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            PlacementReticle(selectedProduct?.name)
+            PlacementReticle(
+                productName = selectedProduct?.name,
+                isSurfaceReady = isPlacementSurfaceReady,
+            )
         }
 
         AnimatedVisibility(
@@ -1518,7 +1677,7 @@ private fun ArScreen(
                     products       = products,
                     selectedId     = selectedProduct?.id,
                     isOffline      = isOffline,
-                    isModelLoading = isPlacingModel.value,
+                    isModelLoading = placementStage != ModelPlacementStage.Idle,
                     onSelect       = { viewModel.selectProduct(it) }
                 )
             }
@@ -1657,25 +1816,35 @@ private fun InfoChip(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun PlacementReticle(productName: String?) {
+private fun PlacementReticle(
+    productName: String?,
+    isSurfaceReady: Boolean,
+) {
+    val reticleColor = if (isSurfaceReady) Color(0xFF4ADE80) else Color(0xFFF5B942)
+    val instruction = when {
+        productName == null -> "Select an element to place"
+        isSurfaceReady -> "Surface ready · Tap to place $productName"
+        else -> "Move slowly and aim at the ground"
+    }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
                     .size(74.dp)
-                    .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                    .border(3.dp, reticleColor, CircleShape)
             )
             Box(
                 modifier = Modifier
                     .size(12.dp)
                     .clip(CircleShape)
-                    .background(Brand600)
+                    .background(reticleColor)
                     .border(2.dp, Color.White, CircleShape)
             )
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            text = productName?.let { "Tap surface to place $it" } ?: "Select an element to place",
+            text = instruction,
             modifier = Modifier
                 .background(Color(0xAA000000), RoundedCornerShape(18.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp),

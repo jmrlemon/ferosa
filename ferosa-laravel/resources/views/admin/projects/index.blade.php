@@ -1,24 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Project Portfolio - Ferosa Admin</title>
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
-  @include('admin.partials.premium-theme')
-</head>
-<body class="min-h-screen bg-surface-100 text-surface-900 font-sans antialiased">
-  <a href="#admin-main" class="skip-link">Skip to project management</a>
-  <header class="flex h-14 items-center justify-between border-b border-surface-200 bg-white px-5">
-    <h1>Project Portfolio</h1>
-    <div class="flex items-center gap-2">
-      <a href="{{ route('projects.index') }}" class="rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600">View public portfolio</a>
-      <a href="{{ route('admin.dashboard') }}" class="rounded-lg bg-surface-900 px-3 py-2 text-xs font-bold text-white">Dashboard</a>
-    </div>
-  </header>
+@extends('admin.layouts.workspace')
 
-  <main id="admin-main" tabindex="-1" class="p-5">
+@section('title', 'Project Portfolio - Ferosa Admin')
+@section('admin-section', 'projects')
+@section('skip-label', 'Skip to project management')
+@section('header-eyebrow', 'Trust content')
+@section('header-title', 'Project Portfolio')
+
+@section('header-actions')
+  <a href="{{ route('projects.index') }}" class="hidden rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600 sm:inline-flex">View public portfolio</a>
+  <a href="{{ route('admin.projects.create') }}" class="inline-flex rounded-lg bg-brand-700 px-3 py-2 text-xs font-bold text-white">Add project</a>
+@endsection
+
+@section('content')
     @if(session('success'))
       <div class="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-800">{{ session('success') }}</div>
     @endif
@@ -73,6 +66,4 @@
       </section>
       <div class="mt-7">{{ $projects->links() }}</div>
     @endif
-  </main>
-</body>
-</html>
+@endsection

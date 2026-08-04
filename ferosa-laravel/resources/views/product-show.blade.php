@@ -51,15 +51,16 @@
       @endif
 
       @if($product->inStock())
-        <div class="mt-7 grid gap-3 sm:grid-cols-[120px_1fr]">
-          <label class="block text-xs font-bold text-surface-600">Quantity
-            <input id="product-quantity" type="number" min="1" max="{{ $product->stock_qty }}" value="1" class="mt-2 h-12 w-full rounded-xl border border-surface-200 px-3 text-base outline-none focus:border-brand-500">
-          </label>
-          <button id="product-add-button" type="button" class="customer-action mt-auto min-h-[48px] bg-brand-700 px-5 py-3 text-sm font-bold text-white hover:bg-brand-800 disabled:cursor-wait disabled:opacity-70">Add to cart</button>
+        <div class="mt-7 grid items-end gap-3 sm:grid-cols-[120px_1fr]">
+          <div>
+            <label for="product-quantity" class="field-label">Quantity</label>
+            <input id="product-quantity" type="number" min="1" max="{{ $product->stock_qty }}" value="1" class="field h-[50px] text-base">
+          </div>
+          <button id="product-add-button" type="button" class="btn btn-primary btn-lg disabled:cursor-wait disabled:opacity-70">Add to cart</button>
         </div>
-        <a href="{{ route('checkout') }}" class="mt-3 customer-action flex min-h-[48px] w-full items-center justify-center border border-brand-200 bg-brand-50 px-5 py-3 text-sm font-bold text-brand-800 hover:bg-brand-100">Review cart and checkout</a>
+        <a href="{{ route('checkout') }}" class="btn btn-soft btn-lg btn-block mt-3">Review cart and checkout</a>
       @else
-        <a href="{{ route('messages') }}" class="mt-7 customer-action inline-flex min-h-[48px] items-center bg-surface-900 px-5 py-3 text-sm font-bold text-white">Ask about availability</a>
+        <a href="{{ route('messages') }}" class="btn btn-primary btn-lg mt-7">Ask about availability</a>
       @endif
 
       <div class="mt-7 grid gap-3 sm:grid-cols-2">
@@ -95,7 +96,7 @@
       @if($product->plantModel)
         <p class="mt-3 text-sm leading-6 text-surface-600">Open Ferosa on a compatible Android device, choose this product in AR, scan a well-lit flat surface, then tap to place it. Move around the preview to check the fit.</p>
         <div class="mt-5 rounded-xl border border-brand-100 bg-brand-50 p-4 text-xs leading-5 text-brand-800">AR is a planning aid. Actual plant shape, color, and dimensions can vary.</div>
-        <a href="ferosa://ar?type=product&amp;size=100&amp;productId={{ $product->id }}" class="app-only customer-action mt-4 min-h-[44px] items-center justify-center bg-brand-700 px-4 py-2.5 text-xs font-bold text-white">Preview this product in AR</a>
+        <a href="ferosa://ar?type=product&amp;size=100&amp;productId={{ $product->id }}" class="app-only btn btn-primary btn-sm mt-4">Preview this product in AR</a>
       @else
         <p class="mt-3 text-sm leading-6 text-surface-600">This item does not yet have an AR model. You can still message Ferosa for placement guidance or use the estimator to plan the wider project.</p>
       @endif

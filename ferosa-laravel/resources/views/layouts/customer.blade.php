@@ -19,20 +19,11 @@
   <meta name="twitter:description" content="Plan. Book. Grow beautifully in Orani, Bataan.">
   <meta name="twitter:image" content="{{ asset('og.png') }}">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
   @vite(['resources/css/app.css', 'resources/js/app.js'])
   <style>
-    :root {
-      --brand-50: 238 247 241;
-      --brand-100: 216 236 223;
-      --brand-500: 52 127 87;
-      --brand-600: 35 103 70;
-      --brand-700: 27 82 57;
-      --ink: #183127;
-      --paper: #f8f7f3;
-    }
+    /* Palette lives in resources/css/app.css (@theme --color-brand-* / --color-surface-*).
+       Do not redeclare colours here — reference the tokens directly. */
     * { font-family: 'DM Sans', system-ui, sans-serif; }
     .font-display { font-family: 'Fraunces', Georgia, serif; }
 
@@ -75,6 +66,15 @@
       height: 22px;
       border-radius: 0 999px 999px 0;
       background: #347f57;
+    }
+
+    /* Soft ambient wash behind every page so cards read as raised, not flat */
+    #main-content {
+      background-image:
+        radial-gradient(60rem 28rem at 82% -8%, rgba(178,217,192,.22), transparent 62%),
+        radial-gradient(48rem 24rem at -10% 4%, rgba(238,247,241,.85), transparent 58%);
+      background-repeat: no-repeat;
+      background-attachment: local;
     }
 
     .customer-page {
@@ -131,6 +131,245 @@
       min-height: 42px;
       background-color: rgba(255,255,255,.92);
     }
+
+    /* ─────────────────────────────────────────────────────────────
+       Shared customer UI kit
+       Written with :where() so page-level Tailwind utilities always win.
+       ───────────────────────────────────────────────────────────── */
+
+    /* Page heading block — kicker / title / lead */
+    .page-head { margin-bottom: 1.75rem; }
+    .page-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      color: #236746;
+    }
+    .page-kicker::before {
+      content: '';
+      width: 18px;
+      height: 2px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #347f57, rgba(52,127,87,.15));
+    }
+    .page-title {
+      margin-top: .55rem;
+      font-family: 'Fraunces', Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.25rem);
+      line-height: 1.12;
+      letter-spacing: -.025em;
+      color: #181714;
+    }
+    .page-sub {
+      margin-top: .6rem;
+      max-width: 46rem;
+      font-size: .875rem;
+      line-height: 1.6;
+      color: #706b61;
+    }
+
+    /* Button system */
+    :where(.btn) {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      min-height: 42px;
+      padding: .625rem 1.15rem;
+      border: 1px solid transparent;
+      border-radius: .8rem;
+      font-size: .8125rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background-color .16s ease, border-color .16s ease, color .16s ease,
+                  box-shadow .16s ease, transform .16s ease;
+    }
+    :where(.btn:hover) { transform: translateY(-1px); }
+    :where(.btn:active) { transform: translateY(0); }
+    :where(.btn[disabled], .btn[aria-disabled='true']) {
+      opacity: .55;
+      cursor: not-allowed;
+      transform: none;
+    }
+    :where(.btn-primary) {
+      background: linear-gradient(180deg, #2a7551, #1b5239);
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(18,52,38,.18), 0 8px 20px -8px rgba(18,52,38,.5);
+    }
+    :where(.btn-primary:hover) {
+      background: linear-gradient(180deg, #236746, #17422f);
+      box-shadow: 0 2px 4px rgba(18,52,38,.2), 0 12px 24px -8px rgba(18,52,38,.55);
+    }
+    :where(.btn-secondary) {
+      background: #fff;
+      border-color: #e2ded4;
+      color: #3b3833;
+      box-shadow: 0 1px 2px rgba(18,52,38,.04);
+    }
+    :where(.btn-secondary:hover) {
+      border-color: #b2d9c0;
+      background: #f6fbf8;
+      color: #1b5239;
+    }
+    :where(.btn-soft) {
+      background: #eef7f1;
+      border-color: #d8ecdf;
+      color: #1b5239;
+    }
+    :where(.btn-soft:hover) { background: #d8ecdf; }
+    :where(.btn-ghost) {
+      background: transparent;
+      color: #706b61;
+    }
+    :where(.btn-ghost:hover) { background: #f0eee8; color: #272522; }
+    :where(.btn-danger) {
+      background: #fff;
+      border-color: #e2ded4;
+      color: #706b61;
+    }
+    :where(.btn-danger:hover) { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+    :where(.btn-sm) { min-height: 36px; padding: .45rem .85rem; font-size: .75rem; border-radius: .65rem; }
+    :where(.btn-lg) { min-height: 50px; padding: .8rem 1.5rem; font-size: .9375rem; border-radius: .9rem; }
+    :where(.btn-block) { width: 100%; }
+
+    /* Form controls */
+    :where(.field) {
+      width: 100%;
+      padding: .6rem .85rem;
+      border: 1px solid #e2ded4;
+      border-radius: .7rem;
+      background: #fff;
+      font-size: .875rem;
+      color: #272522;
+      transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+    }
+    :where(.field::placeholder) { color: #a8a196; }
+    :where(.field:hover) { border-color: #cec8bb; }
+    :where(.field:focus) {
+      outline: none;
+      border-color: #559e74;
+      box-shadow: 0 0 0 3px rgba(52,127,87,.13);
+      background: #fff;
+    }
+    :where(select.field) {
+      appearance: none;
+      padding-right: 2.25rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23706b61' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right .7rem center;
+    }
+    :where(.field-label) {
+      display: block;
+      margin-bottom: .35rem;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #706b61;
+    }
+    :where(.field-hint) { margin-top: .35rem; font-size: .75rem; color: #a8a196; }
+    :where(.field-icon) { position: relative; }
+    :where(.field-icon > svg) {
+      position: absolute;
+      left: .8rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: #a8a196;
+      pointer-events: none;
+    }
+    :where(.field-icon > .field) { padding-left: 2.35rem; }
+
+    /* Toolbar — filter/search rows */
+    :where(.toolbar) {
+      background: #fff;
+      border: 1px solid #eae7df;
+      border-radius: 1rem;
+      padding: 1rem;
+      box-shadow: 0 1px 2px rgba(18,52,38,.03), 0 8px 24px rgba(18,52,38,.035);
+    }
+
+    /* Chips — pill filters */
+    :where(.chip) {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .45rem .9rem;
+      border: 1px solid #e2ded4;
+      border-radius: 999px;
+      background: #fff;
+      font-size: .75rem;
+      font-weight: 700;
+      color: #514d46;
+      transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+    }
+    :where(.chip:hover) { border-color: #b2d9c0; background: #f6fbf8; color: #1b5239; }
+    :where(.chip-active) { border-color: #1b5239; background: #1b5239; color: #fff; }
+    :where(.chip-active:hover) { border-color: #123426; background: #123426; color: #fff; }
+
+    /* Status badges */
+    :where(.badge) {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .25rem .6rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    :where(.badge-success) { background: #eef7f1; border-color: #d8ecdf; color: #1b5239; }
+    :where(.badge-warning) { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    :where(.badge-info)    { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    :where(.badge-danger)  { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    :where(.badge-neutral) { background: #f0eee8; border-color: #e2ded4; color: #514d46; }
+
+    /* Inline alerts */
+    :where(.alert) {
+      display: flex;
+      align-items: flex-start;
+      gap: .7rem;
+      padding: .85rem 1rem;
+      border: 1px solid transparent;
+      border-radius: .85rem;
+      font-size: .875rem;
+      line-height: 1.5;
+    }
+    :where(.alert svg) { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; }
+    :where(.alert-success) { background: #eef7f1; border-color: #d8ecdf; color: #1b5239; }
+    :where(.alert-error)   { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    :where(.alert-info)    { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    :where(.alert-warning) { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+
+    /* Card hover lift, opt-in */
+    .lift { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .lift:hover {
+      transform: translateY(-2px);
+      border-color: #cbded1;
+      box-shadow: 0 14px 36px rgba(18,52,38,.075);
+    }
+
+    /* Entrance reveal — staggered by nth-child on the page wrapper */
+    @keyframes ferosaReveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .reveal { animation: ferosaReveal .42s cubic-bezier(.22,1,.36,1) both; }
+    .reveal-1 { animation-delay: .05s; }
+    .reveal-2 { animation-delay: .1s; }
+    .reveal-3 { animation-delay: .15s; }
+    .reveal-4 { animation-delay: .2s; }
 
     #customer-sidebar {
       background:
@@ -237,7 +476,16 @@
     });
   </script>
 </head>
-<body class="flex h-screen bg-surface-50 text-surface-900 overflow-hidden font-sans antialiased" id="app-body">
+@php
+  // The Android WebView appends "FerosaApp" to its User-Agent, so the in-app
+  // layout is applied on the very first paint. The app also injects this class
+  // from JavaScript on page load, but that only runs once the page has finished
+  // loading - long enough for the web nav bar to show up underneath the native
+  // one. Detecting it server-side removes that double-nav flash entirely, and
+  // keeps working if the injected script never runs.
+  $inApp = str_contains((string) request()->userAgent(), 'FerosaApp');
+@endphp
+<body class="flex h-screen bg-surface-50 text-surface-900 overflow-hidden font-sans antialiased{{ $inApp ? ' in-app' : '' }}" id="app-body">
 
   <a href="#main-content" class="skip-link">Skip to main content</a>
 

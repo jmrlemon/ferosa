@@ -70,6 +70,19 @@ class TrustWorkflowTest extends TestCase
         $this->assertTrue($project->is_featured);
         $this->assertSame('front-garden-upgrade', $project->slug);
 
+        foreach ([
+            route('admin.projects.index'),
+            route('admin.projects.create'),
+            route('admin.projects.edit', $project),
+        ] as $portfolioUrl) {
+            $this->actingAs($staff)
+                ->get($portfolioUrl)
+                ->assertOk()
+                ->assertSee('id="admin-sidebar"', false)
+                ->assertSee('aria-current="page"', false)
+                ->assertSeeText('Project Portfolio');
+        }
+
         $this->actingAs($customer)
             ->get(route('admin.projects.index'))
             ->assertForbidden();
@@ -90,6 +103,13 @@ class TrustWorkflowTest extends TestCase
             'service_guarantee' => null,
             'cancellation_policy' => 'Contact the team as early as possible to reschedule.',
         ];
+
+        $this->actingAs($admin)
+            ->get(route('admin.business-profile.edit'))
+            ->assertOk()
+            ->assertSee('id="admin-sidebar"', false)
+            ->assertSee('aria-current="page"', false)
+            ->assertSeeText('Business Profile');
 
         $this->actingAs($customer)
             ->put(route('admin.business-profile.update'), $payload)

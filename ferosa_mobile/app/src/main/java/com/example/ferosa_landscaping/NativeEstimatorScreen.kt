@@ -155,8 +155,14 @@ private val nativeAddons = listOf(
     NativeAddon("soil", "Soil Preparation & Mulch", "Aeration, enriched soil, and mulch.", 15_000),
 )
 
+/**
+ * Locale("en","PH") is deprecated; Locale.forLanguageTag is the supported way to
+ * build one. Held as a constant so the peso formatter does not rebuild it.
+ */
+private val PH_LOCALE: Locale = Locale.forLanguageTag("en-PH")
+
 private fun peso(value: Double): String {
-    val number = NumberFormat.getIntegerInstance(Locale("en", "PH")).format(value.roundToInt())
+    val number = NumberFormat.getIntegerInstance(PH_LOCALE).format(value.roundToInt())
     return "\u20B1$number"
 }
 

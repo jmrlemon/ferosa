@@ -1,13 +1,14 @@
 @extends('layouts.customer')
 
 @section('content')
-<main class="max-w-lg mx-auto px-4 sm:px-6 py-10">
-  <div class="bg-white rounded-xl border border-surface-100 p-6">
-    <div class="w-10 h-10 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center mb-4">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+<main class="customer-page max-w-2xl">
+  <div class="customer-card p-6 sm:p-8 reveal">
+    <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+      <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
     </div>
-    <h1 class="text-xl font-display font-bold text-surface-900 mb-1">Thank you — order received</h1>
-    <p class="text-sm text-surface-400 mb-5">Your order is recorded. Check <strong class="text-surface-600">{{ $order->user->email }}</strong> and Notifications for updates.</p>
+    <p class="page-kicker">Order received</p>
+    <h1 class="page-title">Thank you — we've got it.</h1>
+    <p class="page-sub mb-6">Your order is recorded. Check <strong class="font-bold text-surface-700">{{ $order->user->email }}</strong> and Notifications for updates.</p>
 
     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs border-t border-surface-100 pt-5">
       <div>
@@ -63,8 +64,8 @@
     </div>
 
     <div class="mt-6 flex flex-wrap gap-2">
-      <a href="{{ route('orders') }}" class="bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 px-5 rounded-lg text-xs transition-colors">View my orders</a>
-      <a href="{{ route('shop') }}" class="border border-surface-200 text-surface-500 hover:bg-surface-50 font-medium py-2 px-5 rounded-lg text-xs transition-colors">Continue shopping</a>
+      <a href="{{ route('orders') }}" class="btn btn-primary">View my orders</a>
+      <a href="{{ route('shop') }}" class="btn btn-secondary">Continue shopping</a>
     </div>
   </div>
 </main>

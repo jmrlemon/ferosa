@@ -21,9 +21,9 @@
 
   @if($services->isNotEmpty())
     <form action="{{ route('projects.index') }}" method="GET" class="mt-6 flex flex-wrap items-center gap-2" aria-label="Filter projects">
-      <a href="{{ route('projects.index') }}" class="rounded-full border px-4 py-2 text-xs font-bold {{ $selectedService === '' ? 'border-brand-700 bg-brand-700 text-white' : 'border-surface-200 bg-white text-surface-600' }}">All work</a>
+      <a href="{{ route('projects.index') }}" class="chip {{ $selectedService === '' ? 'chip-active' : '' }}">All work</a>
       @foreach($services as $service)
-        <a href="{{ route('projects.index', ['service' => $service]) }}" class="rounded-full border px-4 py-2 text-xs font-bold {{ $selectedService === $service ? 'border-brand-700 bg-brand-700 text-white' : 'border-surface-200 bg-white text-surface-600' }}">{{ $service }}</a>
+        <a href="{{ route('projects.index', ['service' => $service]) }}" class="chip {{ $selectedService === $service ? 'chip-active' : '' }}">{{ $service }}</a>
       @endforeach
     </form>
   @endif
@@ -34,8 +34,8 @@
       <h2 class="text-base font-bold text-surface-900">Verified case studies are being prepared</h2>
       <p class="mt-2 max-w-lg text-sm leading-6 text-surface-500">Ferosa has not published a matching project yet. Ask the team for examples related to your space or start with a consultation.</p>
       <div class="mt-5 flex flex-wrap justify-center gap-3">
-        <a href="{{ route('messages') }}" class="customer-action border border-surface-200 bg-white px-4 py-2.5 text-xs font-bold text-surface-700">Ask the team</a>
-        <a href="{{ route('schedule') }}" class="customer-action bg-brand-700 px-4 py-2.5 text-xs font-bold text-white">Book a visit</a>
+        <a href="{{ route('messages') }}" class="btn btn-secondary btn-sm">Ask the team</a>
+        <a href="{{ route('schedule') }}" class="btn btn-primary btn-sm">Book a visit</a>
       </div>
     </section>
   @else

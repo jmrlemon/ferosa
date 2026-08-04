@@ -36,7 +36,7 @@
       <div class="mt-5 grid gap-5 md:grid-cols-2">
         @foreach([['Before', $project->before_image_url], ['After', $project->after_image_url]] as [$label, $image])
           @if($image)
-            <figure class="overflow-hidden rounded-2xl border border-surface-200 bg-white"><img src="{{ $image }}" alt="{{ $label }} {{ $project->title }}" class="aspect-[4/3] w-full object-cover"><figcaption class="px-4 py-3 text-xs font-bold text-surface-600">{{ $label }}</figcaption></figure>
+            <figure class="overflow-hidden rounded-2xl border border-surface-200 bg-white"><img src="{{ $image }}" alt="{{ $label }} {{ $project->title }}" loading="lazy" decoding="async" class="aspect-[4/3] w-full object-cover"><figcaption class="px-4 py-3 text-xs font-bold text-surface-600">{{ $label }}</figcaption></figure>
           @endif
         @endforeach
       </div>

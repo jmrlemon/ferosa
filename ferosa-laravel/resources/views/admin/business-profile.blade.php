@@ -1,17 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Business Profile - Ferosa Admin</title>
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
-  @include('admin.partials.premium-theme')
-</head>
-<body class="min-h-screen bg-surface-100 text-surface-900 font-sans antialiased">
-  <a href="#admin-main" class="skip-link">Skip to business profile</a>
-  <header class="flex h-14 items-center justify-between border-b border-surface-200 bg-white px-5"><h1>Business Profile</h1><a href="{{ route('admin.dashboard') }}" class="rounded-lg bg-surface-900 px-3 py-2 text-xs font-bold text-white">Dashboard</a></header>
-  <main id="admin-main" tabindex="-1" class="p-5">
+@extends('admin.layouts.workspace')
+
+@section('title', 'Business Profile - Ferosa Admin')
+@section('admin-section', 'business-profile')
+@section('skip-label', 'Skip to business profile')
+@section('header-eyebrow', 'Customer confidence')
+@section('header-title', 'Business Profile')
+
+@section('header-actions')
+  <a href="{{ route('admin.dashboard', ['tab' => 'overview']) }}" class="rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600">Dashboard</a>
+@endsection
+
+@section('content')
     @if(session('success'))<div class="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-800">{{ session('success') }}</div>@endif
     @if($errors->any())<div class="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"><p class="font-bold">Please review the form.</p><ul class="mt-2 list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
@@ -48,6 +47,4 @@
         <button class="mt-6 w-full rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white">Save business details</button>
       </aside>
     </form>
-  </main>
-</body>
-</html>
+@endsection

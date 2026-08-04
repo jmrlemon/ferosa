@@ -1,22 +1,17 @@
 @php($isEdit = $project->exists)
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>{{ $isEdit ? 'Edit Project' : 'Add Project' }} - Ferosa Admin</title>
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
-  @include('admin.partials.premium-theme')
-</head>
-<body class="min-h-screen bg-surface-100 text-surface-900 font-sans antialiased">
-  <a href="#admin-main" class="skip-link">Skip to project form</a>
-  <header class="flex h-14 items-center justify-between border-b border-surface-200 bg-white px-5">
-    <h1>{{ $isEdit ? 'Edit Project' : 'Add Project' }}</h1>
-    <a href="{{ route('admin.projects.index') }}" class="rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600">Back to portfolio</a>
-  </header>
+@extends('admin.layouts.workspace')
 
-  <main id="admin-main" tabindex="-1" class="p-5">
+@section('title', ($isEdit ? 'Edit Project' : 'Add Project').' - Ferosa Admin')
+@section('admin-section', 'projects')
+@section('skip-label', 'Skip to project form')
+@section('header-eyebrow', 'Trust content')
+@section('header-title', $isEdit ? 'Edit Project' : 'Add Project')
+
+@section('header-actions')
+  <a href="{{ route('admin.projects.index') }}" class="rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600">Back to portfolio</a>
+@endsection
+
+@section('content')
     @if(session('success'))<div class="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-800">{{ session('success') }}</div>@endif
     @if($errors->any())
       <div class="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"><p class="font-bold">Please review these details:</p><ul class="mt-2 list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
@@ -73,6 +68,4 @@
         <div class="rounded-xl border border-amber-100 bg-amber-50 p-4 text-xs leading-5 text-amber-900"><strong>Before publishing:</strong> confirm photo permission, spelling, location details, and any client quote.</div>
       </aside>
     </form>
-  </main>
-</body>
-</html>
+@endsection

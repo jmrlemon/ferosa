@@ -9,23 +9,25 @@
   $selectedPaymentMethod = old('payment_method', 'cod');
 @endphp
 <main class="customer-page max-w-4xl">
-  <div class="mb-8">
-    <a href="{{ route('shop') }}" class="inline-flex items-center gap-1.5 text-xs font-medium text-surface-400 hover:text-surface-600 mb-4">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-      Back to Shop
-    </a>
-    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Checkout</h1>
-    <p class="text-surface-400 text-sm">Review your items and place your order.</p>
-  </div>
+  <a href="{{ route('shop') }}" class="mb-4 inline-flex items-center gap-1.5 text-xs font-bold text-surface-500 transition-colors hover:text-brand-700">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to shop
+  </a>
+
+  <x-page-head
+    kicker="Almost there"
+    title="Checkout"
+    sub="Review your items, tell us where to deliver, and choose how you would like to pay." />
 
   @if($errors->any())
-    <div class="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm">
-      <ul class="list-disc pl-4 space-y-0.5">
+    <x-alert type="error" class="mb-6 reveal">
+      <p class="font-bold">We could not place your order yet:</p>
+      <ul class="mt-1 list-disc space-y-0.5 pl-4">
         @foreach($errors->all() as $error)
           <li>{{ $error }}</li>
         @endforeach
       </ul>
-    </div>
+    </x-alert>
   @endif
 
   <form method="POST" action="{{ route('checkout.store') }}" id="checkout-form" enctype="multipart/form-data">
@@ -44,26 +46,26 @@
             <div class="customer-empty-icon">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             </div>
-            <h2 class="text-sm font-semibold text-surface-900 mb-1">Your cart is empty</h2>
-            <p class="text-surface-400 text-sm mb-4">Add products from the shop before placing an order.</p>
-            <a href="{{ route('shop') }}" class="customer-action bg-surface-900 text-white font-medium text-xs px-5 py-2 hover:bg-surface-800">Browse Shop</a>
+            <h2 class="text-base font-bold text-surface-900 mb-1">Your cart is empty</h2>
+            <p class="text-surface-500 text-sm mb-5">Add products from the shop before placing an order.</p>
+            <a href="{{ route('shop') }}" class="btn btn-primary btn-sm">Browse shop</a>
           </div>
         </div>
 
         <!-- Delivery Details -->
         <div class="customer-card p-5 sm:p-6">
-          <h2 class="text-sm font-semibold text-surface-900 mb-4">Delivery Details</h2>
+          <h2 class="mb-4 font-display text-lg font-bold text-surface-900">How should we get it to you?</h2>
 
           <!-- Toggle Tabs -->
-          <div class="flex gap-2 mb-5">
+          <div class="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-surface-200 bg-surface-50 p-1">
             <button type="button" id="tab-delivery"
               onclick="setDeliveryMethod('delivery')"
-              class="flex-1 py-2 text-xs font-medium rounded-lg border transition-colors border-surface-900 bg-surface-900 text-white">
+              class="rounded-lg px-3 py-2 text-xs font-bold transition-colors bg-white text-brand-800 shadow-sm">
               Delivery
             </button>
             <button type="button" id="tab-pickup"
               onclick="setDeliveryMethod('pickup')"
-              class="flex-1 py-2 text-xs font-medium rounded-lg border transition-colors border-surface-200 bg-white text-surface-600 hover:bg-surface-50">
+              class="rounded-lg px-3 py-2 text-xs font-bold transition-colors text-surface-500 hover:text-surface-800">
               Pick-up
             </button>
           </div>
@@ -74,35 +76,31 @@
           <div id="delivery-fields" class="space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-medium text-surface-600 mb-1">Full Name <span class="text-red-500">*</span></label>
-                <input type="text" name="delivery_name" value="{{ old('delivery_name') }}"
-                  placeholder="e.g. Juan Dela Cruz"
-                  class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors">
+                <label for="delivery_name" class="field-label">Full name <span class="text-red-500">*</span></label>
+                <input type="text" id="delivery_name" name="delivery_name" value="{{ old('delivery_name') }}"
+                  placeholder="e.g. Juan Dela Cruz" class="field">
               </div>
               <div>
-                <label class="block text-xs font-medium text-surface-600 mb-1">Phone Number <span class="text-red-500">*</span></label>
-                <input type="text" name="delivery_phone" value="{{ old('delivery_phone') }}"
-                  placeholder="e.g. 09XX XXX XXXX"
-                  class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors">
+                <label for="delivery_phone" class="field-label">Phone number <span class="text-red-500">*</span></label>
+                <input type="text" id="delivery_phone" name="delivery_phone" value="{{ old('delivery_phone') }}"
+                  placeholder="e.g. 09XX XXX XXXX" class="field">
               </div>
             </div>
             <div>
-              <label class="block text-xs font-medium text-surface-600 mb-1">Street Address <span class="text-red-500">*</span></label>
-              <input type="text" name="delivery_address" value="{{ old('delivery_address') }}"
-                placeholder="House/Unit No., Street, Barangay"
-                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors">
+              <label for="delivery_address" class="field-label">Street address <span class="text-red-500">*</span></label>
+              <input type="text" id="delivery_address" name="delivery_address" value="{{ old('delivery_address') }}"
+                placeholder="House/Unit No., Street, Barangay" class="field">
             </div>
             <div>
-              <label class="block text-xs font-medium text-surface-600 mb-1">City / Municipality <span class="text-red-500">*</span></label>
-              <input type="text" name="delivery_city" value="{{ old('delivery_city') }}"
-                placeholder="e.g. Quezon City"
-                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors">
+              <label for="delivery_city" class="field-label">City / municipality <span class="text-red-500">*</span></label>
+              <input type="text" id="delivery_city" name="delivery_city" value="{{ old('delivery_city') }}"
+                placeholder="e.g. Quezon City" class="field">
             </div>
             <div>
-              <label class="block text-xs font-medium text-surface-600 mb-1">Delivery Notes <span class="text-surface-400 font-normal">(optional)</span></label>
-              <textarea name="delivery_notes" rows="2"
+              <label for="delivery_notes" class="field-label">Delivery notes <span class="font-normal normal-case tracking-normal text-surface-400">(optional)</span></label>
+              <textarea id="delivery_notes" name="delivery_notes" rows="2"
                 placeholder="e.g. Leave at the gate, call upon arrival"
-                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors resize-none">{{ old('delivery_notes') }}</textarea>
+                class="field resize-none">{{ old('delivery_notes') }}</textarea>
             </div>
           </div>
 
@@ -123,33 +121,37 @@
 
         <!-- Payment Method -->
         <div class="customer-card p-5 sm:p-6">
-          <h2 class="text-sm font-semibold text-surface-900 mb-4">Payment Method</h2>
+          <h2 class="mb-4 font-display text-lg font-bold text-surface-900">Payment method</h2>
 
           <div class="space-y-3">
             <!-- COD -->
-            <label class="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-surface-200 hover:border-brand-400 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-surface-200 p-4 transition-colors hover:border-brand-300 hover:bg-surface-50 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
               <input type="radio" name="payment_method" value="cod" {{ $selectedPaymentMethod !== 'gcash' || ! $gcashAvailable ? 'checked' : '' }}
                 onchange="setPaymentMethod('cod')"
-                class="mt-0.5 w-4 h-4 text-brand-600 border-surface-300 focus:ring-brand-500">
-              <div>
-                <p class="text-sm font-medium text-surface-900">Cash on Delivery (COD)</p>
-                <p class="text-xs text-surface-400">Pay when your order arrives at your door.</p>
+                class="mt-0.5 h-4 w-4 border-surface-300 text-brand-600 focus:ring-brand-500">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-bold text-surface-900">Cash on delivery</p>
+                <p class="mt-0.5 text-xs leading-5 text-surface-500">Pay when your order arrives at your door.</p>
               </div>
+              <span class="badge badge-neutral">COD</span>
             </label>
 
             <!-- GCash -->
-            <label class="flex items-start gap-3 {{ $gcashAvailable ? 'cursor-pointer hover:border-brand-400 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50' : 'cursor-not-allowed opacity-60 bg-surface-50' }} p-3 rounded-lg border border-surface-200 transition-colors">
+            <label class="flex items-start gap-3 rounded-xl border border-surface-200 p-4 transition-colors {{ $gcashAvailable ? 'cursor-pointer hover:border-brand-300 hover:bg-surface-50 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50' : 'cursor-not-allowed bg-surface-50 opacity-60' }}">
               <input type="radio" name="payment_method" value="gcash"
                 onchange="setPaymentMethod('gcash')"
                 {{ $selectedPaymentMethod === 'gcash' && $gcashAvailable ? 'checked' : '' }}
                 {{ $gcashAvailable ? '' : 'disabled' }}
-                class="mt-0.5 w-4 h-4 text-brand-600 border-surface-300 focus:ring-brand-500">
-              <div class="flex-1">
-                <p class="text-sm font-medium text-surface-900">GCash</p>
-                <p class="text-xs text-surface-400">
+                class="mt-0.5 h-4 w-4 border-surface-300 text-brand-600 focus:ring-brand-500">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-bold text-surface-900">GCash</p>
+                <p class="mt-0.5 text-xs leading-5 text-surface-500">
                   {{ $gcashAvailable ? 'Scan the QR or send to the listed number, then provide the reference number.' : 'GCash payment is not available right now.' }}
                 </p>
               </div>
+              @unless($gcashAvailable)
+                <span class="badge badge-neutral">Unavailable</span>
+              @endunless
             </label>
           </div>
 
@@ -181,18 +183,18 @@
                 </div>
               </div>
             </div>
-            <label class="block text-xs font-medium text-surface-600 mb-1">GCash Reference Number <span class="text-red-500">*</span></label>
-            <input type="text" name="payment_reference" value="{{ old('payment_reference') }}"
-              placeholder="e.g. 1234567890"
-              class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors">
-            <p class="text-xs text-surface-400 mt-1">Enter the reference number after sending your payment.</p>
-            <label class="mt-4 block text-xs font-medium text-surface-600">Payment Receipt <span class="text-red-500">*</span>
-              <input type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp"
-                class="mt-2 block w-full rounded-lg border border-surface-200 bg-white text-sm text-surface-600 file:mr-3 file:border-0 file:bg-sky-100 file:px-3 file:py-2.5 file:font-semibold file:text-sky-800">
-            </label>
-            <p class="mt-1 text-xs text-surface-400">Upload the GCash confirmation screen. JPG, PNG, or WebP; maximum 5 MB.</p>
-            <div class="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-              Your payment will show as <strong>Pending verification</strong> until an administrator checks the reference and receipt.
+            <label for="payment_reference" class="field-label">GCash reference number <span class="text-red-500">*</span></label>
+            <input type="text" id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}"
+              placeholder="e.g. 1234567890" class="field">
+            <p class="field-hint">Enter the reference number after sending your payment.</p>
+            <label for="payment_proof" class="field-label mt-4">Payment receipt <span class="text-red-500">*</span></label>
+            <input type="file" id="payment_proof" name="payment_proof" accept="image/jpeg,image/png,image/webp"
+              class="field file:mr-3 file:-my-1 file:-ml-1 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-bold file:text-brand-800">
+            <p class="field-hint">Upload the GCash confirmation screen. JPG, PNG, or WebP; maximum 5 MB.</p>
+            <div class="mt-3">
+              <x-alert type="warning">
+                Your payment will show as <strong>Pending verification</strong> until an administrator checks the reference and receipt.
+              </x-alert>
             </div>
           </div>
         </div>
@@ -202,26 +204,41 @@
       <!-- Summary -->
       <div class="lg:col-span-1">
         <div class="customer-card p-5 sm:p-6 sticky top-6">
-          <h2 class="text-sm font-semibold text-surface-900 mb-5">Order Summary</h2>
+          <h2 class="mb-5 font-display text-lg font-bold text-surface-900">Order summary</h2>
 
-          <div class="flex justify-between items-center mb-3 text-xs text-surface-500">
+          <div class="mb-3 flex items-center justify-between text-sm text-surface-500">
             <span>Subtotal (<span id="summary-items">0</span> items)</span>
-            <span id="summary-subtotal" class="font-medium text-surface-700">&#8369;0.00</span>
+            <span id="summary-subtotal" class="font-bold text-surface-800">&#8369;0.00</span>
           </div>
-          <div class="flex justify-between items-center mb-5 text-xs text-surface-500">
+          <div class="mb-5 flex items-center justify-between text-sm text-surface-500">
             <span>Delivery</span>
-            <span class="text-brand-600 font-medium">Free</span>
+            <span class="font-bold text-brand-600">Free</span>
           </div>
 
-          <div class="border-t border-surface-100 pt-4 mb-6 flex justify-between items-center">
-            <span class="text-sm font-semibold text-surface-900">Total</span>
-            <span id="summary-total" class="text-xl font-display font-bold text-surface-900">&#8369;0.00</span>
+          <div class="mb-6 flex items-center justify-between border-t border-surface-100 pt-4">
+            <span class="text-sm font-bold text-surface-900">Total</span>
+            <span id="summary-total" class="font-display text-2xl font-bold text-surface-900">&#8369;0.00</span>
           </div>
 
-          <button type="submit" id="checkout-btn" data-loading-label="Placing order..." class="customer-action w-full bg-surface-900 hover:bg-surface-800 text-white font-medium py-2.5 text-sm">
-            Place Order
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <button type="submit" id="checkout-btn" data-loading-label="Placing order..." class="btn btn-primary btn-lg btn-block">
+            Place order
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </button>
+
+          <ul class="mt-5 space-y-2 border-t border-surface-100 pt-4 text-xs text-surface-500">
+            <li class="flex items-start gap-2">
+              <svg class="mt-px h-3.5 w-3.5 flex-shrink-0 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Free delivery within our service area
+            </li>
+            <li class="flex items-start gap-2">
+              <svg class="mt-px h-3.5 w-3.5 flex-shrink-0 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Cash on delivery available
+            </li>
+            <li class="flex items-start gap-2">
+              <svg class="mt-px h-3.5 w-3.5 flex-shrink-0 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Track every update from your orders page
+            </li>
+          </ul>
         </div>
       </div>
     </div>
@@ -259,21 +276,18 @@
     const tabDelivery    = document.getElementById('tab-delivery');
     const tabPickup      = document.getElementById('tab-pickup');
 
-    if (method === 'delivery') {
-      deliveryFields.classList.remove('hidden');
-      pickupInfo.classList.add('hidden');
-      tabDelivery.classList.remove('border-surface-200', 'bg-white', 'text-surface-600', 'hover:bg-surface-50');
-      tabDelivery.classList.add('border-surface-900', 'bg-surface-900', 'text-white');
-      tabPickup.classList.remove('border-surface-900', 'bg-surface-900', 'text-white');
-      tabPickup.classList.add('border-surface-200', 'bg-white', 'text-surface-600', 'hover:bg-surface-50');
-    } else {
-      deliveryFields.classList.add('hidden');
-      pickupInfo.classList.remove('hidden');
-      tabPickup.classList.remove('border-surface-200', 'bg-white', 'text-surface-600', 'hover:bg-surface-50');
-      tabPickup.classList.add('border-surface-900', 'bg-surface-900', 'text-white');
-      tabDelivery.classList.remove('border-surface-900', 'bg-surface-900', 'text-white');
-      tabDelivery.classList.add('border-surface-200', 'bg-white', 'text-surface-600', 'hover:bg-surface-50');
-    }
+    const ACTIVE = ['bg-white', 'text-brand-800', 'shadow-sm'];
+    const IDLE   = ['text-surface-500', 'hover:text-surface-800'];
+
+    const [on, off] = method === 'delivery' ? [tabDelivery, tabPickup] : [tabPickup, tabDelivery];
+
+    deliveryFields.classList.toggle('hidden', method !== 'delivery');
+    pickupInfo.classList.toggle('hidden', method === 'delivery');
+
+    on.classList.remove(...IDLE);
+    on.classList.add(...ACTIVE);
+    off.classList.remove(...ACTIVE);
+    off.classList.add(...IDLE);
   }
 
   // ── Payment method toggle ────────────────────────────────────────────────

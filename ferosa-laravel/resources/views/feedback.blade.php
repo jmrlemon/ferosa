@@ -6,15 +6,13 @@
 <div class="customer-page max-w-2xl space-y-6">
 
   {{-- Page header --}}
-  <div>
-    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Feedback</h1>
-    <p class="text-surface-400 text-sm">Rate completed orders and share your experience.</p>
-  </div>
+  <x-page-head
+    kicker="Your experience"
+    title="Feedback"
+    sub="Rate completed orders and services — your notes help the Ferosa team improve every visit." />
 
   @if (session('status'))
-    <div class="rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3 text-sm">
-      {{ session('status') }}
-    </div>
+    <x-alert type="success" class="reveal">{{ session('status') }}</x-alert>
   @endif
 
   {{-- ── Completed orders awaiting feedback ─────────────────────────── --}}

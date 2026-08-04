@@ -6,9 +6,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Manage Order - Ferosa Landscaping</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
   @vite(['resources/css/app.css', 'resources/js/app.js'])
   @include('admin.partials.premium-theme')
 </head>
@@ -198,7 +196,7 @@
             <div class="divide-y divide-surface-100">
               @foreach($history as $entry)
                 <div class="px-5 py-3">
-                  <p class="text-sm font-medium text-surface-800">{{ ucfirst(str_replace(['.', '-'], ' ', $entry->action)) }}</p>
+                  <p class="text-sm font-medium text-surface-800">{{ $entry->description }}</p>
                   <p class="mt-1 text-xs text-surface-400">{{ $entry->actor->name ?? 'System' }} · {{ optional($entry->created_at)->format('M d, Y h:i A') }}</p>
                 </div>
               @endforeach

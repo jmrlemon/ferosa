@@ -1,62 +1,67 @@
 @extends('layouts.customer')
 
+@section('title', 'My Appointments - Ferosa Landscaping')
+
 @section('content')
 <main class="customer-page max-w-4xl">
-  <div class="mb-8">
-    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">My Appointments</h1>
-    <p class="text-surface-400 text-sm">View and manage your landscaping service bookings.</p>
-  </div>
+  <x-page-head
+    kicker="Your bookings"
+    title="Appointments"
+    sub="Track every scheduled visit, follow its progress, and manage changes in one place.">
+    <a href="{{ route('schedule') }}" class="btn btn-primary btn-sm">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/></svg>
+      Book a service
+    </a>
+  </x-page-head>
 
   @if (session('status'))
-    <div class="bg-brand-50 border border-brand-100 text-brand-700 px-4 py-2.5 rounded-lg text-sm mb-6">
-      {{ session('status') }}
-    </div>
+    <x-alert type="success" class="mb-6 reveal">{{ session('status') }}</x-alert>
   @endif
   @if (session('error'))
-    <div class="bg-red-50 border border-red-100 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-6">
-      {{ session('error') }}
-    </div>
+    <x-alert type="error" class="mb-6 reveal">{{ session('error') }}</x-alert>
   @endif
 
-  {{-- Filters --}}
-  <form method="GET" action="{{ route('appointments') }}" class="customer-card p-4 mb-5" data-loading-label="Filtering...">
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-      <div>
-        <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
-        <select name="status" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
-          <option value="">All</option>
-          @foreach (['scheduled','confirmed','completed','cancelled'] as $st)
-            <option value="{{ $st }}" {{ request('status') === $st ? 'selected' : '' }}>
-              {{ ucfirst($st) }}
-            </option>
-          @endforeach
-        </select>
+  {{-- Status quick filters --}}
+  <div class="mb-4 flex flex-wrap items-center gap-2 reveal reveal-1">
+    <a href="{{ route('appointments', array_filter(['from' => request('from'), 'to' => request('to')])) }}"
+       class="chip {{ request('status') ? '' : 'chip-active' }}">All</a>
+    @foreach (['scheduled' => 'Scheduled', 'confirmed' => 'Confirmed', 'completed' => 'Completed', 'cancelled' => 'Cancelled'] as $value => $label)
+      <a href="{{ route('appointments', array_filter(['status' => $value, 'from' => request('from'), 'to' => request('to')])) }}"
+         class="chip {{ request('status') === $value ? 'chip-active' : '' }}">{{ $label }}</a>
+    @endforeach
+  </div>
+
+  {{-- Date range --}}
+  <form method="GET" action="{{ route('appointments') }}" class="toolbar mb-6 reveal reveal-1" data-loading-label="Filtering...">
+    <input type="hidden" name="status" value="{{ request('status') }}">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-end">
+      <div class="sm:col-span-4">
+        <label for="appt-from" class="field-label">From date</label>
+        <input type="date" id="appt-from" name="from" value="{{ request('from') }}" class="field">
       </div>
-      <div>
-        <label class="block text-[10px] font-medium text-surface-400 mb-1">From</label>
-        <input type="date" name="from" value="{{ request('from') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
+      <div class="sm:col-span-4">
+        <label for="appt-to" class="field-label">To date</label>
+        <input type="date" id="appt-to" name="to" value="{{ request('to') }}" class="field">
       </div>
-      <div>
-        <label class="block text-[10px] font-medium text-surface-400 mb-1">To</label>
-        <input type="date" name="to" value="{{ request('to') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
-      </div>
-      <div class="flex gap-2">
-        <button class="customer-action flex-1 bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 text-xs" data-loading-label="Filtering...">Filter</button>
-        <a href="{{ route('appointments') }}" class="px-3 py-2 rounded-lg border border-surface-200 text-xs font-medium text-surface-500 hover:bg-surface-50 transition-colors">Reset</a>
+      <div class="flex gap-2 sm:col-span-4">
+        <button class="btn btn-primary btn-sm flex-1" data-loading-label="Filtering...">Apply dates</button>
+        @if(request('from') || request('to'))
+          <a href="{{ route('appointments', array_filter(['status' => request('status')])) }}" class="btn btn-ghost btn-sm">Reset</a>
+        @endif
       </div>
     </div>
   </form>
 
   {{-- List --}}
-  <div class="space-y-4">
+  <div class="space-y-4 reveal reveal-2">
     @forelse ($appointments as $appt)
       @php
         $st = $appt->status;
         $badge = match($st) {
-          'confirmed'  => 'bg-blue-50 text-blue-700 border-blue-100',
-          'completed'  => 'bg-surface-900 text-white border-surface-900',
-          'cancelled'  => 'bg-red-50 text-red-600 border-red-100',
-          default      => 'bg-amber-50 text-amber-700 border-amber-100',
+          'confirmed'  => 'badge-info',
+          'completed'  => 'badge-success',
+          'cancelled'  => 'badge-danger',
+          default      => 'badge-warning',
         };
         $isUpcoming = in_array($st, ['scheduled','confirmed'])
           && $appt->appointment_at
@@ -68,32 +73,36 @@
         };
       @endphp
 
-      <div class="customer-card overflow-hidden">
+      <div class="customer-card lift overflow-hidden">
 
         {{-- Card Header --}}
-        <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-surface-100">
-          <div>
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-sm font-semibold text-surface-900">
-                {{ $appt->serviceType->name ?? 'Service' }}
-              </h3>
-              <span class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border {{ $badge }}">
-                {{ ucfirst($st) }}
-              </span>
-              @if ($isUpcoming)
-                <span class="text-[10px] font-semibold bg-green-50 text-green-600 border border-green-100 px-2 py-0.5 rounded">Upcoming</span>
-              @endif
+        <div class="flex flex-col gap-3 border-b border-surface-100 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+          <div class="flex min-w-0 items-start gap-3.5">
+            @php $apptDate = $appt->appointment_at ? \Carbon\Carbon::parse($appt->appointment_at) : null; @endphp
+            <div class="flex h-12 w-12 flex-shrink-0 flex-col items-center justify-center rounded-xl border {{ $isUpcoming ? 'border-brand-100 bg-brand-50 text-brand-700' : 'border-surface-200 bg-surface-50 text-surface-500' }}">
+              <span class="text-[9px] font-bold uppercase tracking-wide leading-none">{{ $apptDate?->format('M') ?? '—' }}</span>
+              <span class="mt-0.5 font-display text-lg font-bold leading-none">{{ $apptDate?->format('j') ?? '' }}</span>
             </div>
-            <p class="text-xs text-surface-400 mt-0.5">
-              {{ $appt->appointment_at ? \Carbon\Carbon::parse($appt->appointment_at)->format('D, M j, Y \a\t g:i A') : '—' }}
-            </p>
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-[15px] font-bold text-surface-900">
+                  {{ $appt->serviceType->name ?? 'Service' }}
+                </h3>
+                <span class="badge {{ $badge }}">{{ ucfirst($st) }}</span>
+                @if ($isUpcoming)
+                  <span class="badge badge-success">Upcoming</span>
+                @endif
+              </div>
+              <p class="mt-1 text-xs font-medium text-surface-500">
+                {{ $apptDate ? $apptDate->format('D, M j, Y \a\t g:i A') : '—' }}
+              </p>
+            </div>
           </div>
 
-          <div class="flex items-center flex-wrap gap-1.5 self-start sm:self-center">
+          <div class="flex flex-wrap items-center gap-1.5 self-start sm:self-center">
             @if (($appt->payment_status ?? 'unpaid') === 'paid')
-              <a href="{{ route('appointments.receipt', $appt) }}"
-                class="inline-flex items-center gap-1 text-[11px] font-medium text-surface-600 hover:text-surface-900 border border-surface-200 hover:border-surface-400 bg-white hover:bg-surface-50 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+              <a href="{{ route('appointments.receipt', $appt) }}" class="btn btn-secondary btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
                 Receipt
               </a>
             @endif
@@ -101,13 +110,13 @@
             {{-- Feedback / Reviewed --}}
             @if ($st === 'completed' && !$appt->feedback)
               <button onclick="openApptFeedbackModal({{ $appt->id }}, '{{ addslashes($appt->serviceType->name ?? 'Service') }}')"
-                class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                Leave Feedback
+                class="btn btn-sm border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Leave feedback
               </button>
             @elseif ($st === 'completed' && $appt->feedback)
-              <span class="inline-flex items-center gap-1 text-[11px] font-medium text-green-600 border border-green-200 bg-green-50 px-2.5 py-1.5 rounded-lg min-h-[34px]">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span class="badge badge-success">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg>
                 Reviewed
               </span>
             @endif
@@ -115,8 +124,8 @@
             {{-- Cancel --}}
             @if ($isUpcoming)
               <button onclick="openCancelApptModal({{ $appt->id }}, '{{ addslashes($appt->serviceType->name ?? 'Appointment') }}')"
-                class="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                class="btn btn-danger btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Cancel
               </button>
             @endif
@@ -206,9 +215,9 @@
         <div class="customer-empty-icon">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         </div>
-        <h2 class="text-sm font-semibold text-surface-900 mb-1">No appointments yet</h2>
-        <p class="text-surface-400 text-sm mb-4">Book a service and your schedule will appear here.</p>
-        <a href="{{ route('schedule') }}" class="customer-action bg-surface-900 text-white text-xs font-medium px-5 py-2 hover:bg-surface-800">Book a Service</a>
+        <h2 class="text-base font-bold text-surface-900 mb-1">No appointments yet</h2>
+        <p class="text-surface-500 text-sm mb-5">Book a service and your schedule will appear here.</p>
+        <a href="{{ route('schedule') }}" class="btn btn-primary btn-sm">Book a service</a>
       </div>
     @endforelse
   </div>
@@ -303,8 +312,8 @@
             Cancel
           </button>
           <button type="submit" data-loading-label="Submitting..."
-            class="flex-1 bg-surface-900 hover:bg-surface-800 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
-            Submit Feedback
+            class="btn btn-primary flex-1 touch-manipulation">
+            Submit feedback
           </button>
         </div>
       </form>

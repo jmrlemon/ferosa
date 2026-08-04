@@ -8,6 +8,7 @@ use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Conversation;
 use App\Models\Feedback;
+use App\Models\Message;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PlantModel;
@@ -18,8 +19,10 @@ use App\Notifications\AppointmentStatusChanged;
 use App\Notifications\OrderPaymentReviewed;
 use App\Notifications\OrderStatusChanged;
 use App\Support\Audit;
+use App\Support\MessageAttachment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -40,6 +43,8 @@ class AdminController extends Controller
     private const GLB_JSON_CHUNK_TYPE = 0x4E4F534A;
 
     private const GLB_BIN_CHUNK_TYPE = 0x004E4942;
+
+    private const AR_MODEL_MIN_HEIGHT_UNITS = 0.000001;
 
     public function archiveOrder(Request $request, Order $order): RedirectResponse
     {
@@ -95,6 +100,52 @@ class AdminController extends Controller
 
     private const ORDER_STATUSES = ['pending', 'confirmed', 'out_for_delivery', 'delivered', 'completed', 'cancelled'];
 
+    /**
+     * Tabs the dashboard can show. Kept here (rather than only in the Blade) so
+     * the controller can load just the active tab's data instead of all of it.
+     */
+    private const DASHBOARD_TABS = [
+        'overview', 'appointments', 'orders', 'services', 'products',
+        'messages', 'archived', 'audit', 'users', 'feedbacks', 'payment',
+    ];
+
+    /**
+     * Resolve which dashboard tab is being viewed. The dedicated module URLs
+     * (service-scheduling / ordering-delivery) pin their own tab; otherwise it
+     * comes from ?tab=, defaulting to overview.
+     */
+    private function resolveDashboardTab(): string
+    {
+        $routeTab = match (request()->route()?->getName()) {
+            'admin.service-scheduling' => 'appointments',
+            'admin.ordering-delivery' => 'orders',
+            default => null,
+        };
+
+        if ($routeTab !== null) {
+            return $routeTab;
+        }
+
+        $requested = (string) request('tab', 'overview');
+
+        if (! in_array($requested, self::DASHBOARD_TABS, true)) {
+            return 'overview';
+        }
+
+        // Billing is admin-only; staff landing there fall back to overview.
+        if ($requested === 'payment' && ! auth()->user()?->isAdmin()) {
+            return 'overview';
+        }
+
+        return $requested;
+    }
+
+    /** An empty paginator so inactive tabs still receive a valid paginator. */
+    private function emptyPage(string $pageName): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator([], 0, 10, 1, ['pageName' => $pageName]);
+    }
+
     public function dashboard(): View
     {
         $range = request()->validate([
@@ -105,81 +156,101 @@ class AdminController extends Controller
         $salesFrom = $range['sales_from'] ?? null;
         $salesTo = $range['sales_to'] ?? null;
 
+        $activeTab = $this->resolveDashboardTab();
+        // True when the current tab needs a given block of data.
+        $on = fn (string ...$tabs) => in_array($activeTab, $tabs, true);
+
         $ordersBase = Order::query()
             ->when($salesFrom, fn (Builder $q) => $q->whereDate('created_at', '>=', $salesFrom))
             ->when($salesTo, fn (Builder $q) => $q->whereDate('created_at', '<=', $salesTo));
 
-        $totalSales = (float) (clone $ordersBase)->sum('total_amount');
-        $recognizedRevenue = (float) (clone $ordersBase)
-            ->where('payment_status', 'paid')
-            ->where('status', '!=', 'cancelled')
-            ->sum('total_amount');
-        $totalOrders = (clone $ordersBase)->count();
-        $deliveredOrders = (clone $ordersBase)->whereIn('status', ['delivered', 'completed'])->count();
-        $pendingOrders = (clone $ordersBase)->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])->count();
+        $totalSales = $on('overview') ? (float) (clone $ordersBase)->sum('total_amount') : 0.0;
+        $recognizedRevenue = $on('overview')
+            ? (float) (clone $ordersBase)
+                ->where('payment_status', 'paid')
+                ->where('status', '!=', 'cancelled')
+                ->sum('total_amount')
+            : 0.0;
+        $totalOrders = $on('overview') ? (clone $ordersBase)->count() : 0;
+        $deliveredOrders = $on('overview') ? (clone $ordersBase)->whereIn('status', ['delivered', 'completed'])->count() : 0;
+        $pendingOrders = $on('overview') ? (clone $ordersBase)->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])->count() : 0;
 
-        $salesByStatus = (clone $ordersBase)
-            ->selectRaw('status, COUNT(*) as order_count, COALESCE(SUM(total_amount), 0) as sales_total')
-            ->groupBy('status')
-            ->orderBy('status')
-            ->get();
+        $salesByStatus = $on('overview')
+            ? (clone $ordersBase)
+                ->selectRaw('status, COUNT(*) as order_count, COALESCE(SUM(total_amount), 0) as sales_total')
+                ->groupBy('status')
+                ->orderBy('status')
+                ->get()
+            : collect();
 
-        $adminOrders = $this->filteredOrdersQuery()->take(200)->get();
+        $adminOrders = $on('orders') ? $this->filteredOrdersQuery()->take(200)->get() : collect();
 
-        $monthlySalesRows = Order::query()
-            ->selectRaw($this->monthKeyExpression().' as ym, COALESCE(SUM(total_amount), 0) as total')
-            ->where('created_at', '>=', now()->startOfMonth()->subMonths(5))
-            ->groupBy('ym')
-            ->orderBy('ym')
-            ->get()
-            ->keyBy('ym');
+        $monthlySales = collect();
 
-        $monthlySales = collect(range(5, 0, -1))
-            ->map(function (int $monthsAgo) use ($monthlySalesRows) {
-                $dt = now()->startOfMonth()->subMonths($monthsAgo);
-                $ym = $dt->format('Y-m');
+        if ($on('overview')) {
+            $monthlySalesRows = Order::query()
+                ->selectRaw($this->monthKeyExpression().' as ym, COALESCE(SUM(total_amount), 0) as total')
+                ->where('created_at', '>=', now()->startOfMonth()->subMonths(5))
+                ->groupBy('ym')
+                ->orderBy('ym')
+                ->get()
+                ->keyBy('ym');
 
-                return [
-                    'label' => $dt->format('M Y'),
-                    'total' => (float) ($monthlySalesRows[$ym]->total ?? 0),
-                ];
-            });
+            $monthlySales = collect(range(5, 0, -1))
+                ->map(function (int $monthsAgo) use ($monthlySalesRows) {
+                    $dt = now()->startOfMonth()->subMonths($monthsAgo);
+                    $ym = $dt->format('Y-m');
+
+                    return [
+                        'label' => $dt->format('M Y'),
+                        'total' => (float) ($monthlySalesRows[$ym]->total ?? 0),
+                    ];
+                });
+        }
 
         $productQ = trim((string) request('product_q', ''));
         $productCategory = trim((string) request('product_category', ''));
-        $productCategories = Product::query()
-            ->whereNull('archived_at')
-            ->whereNotNull('category')
-            ->select('category')
-            ->distinct()
-            ->orderBy('category')
-            ->pluck('category');
-        $productStats = [
-            'total' => Product::query()->whereNull('archived_at')->count(),
-            'active' => Product::query()->whereNull('archived_at')->where('is_active', true)->count(),
-            'low_stock' => Product::query()->whereNull('archived_at')->where('stock_qty', '<=', 5)->count(),
-            'ar_ready' => Product::query()->whereNull('archived_at')->whereHas('plantModel')->count(),
-        ];
+        $productCategories = $on('products')
+            ? Product::query()
+                ->whereNull('archived_at')
+                ->whereNotNull('category')
+                ->select('category')
+                ->distinct()
+                ->orderBy('category')
+                ->pluck('category')
+            : collect();
+        $productStats = $on('products')
+            ? [
+                'total' => Product::query()->whereNull('archived_at')->count(),
+                'active' => Product::query()->whereNull('archived_at')->where('is_active', true)->count(),
+                'low_stock' => Product::query()->whereNull('archived_at')->where('stock_qty', '<=', 5)->count(),
+                'ar_ready' => Product::query()->whereNull('archived_at')->whereHas('plantModel')->count(),
+            ]
+            : ['total' => 0, 'active' => 0, 'low_stock' => 0, 'ar_ready' => 0];
 
-        $products = Product::query()
-            ->with('plantModel')
-            ->whereNull('archived_at')
-            ->when($productQ !== '', function (Builder $q) use ($productQ) {
-                $q->where(function (Builder $qq) use ($productQ) {
-                    $qq->where('name', 'like', '%'.$productQ.'%')
-                        ->orWhere('category', 'like', '%'.$productQ.'%');
-                });
-            })
-            ->when($productCategory !== '', fn (Builder $q) => $q->where('category', $productCategory))
-            ->orderBy('name')
-            ->paginate(10, ['*'], 'products_page')
-            ->withQueryString();
+        $products = $on('products')
+            ? Product::query()
+                ->with('plantModel')
+                ->whereNull('archived_at')
+                ->when($productQ !== '', function (Builder $q) use ($productQ) {
+                    $q->where(function (Builder $qq) use ($productQ) {
+                        $qq->where('name', 'like', '%'.$productQ.'%')
+                            ->orWhere('category', 'like', '%'.$productQ.'%');
+                    });
+                })
+                ->when($productCategory !== '', fn (Builder $q) => $q->where('category', $productCategory))
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'products_page')
+                ->withQueryString()
+            : $this->emptyPage('products_page');
 
-        $archivedProducts = Product::query()
-            ->whereNotNull('archived_at')
-            ->orderByDesc('archived_at')
-            ->take(500)
-            ->get();
+        $archivedProducts = $on('archived')
+            ? Product::query()
+                ->whereNotNull('archived_at')
+                ->orderByDesc('archived_at')
+                ->take(500)
+                ->get()
+            : collect();
 
         $lowStockProducts = Product::query()
             ->whereNull('archived_at')
@@ -188,131 +259,162 @@ class AdminController extends Controller
             ->orderBy('stock_qty', 'asc')
             ->get();
 
-        $pendingAppointments = Appointment::query()
-            ->whereNull('archived_at')
-            ->whereIn('status', ['scheduled', 'confirmed'])
-            ->count();
+        $pendingAppointments = $on('overview')
+            ? Appointment::query()
+                ->whereNull('archived_at')
+                ->whereIn('status', ['scheduled', 'confirmed'])
+                ->count()
+            : 0;
 
+        // Sidebar badge — needed on every tab.
         $appointmentsNeedingConfirmation = Appointment::query()
             ->whereNull('archived_at')
             ->where('status', 'scheduled')
             ->count();
 
-        $todayAppointments = Appointment::query()
-            ->whereNull('archived_at')
-            ->whereIn('status', ['scheduled', 'confirmed'])
-            ->whereDate('appointment_at', today())
-            ->count();
+        $todayAppointments = $on('overview')
+            ? Appointment::query()
+                ->whereNull('archived_at')
+                ->whereIn('status', ['scheduled', 'confirmed'])
+                ->whereDate('appointment_at', today())
+                ->count()
+            : 0;
 
+        // Sidebar badge — needed on every tab.
         $overdueAppointments = Appointment::query()
             ->whereNull('archived_at')
             ->whereIn('status', ['scheduled', 'confirmed'])
             ->where('appointment_at', '<', now())
             ->count();
 
-        $priorityAppointments = Appointment::query()
-            ->with(['user:id,name,email', 'serviceType:id,name'])
-            ->whereNull('archived_at')
-            ->whereIn('status', ['scheduled', 'confirmed'])
-            ->orderByRaw('CASE WHEN appointment_at < ? THEN 0 ELSE 1 END', [now()])
-            ->orderBy('appointment_at')
-            ->take(5)
-            ->get();
+        $priorityAppointments = $on('overview')
+            ? Appointment::query()
+                ->with(['user:id,name,email', 'serviceType:id,name'])
+                ->whereNull('archived_at')
+                ->whereIn('status', ['scheduled', 'confirmed'])
+                ->orderByRaw('CASE WHEN appointment_at < ? THEN 0 ELSE 1 END', [now()])
+                ->orderBy('appointment_at')
+                ->take(5)
+                ->get()
+            : collect();
 
-        $ordersAwaitingConfirmation = Order::query()
-            ->whereNull('archived_at')
-            ->where('status', 'delivered')
-            ->whereNotNull('delivery_proof_url')
-            ->whereNull('customer_confirmed_at')
-            ->count();
+        $ordersAwaitingConfirmation = $on('overview')
+            ? Order::query()
+                ->whereNull('archived_at')
+                ->where('status', 'delivered')
+                ->whereNotNull('delivery_proof_url')
+                ->whereNull('customer_confirmed_at')
+                ->count()
+            : 0;
 
-        $priorityOrders = Order::query()
-            ->with('user:id,name,email')
-            ->whereNull('archived_at')
-            ->where(function (Builder $q) {
-                $q->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])
-                    ->orWhere(function (Builder $delivered) {
-                        $delivered->where('status', 'delivered')
-                            ->whereNull('customer_confirmed_at');
-                    });
-            })
-            ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'out_for_delivery' THEN 2 ELSE 3 END")
-            ->orderByDesc('created_at')
-            ->take(5)
-            ->get();
-        $totalUsers = User::query()->count();
+        $priorityOrders = $on('overview')
+            ? Order::query()
+                ->with('user:id,name,email')
+                ->whereNull('archived_at')
+                ->where(function (Builder $q) {
+                    $q->whereIn('status', ['pending', 'confirmed', 'out_for_delivery'])
+                        ->orWhere(function (Builder $delivered) {
+                            $delivered->where('status', 'delivered')
+                                ->whereNull('customer_confirmed_at');
+                        });
+                })
+                ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'out_for_delivery' THEN 2 ELSE 3 END")
+                ->orderByDesc('created_at')
+                ->take(5)
+                ->get()
+            : collect();
+        $totalUsers = $on('overview') ? User::query()->count() : 0;
 
         $apptQ = trim((string) request('appt_q', ''));
         $apptStatus = trim((string) request('appt_status', ''));
-        $appointments = Appointment::query()
-            ->with(['user', 'serviceType', 'feedback'])
-            ->whereNull('archived_at')
-            ->when($apptStatus !== '', fn (Builder $q) => $q->where('status', $apptStatus))
-            ->when($apptQ !== '', function (Builder $q) use ($apptQ) {
-                $q->where(function (Builder $qq) use ($apptQ) {
-                    $qq->where('notes', 'like', '%'.$apptQ.'%')
-                        ->orWhereHas('user', function (Builder $u) use ($apptQ) {
-                            $u->where('email', 'like', '%'.$apptQ.'%')
-                                ->orWhere('name', 'like', '%'.$apptQ.'%');
-                        })
-                        ->orWhereHas('serviceType', function (Builder $s) use ($apptQ) {
-                            $s->where('name', 'like', '%'.$apptQ.'%');
-                        });
-                });
-            })
-            ->orderByRaw("CASE status WHEN 'scheduled' THEN 0 WHEN 'confirmed' THEN 1 ELSE 2 END")
-            ->orderByRaw("CASE WHEN status IN ('scheduled', 'confirmed') THEN appointment_at END ASC")
-            ->latest('appointment_at')
-            ->paginate(10, ['*'], 'appts_page')
-            ->withQueryString();
+        $appointments = $on('appointments')
+            ? Appointment::query()
+                ->with(['user', 'serviceType', 'feedback'])
+                ->whereNull('archived_at')
+                ->when($apptStatus !== '', fn (Builder $q) => $q->where('status', $apptStatus))
+                ->when($apptQ !== '', function (Builder $q) use ($apptQ) {
+                    $q->where(function (Builder $qq) use ($apptQ) {
+                        $qq->where('notes', 'like', '%'.$apptQ.'%')
+                            ->orWhereHas('user', function (Builder $u) use ($apptQ) {
+                                $u->where('email', 'like', '%'.$apptQ.'%')
+                                    ->orWhere('name', 'like', '%'.$apptQ.'%');
+                            })
+                            ->orWhereHas('serviceType', function (Builder $s) use ($apptQ) {
+                                $s->where('name', 'like', '%'.$apptQ.'%');
+                            });
+                    });
+                })
+                ->orderByRaw("CASE status WHEN 'scheduled' THEN 0 WHEN 'confirmed' THEN 1 ELSE 2 END")
+                ->orderByRaw("CASE WHEN status IN ('scheduled', 'confirmed') THEN appointment_at END ASC")
+                ->latest('appointment_at')
+                ->paginate(10, ['*'], 'appts_page')
+                ->withQueryString()
+            : $this->emptyPage('appts_page');
 
         $serviceQ = trim((string) request('service_q', ''));
-        $services = ServiceType::query()
-            ->whereNull('archived_at')
-            ->when($serviceQ !== '', function (Builder $q) use ($serviceQ) {
-                $q->where('name', 'like', '%'.$serviceQ.'%');
-            })
-            ->orderBy('name')
-            ->paginate(10, ['*'], 'services_page')
-            ->withQueryString();
-        $serviceStats = [
-            'total' => ServiceType::query()->whereNull('archived_at')->count(),
-            'active' => ServiceType::query()->whereNull('archived_at')->where('is_active', true)->count(),
-        ];
+        $services = $on('services')
+            ? ServiceType::query()
+                ->whereNull('archived_at')
+                ->when($serviceQ !== '', function (Builder $q) use ($serviceQ) {
+                    $q->where('name', 'like', '%'.$serviceQ.'%');
+                })
+                ->orderBy('name')
+                ->paginate(10, ['*'], 'services_page')
+                ->withQueryString()
+            : $this->emptyPage('services_page');
+        $serviceStats = $on('services')
+            ? [
+                'total' => ServiceType::query()->whereNull('archived_at')->count(),
+                'active' => ServiceType::query()->whereNull('archived_at')->where('is_active', true)->count(),
+            ]
+            : ['total' => 0, 'active' => 0];
 
-        $archivedServices = ServiceType::query()
-            ->whereNotNull('archived_at')
-            ->orderByDesc('archived_at')
-            ->take(500)
-            ->get();
-        $users = User::query()->orderBy('name')->get();
+        $archivedServices = $on('archived')
+            ? ServiceType::query()
+                ->whereNotNull('archived_at')
+                ->orderByDesc('archived_at')
+                ->take(500)
+                ->get()
+            : collect();
+        $users = $on('users') ? User::query()->orderBy('name')->get() : collect();
 
-        $archivedOrders = Order::query()
-            ->whereNotNull('archived_at')
-            ->with('user:id,name,email')
-            ->orderByDesc('archived_at')
-            ->paginate(10, ['*'], 'arch_orders_page')
-            ->withQueryString();
+        $archivedOrders = $on('archived')
+            ? Order::query()
+                ->whereNotNull('archived_at')
+                ->with('user:id,name,email')
+                ->orderByDesc('archived_at')
+                ->paginate(10, ['*'], 'arch_orders_page')
+                ->withQueryString()
+            : $this->emptyPage('arch_orders_page');
 
-        $archivedAppointments = Appointment::query()
-            ->whereNotNull('archived_at')
-            ->with(['user:id,name,email', 'serviceType:id,name'])
-            ->orderByDesc('archived_at')
-            ->paginate(10, ['*'], 'arch_appts_page')
-            ->withQueryString();
+        $archivedAppointments = $on('archived')
+            ? Appointment::query()
+                ->whereNotNull('archived_at')
+                ->with(['user:id,name,email', 'serviceType:id,name'])
+                ->orderByDesc('archived_at')
+                ->paginate(10, ['*'], 'arch_appts_page')
+                ->withQueryString()
+            : $this->emptyPage('arch_appts_page');
 
-        $thisWeekStart = now()->startOfWeek();
-        $thisWeekEnd = now();
-        $lastWeekStart = now()->subWeek()->startOfWeek();
-        $lastWeekEnd = now()->subWeek()->endOfWeek();
+        $thisWeekSales = 0.0;
+        $lastWeekSales = 0.0;
+        $weekSalesDeltaPct = null;
+        $topProducts = collect();
 
-        $thisWeekSales = (float) Order::query()->whereBetween('created_at', [$thisWeekStart, $thisWeekEnd])->sum('total_amount');
-        $lastWeekSales = (float) Order::query()->whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])->sum('total_amount');
-        $weekSalesDeltaPct = $lastWeekSales > 0
-            ? round((($thisWeekSales - $lastWeekSales) / $lastWeekSales) * 100, 1)
-            : null;
+        if ($on('overview')) {
+            $thisWeekStart = now()->startOfWeek();
+            $thisWeekEnd = now();
+            $lastWeekStart = now()->subWeek()->startOfWeek();
+            $lastWeekEnd = now()->subWeek()->endOfWeek();
 
-        $topProducts = $this->topSellingProducts();
+            $thisWeekSales = (float) Order::query()->whereBetween('created_at', [$thisWeekStart, $thisWeekEnd])->sum('total_amount');
+            $lastWeekSales = (float) Order::query()->whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])->sum('total_amount');
+            $weekSalesDeltaPct = $lastWeekSales > 0
+                ? round((($thisWeekSales - $lastWeekSales) / $lastWeekSales) * 100, 1)
+                : null;
+
+            $topProducts = $this->topSellingProducts();
+        }
         $orderFlowStats = [
             'pending' => Order::query()->whereNull('archived_at')->whereIn('status', ['pending', 'confirmed'])->count(),
             'for_delivery' => Order::query()->whereNull('archived_at')->whereIn('status', ['out_for_delivery', 'delivered'])->count(),
@@ -321,22 +423,24 @@ class AdminController extends Controller
         ];
 
         $auditQ = trim((string) request('audit_q', ''));
-        $auditLogs = AuditLog::query()
-            ->with('actor:id,name,email')
-            ->when($auditQ !== '', function (Builder $q) use ($auditQ) {
-                $q->where(function (Builder $qq) use ($auditQ) {
-                    $qq->where('action', 'like', '%'.$auditQ.'%')
-                        ->orWhere('auditable_type', 'like', '%'.$auditQ.'%')
-                        ->orWhere('auditable_id', 'like', '%'.$auditQ.'%')
-                        ->orWhereHas('actor', function (Builder $u) use ($auditQ) {
-                            $u->where('email', 'like', '%'.$auditQ.'%')
-                                ->orWhere('name', 'like', '%'.$auditQ.'%');
-                        });
-                });
-            })
-            ->latest('id')
-            ->paginate(15, ['*'], 'audit_page')
-            ->withQueryString();
+        $auditLogs = $on('audit')
+            ? AuditLog::query()
+                ->with('actor:id,name,email')
+                ->when($auditQ !== '', function (Builder $q) use ($auditQ) {
+                    $q->where(function (Builder $qq) use ($auditQ) {
+                        $qq->where('action', 'like', '%'.$auditQ.'%')
+                            ->orWhere('auditable_type', 'like', '%'.$auditQ.'%')
+                            ->orWhere('auditable_id', 'like', '%'.$auditQ.'%')
+                            ->orWhereHas('actor', function (Builder $u) use ($auditQ) {
+                                $u->where('email', 'like', '%'.$auditQ.'%')
+                                    ->orWhere('name', 'like', '%'.$auditQ.'%');
+                            });
+                    });
+                })
+                ->latest('id')
+                ->paginate(15, ['*'], 'audit_page')
+                ->withQueryString()
+            : $this->emptyPage('audit_page');
 
         $feedbackQ = trim((string) request('feedback_q', ''));
         $feedbacks = Feedback::query()
@@ -363,28 +467,40 @@ class AdminController extends Controller
             ->paginate(15, ['*'], 'fb_page')
             ->withQueryString();
 
-        $avgRating = Feedback::query()
-            ->where(function (Builder $q) {
-                $q->whereNotNull('order_id')
-                    ->orWhereNotNull('appointment_id')
-                    ->orWhereNotNull('product_id')
-                    ->orWhereNotNull('service_type_id');
-            })
-            ->avg('rating');
+        $avgRating = $on('overview', 'feedbacks')
+            ? Feedback::query()
+                ->where(function (Builder $q) {
+                    $q->whereNotNull('order_id')
+                        ->orWhereNotNull('appointment_id')
+                        ->orWhereNotNull('product_id')
+                        ->orWhereNotNull('service_type_id');
+                })
+                ->avg('rating')
+            : null;
 
-        $conversations = Conversation::with([
-            'customer:id,name,email',
-            'latestMessage.sender:id,name,role',
-        ])
-            ->whereHas('customer', fn (Builder $q) => $q->where('role', 'user'))
-            ->withCount(['messages as unread_count' => fn ($q) => $q
-                ->whereNull('read_at')
-                ->where('sender_id', '!=', auth()->id()),
+        // The full thread list is only needed by the messages panel; every other
+        // tab just needs the unread badge, which is a single count.
+        $conversations = $on('messages')
+            ? Conversation::with([
+                'customer:id,name,email',
+                'latestMessage.sender:id,name,role',
             ])
-            ->orderByDesc('last_message_at')
-            ->get();
+                ->whereHas('customer', fn (Builder $q) => $q->where('role', 'user'))
+                ->withCount(['messages as unread_count' => fn ($q) => $q
+                    ->whereNull('read_at')
+                    ->where('sender_id', '!=', auth()->id()),
+                ])
+                ->orderByDesc('last_message_at')
+                ->get()
+            : collect();
 
-        $totalUnreadMessages = $conversations->sum('unread_count');
+        $totalUnreadMessages = $on('messages')
+            ? $conversations->sum('unread_count')
+            : Message::query()
+                ->whereNull('read_at')
+                ->where('sender_id', '!=', auth()->id())
+                ->whereHas('conversation.customer', fn (Builder $q) => $q->where('role', 'user'))
+                ->count();
         $adminUnreadNotifications = auth()->user()->unreadNotifications()->count();
         $gcashSettings = AppSetting::getGcashSettings();
         $isAdmin = auth()->user()?->isAdmin();
@@ -513,7 +629,8 @@ class AdminController extends Controller
             'totalUnreadMessages',
             'adminUnreadNotifications',
             'gcashSettings',
-            'moduleCards'
+            'moduleCards',
+            'activeTab'
         ));
     }
 
@@ -592,6 +709,7 @@ class AdminController extends Controller
                 'created_at' => $m->created_at->format('M j, Y g:i A'),
                 'is_admin' => $m->sender->isStaffOrAdmin(),
                 'sender' => $m->sender->name,
+                'attachment' => $m->attachmentPayload(),
             ]);
 
         // Mark customer messages as read
@@ -606,21 +724,44 @@ class AdminController extends Controller
         ]);
     }
 
-    public function replyMessage(Request $request, Conversation $conversation): RedirectResponse
+    public function replyMessage(Request $request, Conversation $conversation): RedirectResponse|JsonResponse
     {
         $conversation->loadMissing('customer:id,name,role');
         abort_unless($conversation->customer?->isUser(), 403, 'Admins can only reply to customer conversations.');
 
-        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        $data = $request->validate([
+            'body' => ['nullable', 'string', 'max:2000', 'required_without:attachment'],
+            'attachment' => MessageAttachment::rules(),
+        ], [
+            'body.required_without' => 'Type a reply or attach a file.',
+        ]);
 
-        $conversation->messages()->create([
+        $attachment = $request->hasFile('attachment')
+            ? MessageAttachment::store($request->file('attachment'))
+            : [];
+
+        $message = $conversation->messages()->create([
             'sender_id' => auth()->id(),
-            'body' => trim($data['body']),
+            'body' => trim((string) ($data['body'] ?? '')) ?: null,
+            ...$attachment,
         ]);
 
         $conversation->update(['last_message_at' => now()]);
 
-        return redirect()->route('admin.dashboard', ['tab' => 'messages'])
+        // The inbox replies over fetch(). Answering with a redirect made a
+        // rejected upload look successful, because fetch follows the redirect
+        // and reports the resulting page as 200.
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'message' => [
+                    'id' => $message->id,
+                    'body' => $message->body,
+                    'attachment' => $message->attachmentPayload(),
+                ],
+            ], 201);
+        }
+
+        return redirect()->route('admin.dashboard', ['tab' => 'messages', 'convo' => $conversation->id])
             ->with('status', 'Reply sent.');
     }
 
@@ -1914,6 +2055,144 @@ class AdminController extends Controller
         // A GLB BIN chunk can contain up to three trailing padding bytes.
         if ($embeddedBufferLength > $binChunkLength || ($binChunkLength - $embeddedBufferLength) > 3) {
             return 'The GLB binary chunk does not match the buffer length declared by the model.';
+        }
+
+        if ($geometryError = $this->validateGlbRenderableGeometry($document)) {
+            return $geometryError;
+        }
+
+        return null;
+    }
+
+    /**
+     * Ensure the default scene contains a reachable mesh with finite, non-zero Y bounds.
+     *
+     * SceneView uses POSITION accessor bounds to calculate the runtime model bounding box. A GLB
+     * container can be structurally valid while containing no visible scene geometry, which would
+     * otherwise produce a successful upload followed by an invisible AR placement.
+     *
+     * @param  array<string, mixed>  $document
+     */
+    private function validateGlbRenderableGeometry(array $document): ?string
+    {
+        $scenes = $document['scenes'] ?? null;
+        $nodes = $document['nodes'] ?? null;
+        $meshes = $document['meshes'] ?? null;
+        $accessors = $document['accessors'] ?? null;
+
+        if (! is_array($scenes) || $scenes === [] ||
+            ! is_array($nodes) || $nodes === [] ||
+            ! is_array($meshes) || $meshes === [] ||
+            ! is_array($accessors) || $accessors === []) {
+            return 'The GLB must contain a scene with visible mesh geometry.';
+        }
+
+        $sceneIndex = $document['scene'] ?? 0;
+        if (! is_int($sceneIndex) || ! is_array($scenes[$sceneIndex] ?? null)) {
+            return 'The GLB default scene is invalid.';
+        }
+
+        $rootNodes = $scenes[$sceneIndex]['nodes'] ?? null;
+        if (! is_array($rootNodes) || $rootNodes === []) {
+            return 'The GLB default scene does not contain any nodes.';
+        }
+
+        $pendingNodeIndexes = array_values($rootNodes);
+        $visitedNodeIndexes = [];
+        $reachableMeshIndexes = [];
+
+        while ($pendingNodeIndexes !== []) {
+            $nodeIndex = array_pop($pendingNodeIndexes);
+            if (! is_int($nodeIndex) || ! is_array($nodes[$nodeIndex] ?? null)) {
+                return 'The GLB scene references an invalid node.';
+            }
+            if (isset($visitedNodeIndexes[$nodeIndex])) {
+                continue;
+            }
+
+            $visitedNodeIndexes[$nodeIndex] = true;
+            $node = $nodes[$nodeIndex];
+
+            if (array_key_exists('mesh', $node)) {
+                $meshIndex = $node['mesh'];
+                if (! is_int($meshIndex) || ! is_array($meshes[$meshIndex] ?? null)) {
+                    return 'The GLB scene references an invalid mesh.';
+                }
+                $reachableMeshIndexes[$meshIndex] = true;
+            }
+
+            $children = $node['children'] ?? [];
+            if (! is_array($children)) {
+                return 'The GLB contains an invalid node hierarchy.';
+            }
+            foreach ($children as $childIndex) {
+                $pendingNodeIndexes[] = $childIndex;
+            }
+        }
+
+        if ($reachableMeshIndexes === []) {
+            return 'The GLB default scene does not contain visible mesh geometry.';
+        }
+
+        $minimumY = INF;
+        $maximumY = -INF;
+        $positionCount = 0;
+
+        foreach (array_keys($reachableMeshIndexes) as $meshIndex) {
+            $primitives = $meshes[$meshIndex]['primitives'] ?? null;
+            if (! is_array($primitives) || $primitives === []) {
+                return 'The GLB contains a mesh without renderable primitives.';
+            }
+
+            foreach ($primitives as $primitive) {
+                if (! is_array($primitive) || ! is_array($primitive['attributes'] ?? null)) {
+                    return 'The GLB contains an invalid mesh primitive.';
+                }
+
+                $positionAccessorIndex = $primitive['attributes']['POSITION'] ?? null;
+                if (! is_int($positionAccessorIndex) ||
+                    ! is_array($accessors[$positionAccessorIndex] ?? null)) {
+                    return 'Every GLB mesh primitive must contain a valid POSITION attribute.';
+                }
+
+                $accessor = $accessors[$positionAccessorIndex];
+                if (($accessor['componentType'] ?? null) !== 5126 ||
+                    ($accessor['type'] ?? null) !== 'VEC3' ||
+                    ! is_int($accessor['count'] ?? null) ||
+                    $accessor['count'] <= 0) {
+                    return 'The GLB POSITION data must contain floating-point VEC3 vertices.';
+                }
+
+                $minimum = $accessor['min'] ?? null;
+                $maximum = $accessor['max'] ?? null;
+                if (! is_array($minimum) || count($minimum) !== 3 ||
+                    ! is_array($maximum) || count($maximum) !== 3) {
+                    return 'The GLB POSITION accessor must include three-dimensional min/max bounds.';
+                }
+
+                for ($axis = 0; $axis < 3; $axis++) {
+                    if ((! is_int($minimum[$axis]) && ! is_float($minimum[$axis])) ||
+                        (! is_int($maximum[$axis]) && ! is_float($maximum[$axis]))) {
+                        return 'The GLB contains non-numeric model bounds.';
+                    }
+
+                    $minimumValue = (float) $minimum[$axis];
+                    $maximumValue = (float) $maximum[$axis];
+                    if (! is_finite($minimumValue) || ! is_finite($maximumValue) ||
+                        $minimumValue > $maximumValue) {
+                        return 'The GLB contains invalid model bounds.';
+                    }
+                }
+
+                $minimumY = min($minimumY, (float) $minimum[1]);
+                $maximumY = max($maximumY, (float) $maximum[1]);
+                $positionCount += $accessor['count'];
+            }
+        }
+
+        if ($positionCount === 0 ||
+            ($maximumY - $minimumY) <= self::AR_MODEL_MIN_HEIGHT_UNITS) {
+            return 'The GLB has no measurable height. Export it with Y as the up axis.';
         }
 
         return null;

@@ -6,17 +6,17 @@
   .card-body { transition: border-color .15s, background-color .15s, box-shadow .15s; }
 
   .step-card input[type="radio"]:checked + .card-body {
-    border-color: rgb(var(--brand-600));
+    border-color: var(--color-brand-600);
     border-width: 2px;
-    background-color: rgb(var(--brand-50));
-    box-shadow: 0 0 0 3px rgba(var(--brand-600),.1);
+    background-color: var(--color-brand-50);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-600) 10%, transparent);
   }
   .step-card input[type="radio"]:checked + .card-body .card-icon {
-    background-color: rgb(var(--brand-600));
+    background-color: var(--color-brand-600);
     color: white;
   }
   .step-card input[type="radio"]:checked + .card-body .card-title {
-    color: rgb(var(--brand-700));
+    color: var(--color-brand-700);
   }
   /* Checkmark badge: hidden by default, shown when checked */
   .card-check {
@@ -43,10 +43,10 @@
   .tier-body { transition: border-color .15s, background .15s; }
 
   .tier-card input[type="radio"]:checked + .tier-body {
-    border-color: rgb(var(--brand-600));
+    border-color: var(--color-brand-600);
     border-width: 2px;
-    background: rgb(var(--brand-50));
-    box-shadow: 0 0 0 3px rgba(var(--brand-600),.1);
+    background: var(--color-brand-50);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-600) 10%, transparent);
   }
   .tier-check {
     opacity: 0;
@@ -66,20 +66,20 @@
   /* ── Add-on checkboxes ──────────────────────────────────────── */
   .addon-box { transition: border-color .15s, background .15s, box-shadow .15s; }
   .addon-item input[type="checkbox"]:checked ~ .addon-box {
-    border-color: rgb(var(--brand-500));
+    border-color: var(--color-brand-500);
     border-width: 2px;
-    background: rgb(var(--brand-50));
-    box-shadow: 0 0 0 3px rgba(var(--brand-600),.08);
+    background: var(--color-brand-50);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-600) 8%, transparent);
   }
   .addon-item input[type="checkbox"]:checked ~ .addon-box .check-box {
-    background: rgb(var(--brand-600));
-    border-color: rgb(var(--brand-600));
+    background: var(--color-brand-600);
+    border-color: var(--color-brand-600);
   }
   .addon-item input[type="checkbox"]:checked ~ .addon-box .check-icon {
     opacity: 1;
   }
   .addon-item input[type="checkbox"]:checked ~ .addon-box .addon-label {
-    color: rgb(var(--brand-700));
+    color: var(--color-brand-700);
     font-weight: 600;
   }
   /* Addon checkmark badge */
@@ -95,16 +95,16 @@
   /* Addon icon bg on checked */
   .addon-icon { transition: background-color .15s; }
   .addon-item input[type="checkbox"]:checked ~ .addon-box .addon-icon {
-    background-color: rgb(var(--brand-600));
+    background-color: var(--color-brand-600);
     color: white !important;
   }
 
   /* ── Size quick-pick active state ───────────────────────────── */
   .size-btn { transition: border-color .15s, background .15s, color .15s; }
   .size-btn.is-active {
-    border-color: rgb(var(--brand-600));
-    background: rgb(var(--brand-50));
-    color: rgb(var(--brand-700));
+    border-color: var(--color-brand-600);
+    background: var(--color-brand-50);
+    color: var(--color-brand-700);
     font-weight: 600;
   }
 
@@ -134,12 +134,12 @@
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
-          <p class="text-[11px] font-bold text-brand-600 uppercase tracking-[.12em]">Cost Estimator</p>
-          <h1 class="text-2xl sm:text-3xl font-sans font-bold text-surface-900 leading-tight mt-1">Plan your project</h1>
-          <p class="text-surface-500 text-sm mt-1">Adjust the options and see your estimate instantly.</p>
+          <p class="page-kicker">Cost estimator</p>
+          <h1 class="page-title">Plan your project</h1>
+          <p class="page-sub">Adjust the options and see your estimate instantly — no commitment needed.</p>
         </div>
         <div class="w-12 h-12 rounded-[14px] bg-brand-50 flex items-center justify-center flex-shrink-0">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--brand-700))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand-700)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="4" y="2" width="16" height="20" rx="2"/>
             <line x1="8" y1="6" x2="16" y2="6"/>
             <line x1="8" y1="11" x2="12" y2="11"/><line x1="10" y1="9" x2="10" y2="13"/>
@@ -825,7 +825,7 @@
     m.innerHTML = `
       <div class="bg-white rounded-2xl border border-surface-100 p-6 max-w-sm w-full shadow-xl">
         <div class="w-11 h-11 bg-brand-50 rounded-xl flex items-center justify-center mb-4">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--brand-600))" stroke-width="1.75">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand-600)" stroke-width="1.75">
             <path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"/><path d="M12 12l8-5"/><path d="M12 12v9"/><path d="M12 12L4 7"/>
           </svg>
         </div>
@@ -836,7 +836,7 @@
           <p class="text-xs font-mono text-surface-600 break-all">${deepLink}</p>
         </div>
         <button onclick="document.getElementById('ar-modal').remove()"
-                class="w-full bg-surface-900 hover:bg-surface-800 text-white font-medium py-2.5 rounded-xl text-sm transition-colors">
+                class="btn btn-primary btn-block">
           Got it
         </button>
       </div>`;

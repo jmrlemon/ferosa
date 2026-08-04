@@ -4,20 +4,17 @@
 
 @section('content')
 <div class="customer-page max-w-2xl">
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h1 class="text-xl font-display font-bold text-surface-900">Notifications</h1>
-      <p class="text-surface-400 text-sm mt-0.5">Stay updated on your orders and appointments</p>
-    </div>
+  <x-page-head
+    kicker="Activity"
+    title="Notifications"
+    sub="Stay updated on your orders and appointments.">
     @if(collect($notifications)->whereNull('read_at')->count() > 0)
       <form method="POST" action="{{ route('notifications.read-all') }}">
         @csrf
-        <button type="submit" class="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors">
-          Mark all read
-        </button>
+        <button type="submit" class="btn btn-soft btn-sm">Mark all read</button>
       </form>
     @endif
-  </div>
+  </x-page-head>
 
   @if(count($notifications) === 0)
     <div class="customer-empty py-12">

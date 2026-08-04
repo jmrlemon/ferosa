@@ -1,6 +1,4 @@
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
 <style id="ferosa-admin-premium-theme">
   :root {
     --admin-forest-950: #081d15;
@@ -95,4 +93,5 @@
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
   }
 </style>
+@include('admin.partials.type-scale')
 @include('partials.a11y-focus')

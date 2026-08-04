@@ -27,12 +27,12 @@
 <main class="customer-page max-w-3xl">
 
   {{-- Page header --}}
-  <div class="mb-8">
-    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1" id="page-title">Book a Service</h1>
-    <p class="text-surface-500 text-sm">Choose your service first, then pick an available date and time.</p>
-  </div>
+  <x-page-head
+    kicker="Book a visit"
+    title="Schedule a service"
+    sub="Choose your service first, then pick an available date and time. We confirm within one business day." />
 
-  <section class="mb-6 overflow-hidden rounded-2xl border border-brand-100 bg-white" aria-label="Booking progress">
+  <section class="mb-6 overflow-hidden rounded-2xl border border-brand-100 bg-white reveal reveal-1" aria-label="Booking progress">
     <div class="grid grid-cols-2 sm:grid-cols-4">
       @foreach([['1', 'Service'], ['2', 'Date'], ['3', 'Time'], ['4', 'Confirm']] as [$number, $label])
         <div class="flex items-center gap-2 border-b border-r border-brand-50 px-3 py-3 last:border-r-0 sm:border-b-0">
@@ -45,21 +45,18 @@
 
   {{-- Success flash --}}
   @if (session('status'))
-    <div class="mb-6 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      {{ session('status') }}
-    </div>
+    <x-alert type="success" class="mb-6">{{ session('status') }}</x-alert>
   @endif
 
   {{-- Validation errors --}}
   @if ($errors->any())
-    <div class="mb-6 bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm">
-      <ul class="list-disc pl-4 space-y-0.5">
+    <x-alert type="error" class="mb-6">
+      <ul class="list-disc space-y-0.5 pl-4">
         @foreach ($errors->all() as $error)
           <li>{{ $error }}</li>
         @endforeach
       </ul>
-    </div>
+    </x-alert>
   @endif
 
   @if ($activeAppointment ?? null)

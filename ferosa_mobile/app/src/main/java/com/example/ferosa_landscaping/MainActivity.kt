@@ -20,7 +20,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -44,7 +46,9 @@ import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
@@ -62,6 +66,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,12 +84,22 @@ import com.example.ferosa_landscaping.ui.theme.*
  */
 private val WEBVIEW_CURSOR_FIX_JS = """
 (function(){
+  // This runs from onPageFinished, which can fire when there is no document to
+  // touch yet - an about:blank frame, or a page torn down by a fast tab switch.
+  // Passing a null root to MutationObserver.observe() threw
+  // "parameter 1 is not of type 'Node'" and aborted the rest of this script,
+  // taking the in-app class and the caret fix with it.
+  var root = document.body || document.documentElement;
+  if(!root)return;
+
   function isPatchable(el){
     if(!el||el.tagName!=='INPUT')return false;
     var t=(el.getAttribute('type')||'text').toLowerCase();
     return ['checkbox','radio','hidden','button','submit','file','image','range','color','reset'].indexOf(t)<0;
   }
-  document.body&&document.body.classList.add('in-app');
+
+  if(document.body)document.body.classList.add('in-app');
+
   var patched=new WeakSet();
   function patch(el){
     if(!isPatchable(el)||patched.has(el))return;
@@ -97,17 +114,36 @@ private val WEBVIEW_CURSOR_FIX_JS = """
       }
     },true);
   }
-  document.querySelectorAll('input').forEach(patch);
-  new MutationObserver(function(ms){
-    ms.forEach(function(m){
-      m.addedNodes.forEach(function(n){
-        if(n.tagName==='INPUT')patch(n);
-        if(n.querySelectorAll)n.querySelectorAll('input').forEach(patch);
+
+  // Re-running this injection must not stack a second observer on the page.
+  if(window.__ferosaCursorFix)return;
+  window.__ferosaCursorFix=true;
+
+  try{
+    Array.prototype.forEach.call(document.querySelectorAll('input'),patch);
+    new MutationObserver(function(ms){
+      ms.forEach(function(m){
+        Array.prototype.forEach.call(m.addedNodes,function(n){
+          if(n.tagName==='INPUT')patch(n);
+          if(n.querySelectorAll)Array.prototype.forEach.call(n.querySelectorAll('input'),patch);
+        });
       });
-    });
-  }).observe(document.body||document.documentElement,{childList:true,subtree:true});
+    }).observe(root,{childList:true,subtree:true});
+  }catch(e){}
 })();
 """.trimIndent()
+
+/** Marker the Laravel layouts look for to render the in-app (chrome-free) view. */
+private const val FEROSA_APP_UA_MARKER = "FerosaApp/1.0"
+
+/**
+ * Appends the in-app marker to a WebView User-Agent, leaving it alone if it is
+ * already there so a recreated WebView cannot stack duplicates.
+ */
+private fun withFerosaAppMarker(userAgent: String?): String {
+    val base = userAgent.orEmpty()
+    return if (base.contains("FerosaApp")) base else "$base $FEROSA_APP_UA_MARKER".trim()
+}
 
 enum class AppScreen {
     HOME,
@@ -133,8 +169,8 @@ enum class AppScreen {
 }
 
 private fun webDestinationMatches(actualUrl: String, expectedUrl: String): Boolean {
-    val actual = Uri.parse(actualUrl)
-    val expected = Uri.parse(expectedUrl)
+    val actual = actualUrl.toUri()
+    val expected = expectedUrl.toUri()
     if (actual.scheme != expected.scheme ||
         actual.host != expected.host ||
         actual.port != expected.port ||
@@ -209,7 +245,7 @@ class MainActivity : ComponentActivity() {
                             onOpenAr = {
                                 startActivity(
                                     Intent(this@MainActivity, ArActivity::class.java).apply {
-                                        data = Uri.parse("ferosa://ar?designId=demo")
+                                        data = "ferosa://ar?designId=demo".toUri()
                                     }
                                 )
                             }
@@ -240,10 +276,17 @@ fun AppContent(
     onOpenAr: () -> Unit,
 ) {
     val context = LocalContext.current
-    val serverHost = remember { Uri.parse(SERVER_URL).host ?: "" }
+    val serverHost = remember { SERVER_URL.toUri().host ?: "" }
     var isLoading by remember { mutableStateOf(false) }
     var webPageReadyFor by remember { mutableStateOf<AppScreen?>(null) }
     var filePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+    // Set when the main frame fails to load, so the shell can show a branded
+    // offline screen with a retry instead of the WebView's default error page.
+    var loadFailed by remember { mutableStateOf(false) }
+    // Index in the shared WebView's history where the current tab began. Back
+    // rewinds pages opened inside the tab, but never past it into another tab —
+    // the WebView is shared, so its raw history spans every tab visited.
+    var tabHistoryBaseline by remember { mutableStateOf(-1) }
 
     val fileChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -286,17 +329,59 @@ fun AppContent(
 
     val latestScreen = rememberUpdatedState(currentScreen)
     val latestTargetUrl = rememberUpdatedState(targetUrl)
+
+    // URL currently being loaded into the shared WebView. Both the AndroidView
+    // factory and the navigation effect can start a load, and on startup they
+    // both wanted the same page - this keeps that from becoming two requests.
+    val inFlightUrl = remember { mutableStateOf<String?>(null) }
     val isNativeScreen = currentScreen == AppScreen.MORE ||
         (userRole == "user" && currentScreen in setOf(AppScreen.HOME, AppScreen.ESTIMATOR))
     val showWebLoading = !isNativeScreen && targetUrl != null &&
         (isLoading || webPageReadyFor != currentScreen)
+
+    // Where "back" bottoms out before the app should close.
+    val rootScreen = if (userRole == "admin" || userRole == "staff") {
+        AppScreen.ADMIN_DASHBOARD
+    } else {
+        AppScreen.HOME
+    }
+
+    val webView = webViewRef.value
+    val canGoBackInTab = !isNativeScreen &&
+        webView != null &&
+        webView.copyBackForwardList().currentIndex > tabHistoryBaseline &&
+        webView.canGoBack()
+
+    // Without this, system back closed the app from every screen — including
+    // partway through a booking or a product page.
+    BackHandler(enabled = canGoBackInTab || currentScreen != rootScreen) {
+        when {
+            loadFailed -> {
+                loadFailed = false
+                onNavigate(rootScreen)
+            }
+            canGoBackInTab -> webView?.goBack()
+            else -> onNavigate(rootScreen)
+        }
+    }
 
     // Navigate the single WebView whenever the screen (and thus targetUrl) changes
     LaunchedEffect(currentScreen, targetUrl) {
         val url = targetUrl
         if (url != null && webPageReadyFor != currentScreen) {
             isLoading = true
-            webViewRef.value?.loadUrl(url)
+            // The WebView's factory issues the first load itself, so without this
+            // guard startup requested the landing page twice.
+            if (inFlightUrl.value != url) {
+                webViewRef.value?.let { webView ->
+                    inFlightUrl.value = url
+                    // Cancel whatever is still in flight first. Without this an
+                    // earlier page could finish after this one and win, putting
+                    // the wrong tab's content on screen.
+                    webView.stopLoading()
+                    webView.loadUrl(url)
+                }
+            }
         } else {
             isLoading = false
         }
@@ -321,12 +406,29 @@ fun AppContent(
                     }
 
                     settings.apply {
+                        // The app is a shell around our own Laravel site, which
+                        // needs JavaScript to work at all. Navigation away from
+                        // our host is handed to a Custom Tab / the system
+                        // browser (see shouldOverrideUrlLoading), so untrusted
+                        // pages never run inside this WebView.
+                        @Suppress("SetJavaScriptEnabled")
                         javaScriptEnabled    = true
                         domStorageEnabled    = true
                         useWideViewPort      = true
                         loadWithOverviewMode = true
+                        // Lets the server render the in-app layout on the first
+                        // paint. Without it the site only learns it is running
+                        // inside the app once the injected script runs on page
+                        // finish, so the web nav bar appears below the native
+                        // one for the whole load.
+                        userAgentString = withFerosaAppMarker(userAgentString)
                         setSupportMultipleWindows(true)  // needed for receipt "open in new tab"
                         allowFileAccess = true
+                        // Reuse cached CSS, JS, fonts and product images instead of
+                        // refetching them on every tab switch. The pages themselves
+                        // send no-store headers, so navigating still gets fresh data
+                        // - this only spares the static assets.
+                        cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                         // Zoom must be exactly 100% — any other value corrupts Android IME
                         // cursor position calculations, causing cursor-at-0 bug
                         textZoom = 100
@@ -387,7 +489,7 @@ fun AppContent(
                             request: WebResourceRequest?
                         ): Boolean {
                             val dest = request?.url?.toString() ?: return false
-                            val uri  = Uri.parse(dest)
+                            val uri  = dest.toUri()
 
                             return when {
                                 // ferosa://ar → launch AR activity
@@ -417,6 +519,10 @@ fun AppContent(
                         }
 
                         override fun onPageFinished(view: WebView?, url: String?) {
+                            // This load is done, so a later navigation to the same
+                            // address must not be treated as already in flight.
+                            inFlightUrl.value = null
+
                             // Server redirected to /login → session expired, log out
                             if (url != null &&
                                 (url.endsWith("/login") || url.contains("/login?"))
@@ -428,11 +534,26 @@ fun AppContent(
                                 if (url != null && expectedUrl != null &&
                                     webDestinationMatches(url, expectedUrl)
                                 ) {
+                                    // Landing on a tab's own page marks the point
+                                    // system-back should stop rewinding history.
+                                    if (webPageReadyFor != latestScreen.value) {
+                                        tabHistoryBaseline =
+                                            view?.copyBackForwardList()?.currentIndex ?: -1
+                                    }
                                     webPageReadyFor = latestScreen.value
                                     isLoading = false
                                 }
                             }
                             view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                        }
+
+                        override fun onPageStarted(
+                            view: WebView?,
+                            url: String?,
+                            favicon: android.graphics.Bitmap?
+                        ) {
+                            // A fresh navigation clears any previous failure.
+                            loadFailed = false
                         }
 
                         @Suppress("OVERRIDE_DEPRECATION")
@@ -442,18 +563,40 @@ fun AppContent(
                             description: String?,
                             failingUrl: String?
                         ) {
+                            inFlightUrl.value = null
+                            webPageReadyFor = latestScreen.value
+                            isLoading = false
+                        }
+
+                        // API 23+ variant: tells us whether the failure was the
+                        // page itself or just a sub-resource (image, script). Only
+                        // a main-frame failure should replace the screen.
+                        override fun onReceivedError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            error: android.webkit.WebResourceError?
+                        ) {
+                            if (request?.isForMainFrame != true) return
+                            inFlightUrl.value = null
+                            loadFailed = true
                             webPageReadyFor = latestScreen.value
                             isLoading = false
                         }
                     }
-                    // Load the correct role workspace while keeping the shared session.
-                    loadUrl(
-                        if (userRole == "admin" || userRole == "staff") {
+                    // Load whatever tab is actually open, not a hardcoded landing
+                    // page. This block used to always request /home for customers,
+                    // so a WebView created (or finishing its warm-up load) after the
+                    // user had already tapped another tab would replace that tab's
+                    // page with the home page - leaving Shop highlighted while the
+                    // home page was on screen.
+                    val firstUrl = latestTargetUrl.value
+                        ?: if (userRole == "admin" || userRole == "staff") {
                             "$SERVER_URL/admin"
                         } else {
                             "$SERVER_URL/home"
                         }
-                    )
+                    inFlightUrl.value = firstUrl
+                    loadUrl(firstUrl)
                 }.also { webViewRef.value = it }
             },
             modifier = Modifier.fillMaxSize(),
@@ -552,6 +695,117 @@ fun AppContent(
                 trackColor = Brand50
             )
         }
+
+        // ── 4. Connection failure ───────────────────────────────────────────
+        // Without this the WebView shows its own grey "webpage not available"
+        // page, which looks like the app itself is broken.
+        AnimatedVisibility(
+            visible = loadFailed && !isNativeScreen,
+            enter   = fadeIn(),
+            exit    = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            ConnectionErrorScreen(
+                onRetry = {
+                    loadFailed = false
+                    isLoading = true
+                    val url = latestTargetUrl.value
+                    if (url != null) webViewRef.value?.loadUrl(url) else webViewRef.value?.reload()
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Circular header action. Keeps the 48dp minimum touch target while the visible
+ * circle stays 44dp, and exposes itself to TalkBack as a button.
+ */
+@Composable
+private fun HeaderIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(
+                onClick = onClick,
+                role = Role.Button,
+                onClickLabel = contentDescription,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Surface100),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                tint = Surface600,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+/** Shown when the WebView cannot reach the server. */
+@Composable
+private fun ConnectionErrorScreen(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Surface50)
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(Brand50),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.CloudOff,
+                contentDescription = null,
+                tint = Brand600,
+                modifier = Modifier.size(32.dp),
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "No connection",
+            style = MaterialTheme.typography.titleLarge,
+            color = Surface900,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "We couldn't reach Ferosa. Check your internet connection and try again.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Surface500,
+            textAlign = TextAlign.Center,
+            lineHeight = 21.sp,
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = Brand600),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+        ) {
+            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Try again", fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
@@ -619,6 +873,8 @@ private fun FerosaBottomNavigation(
         )
     }
 
+    val haptics = LocalHapticFeedback.current
+
     NavigationBar(
         containerColor = Color.White,
         tonalElevation = 0.dp,
@@ -638,7 +894,11 @@ private fun FerosaBottomNavigation(
                 },
                 label = { BottomNavLabel(destination.label) },
                 selected = selected,
-                onClick = { onNavigate(destination.screen) },
+                onClick = {
+                    // Confirms the tap even before the next screen paints.
+                    if (!selected) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNavigate(destination.screen)
+                },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = Brand600,
                     selectedTextColor = Brand600,
@@ -774,6 +1034,49 @@ fun LoginWebViewScreen(url: String, onLoggedIn: (String) -> Unit) {
     val awaitingOAuthReturn = remember { mutableStateOf(false) }
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
 
+    // onLoggedIn swaps this screen for the real app shell, so it must run once.
+    val loginHandled = remember { mutableStateOf(false) }
+
+    /**
+     * Fires as soon as the logged-in landing page is identifiable.
+     *
+     * This used to run only from onPageFinished, which waits for every image on
+     * the page - including the remote product photos. The result was that the
+     * fully rendered home page sat on screen inside this bare WebView, with no
+     * bottom navigation, until the last image arrived. The role meta tag lives
+     * at the top of <head>, so it can be read far earlier than that.
+     */
+    fun detectLogin(view: WebView?, url: String?, allowUrlFallback: Boolean) {
+        if (loginHandled.value || view == null || url == null) return
+
+        val reachedCustomerHome = url.endsWith("/home") || url.contains("/home?")
+        val reachedAdmin = url.endsWith("/admin") || url.contains("/admin?")
+        if (!reachedCustomerHome && !reachedAdmin) return
+
+        view.evaluateJavascript(
+            "(document.querySelector('meta[name=ferosa-user-role]')||{}).content||''"
+        ) { encodedRole ->
+            val role = encodedRole
+                ?.trim()
+                ?.trim('"')
+                ?.lowercase()
+                ?.takeIf { it == "admin" || it == "staff" || it == "user" }
+
+            // The meta tag distinguishes admin from staff, so prefer it. Only
+            // guess from the URL once the page has finished and it never showed.
+            val resolved = role ?: if (allowUrlFallback) {
+                if (reachedAdmin) "staff" else "user"
+            } else {
+                null
+            }
+
+            if (resolved != null && !loginHandled.value) {
+                loginHandled.value = true
+                onLoggedIn(resolved)
+            }
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && awaitingOAuthReturn.value) {
@@ -794,10 +1097,19 @@ fun LoginWebViewScreen(url: String, onLoggedIn: (String) -> Unit) {
                         setAcceptCookie(true)
                         setAcceptThirdPartyCookies(wv, true)
                     }
+                    // Login screen for our own site; see the note on the main
+                    // WebView above.
+                    @Suppress("SetJavaScriptEnabled")
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.useWideViewPort = true
                     settings.loadWithOverviewMode = true
+                    // Same in-app marker as the main WebView, so this one also
+                    // renders without the web chrome. See the note there.
+                    settings.userAgentString = withFerosaAppMarker(settings.userAgentString)
+                    // Warms the shared HTTP cache with the fonts and CSS the rest
+                    // of the app is about to need. See the main WebView's note.
+                    settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                     // textZoom=100 is critical because it prevents the cursor-at-0 bug on Android.
                     settings.textZoom = 100
                     webViewClient = object : WebViewClient() {
@@ -814,33 +1126,40 @@ fun LoginWebViewScreen(url: String, onLoggedIn: (String) -> Unit) {
                                 CustomTabsIntent.Builder()
                                     .setShowTitle(true)
                                     .build()
-                                    .launchUrl(ctx, Uri.parse(dest))
+                                    .launchUrl(ctx, dest.toUri())
                                 return true
                             }
                             return false
                         }
 
+                        // Fires when the navigation commits, well before the page's
+                        // images finish - the earliest point the landing URL is known.
+                        override fun doUpdateVisitedHistory(
+                            view: WebView?,
+                            url: String?,
+                            isReload: Boolean,
+                        ) {
+                            super.doUpdateVisitedHistory(view, url, isReload)
+                            detectLogin(view, url, allowUrlFallback = false)
+                        }
+
                         override fun onPageFinished(view: WebView?, url: String?) {
                             isLoading = false
-                            val reachedCustomerHome = url != null &&
-                                (url.endsWith("/home") || url.contains("/home?"))
-                            val reachedAdmin = url != null &&
-                                (url.endsWith("/admin") || url.contains("/admin?"))
-
-                            if (view != null && (reachedCustomerHome || reachedAdmin)) {
-                                view.evaluateJavascript(
-                                    "(document.querySelector('meta[name=ferosa-user-role]')||{}).content||''"
-                                ) { encodedRole ->
-                                    val detectedRole = encodedRole
-                                        ?.trim()
-                                        ?.trim('"')
-                                        ?.lowercase()
-                                        ?.takeIf { it == "admin" || it == "staff" || it == "user" }
-                                        ?: if (reachedAdmin) "staff" else "user"
-                                    onLoggedIn(detectedRole)
-                                }
-                            }
+                            // Backstop: if the meta tag was still unparsed on every
+                            // earlier attempt, settle for the URL-derived role now.
+                            detectLogin(view, url, allowUrlFallback = true)
                             view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                        }
+                    }
+                    // Retries detection as the document streams in. The commit
+                    // hook above can land before <head> is parsed; this catches
+                    // it moments later, still long before the images settle.
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                            super.onProgressChanged(view, newProgress)
+                            if (newProgress >= 25) {
+                                detectLogin(view, view?.url, allowUrlFallback = false)
+                            }
                         }
                     }
                     loadUrl(url)
@@ -918,34 +1237,35 @@ fun HomeScreen(
                         )
                     }
                 }
+                // 44dp circles inside 48dp targets: Android's minimum touch size
+                // is 48dp, and these were 38dp — small enough to miss regularly.
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Surface100)
-                            .clickable { onOpenMessages() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Messages", tint = Surface600, modifier = Modifier.size(18.dp))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Surface100)
-                            .clickable { onOpenNotifications() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Surface600, modifier = Modifier.size(18.dp))
-                    }
+                    HeaderIconButton(
+                        icon = Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = "Messages",
+                        onClick = onOpenMessages,
+                    )
+                    HeaderIconButton(
+                        icon = Icons.Default.Notifications,
+                        contentDescription = "Notifications",
+                        onClick = onOpenNotifications,
+                    )
                 }
             }
         }
 
         Column(modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)) {
+            // Matches the greeting the web home page shows, rather than always
+            // claiming it is morning.
+            val greeting = remember {
+                when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+                    in 0..11 -> "GOOD MORNING"
+                    in 12..17 -> "GOOD AFTERNOON"
+                    else -> "GOOD EVENING"
+                }
+            }
             Text(
-                "GOOD MORNING",
+                greeting,
                 style = MaterialTheme.typography.labelSmall,
                 color = Brand600,
                 fontWeight = FontWeight.Bold,

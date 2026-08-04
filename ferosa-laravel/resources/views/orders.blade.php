@@ -1,24 +1,27 @@
 @extends('layouts.customer')
 
+@section('title', 'Orders & Delivery - Ferosa Landscaping')
+
 @section('content')
 <main class="customer-page max-w-4xl">
-  <div class="mb-8">
-    <h1 class="text-2xl font-display font-bold text-surface-900 mb-1">Orders & Delivery</h1>
-    <p class="text-surface-500 text-sm">See what needs attention now and follow updates from the Ferosa team.</p>
-  </div>
+  <x-page-head
+    kicker="Purchases"
+    title="Orders &amp; delivery"
+    sub="See what needs attention now and follow every update from the Ferosa team.">
+    <a href="{{ route('shop') }}" class="btn btn-secondary btn-sm">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9Z"/></svg>
+      Continue shopping
+    </a>
+  </x-page-head>
 
   @if (session('status'))
-    <div class="bg-brand-50 border border-brand-100 text-brand-700 px-4 py-2.5 rounded-lg text-sm mb-6">
-      {{ session('status') }}
-    </div>
+    <x-alert type="success" class="mb-6 reveal">{{ session('status') }}</x-alert>
   @endif
   @if (session('error'))
-    <div class="bg-red-50 border border-red-100 text-red-700 px-4 py-2.5 rounded-lg text-sm mb-6">
-      {{ session('error') }}
-    </div>
+    <x-alert type="error" class="mb-6 reveal">{{ session('error') }}</x-alert>
   @endif
 
-  <details class="customer-card mb-8 overflow-hidden group">
+  <details class="customer-card mb-8 overflow-hidden group reveal reveal-1">
     <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4 text-sm font-bold text-surface-800 hover:bg-surface-50 transition-colors">
       <span>
         <span class="block">Track by order reference</span>
@@ -30,12 +33,12 @@
     </summary>
     <div class="border-t border-surface-100 p-4 sm:p-5">
   <!-- Search -->
-  <div class="max-w-xl border border-surface-200 bg-white rounded-xl p-2 flex gap-2 mb-6">
-    <div class="flex-1 relative">
-      <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-surface-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="order-id" placeholder="e.g. FRS-98243" class="w-full text-sm pl-9 pr-3 py-2 rounded-lg bg-surface-50 outline-none focus:ring-1 focus:ring-brand-500 transition-all font-mono uppercase">
+  <div class="mb-6 flex max-w-xl gap-2">
+    <div class="field-icon flex-1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="order-id" placeholder="e.g. FRS-98243" aria-label="Order reference" class="field font-mono uppercase">
     </div>
-    <button onclick="trackOrder()" id="track-btn" class="customer-action bg-brand-700 hover:bg-brand-800 text-white font-bold px-5 py-2 text-sm">
+    <button onclick="trackOrder()" id="track-btn" class="btn btn-primary">
       Track
     </button>
   </div>
@@ -47,7 +50,7 @@
         <h3 class="text-sm font-semibold text-surface-900 mb-0.5">Order <span id="display-id" class="text-brand-600 font-mono"></span></h3>
         <p class="text-xs text-surface-400" id="track-placed-at"></p>
       </div>
-      <span class="text-[10px] font-semibold px-2 py-1 rounded border uppercase tracking-wide" id="track-status-badge"></span>
+      <span class="badge badge-neutral" id="track-status-badge"></span>
     </div>
 
     <div class="relative ml-3">
@@ -119,40 +122,44 @@
       </div>
     </div>
 
-    <!-- Filters -->
-    <form method="GET" action="{{ route('orders') }}" class="customer-card p-4 mb-5" data-loading-label="Filtering...">
-      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-        <div>
-          <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
-          <select name="status" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
-            <option value="">All</option>
-            @foreach (['pending','confirmed','out_for_delivery','delivered','completed','cancelled'] as $st)
-              <option value="{{ $st }}" {{ request('status') === $st ? 'selected' : '' }}>
-                {{ ucfirst(str_replace('_',' ', $st)) }}
-              </option>
-            @endforeach
-          </select>
+    <!-- Status quick filters -->
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <a href="{{ route('orders', array_filter(['from' => request('from'), 'to' => request('to')])) }}"
+         class="chip {{ request('status') ? '' : 'chip-active' }}">All</a>
+      @foreach (['pending','confirmed','out_for_delivery','delivered','completed','cancelled'] as $st)
+        <a href="{{ route('orders', array_filter(['status' => $st, 'from' => request('from'), 'to' => request('to')])) }}"
+           class="chip {{ request('status') === $st ? 'chip-active' : '' }}">{{ ucfirst(str_replace('_',' ', $st)) }}</a>
+      @endforeach
+    </div>
+
+    <!-- Date range -->
+    <form method="GET" action="{{ route('orders') }}" class="toolbar mb-5" data-loading-label="Filtering...">
+      <input type="hidden" name="status" value="{{ request('status') }}">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-end">
+        <div class="sm:col-span-4">
+          <label for="order-from" class="field-label">From date</label>
+          <input type="date" id="order-from" name="from" value="{{ request('from') }}" class="field">
         </div>
-        <div>
-          <label class="block text-[10px] font-medium text-surface-400 mb-1">From</label>
-          <input type="date" name="from" value="{{ request('from') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
+        <div class="sm:col-span-4">
+          <label for="order-to" class="field-label">To date</label>
+          <input type="date" id="order-to" name="to" value="{{ request('to') }}" class="field">
         </div>
-        <div>
-          <label class="block text-[10px] font-medium text-surface-400 mb-1">To</label>
-          <input type="date" name="to" value="{{ request('to') }}" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-xs text-surface-600 outline-none focus:border-brand-500 transition-colors">
-        </div>
-        <div class="flex gap-2">
-          <button class="customer-action flex-1 bg-surface-900 hover:bg-surface-800 text-white font-medium py-2 text-xs" data-loading-label="Filtering...">Filter</button>
-          <a href="{{ route('orders') }}" class="px-3 py-2 rounded-lg border border-surface-200 text-xs font-medium text-surface-500 hover:bg-surface-50 transition-colors">Reset</a>
+        <div class="flex gap-2 sm:col-span-4">
+          <button class="btn btn-primary btn-sm flex-1" data-loading-label="Filtering...">Apply dates</button>
+          @if(request('from') || request('to'))
+            <a href="{{ route('orders', array_filter(['status' => request('status')])) }}" class="btn btn-ghost btn-sm">Reset</a>
+          @endif
         </div>
       </div>
       @if ($errors->any())
-        <div class="mt-3 rounded-lg border border-red-100 bg-red-50 text-red-600 px-3 py-2 text-xs">
-          <ul class="list-disc pl-4 space-y-0.5">
-            @foreach ($errors->all() as $error)
-              <li>{{ $error }}</li>
-            @endforeach
-          </ul>
+        <div class="mt-3">
+          <x-alert type="error">
+            <ul class="list-disc space-y-0.5 pl-4">
+              @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+              @endforeach
+            </ul>
+          </x-alert>
         </div>
       @endif
     </form>
@@ -162,63 +169,60 @@
       @forelse ($orders as $order)
         @php
           $status = $order->status ?? 'pending';
-          $badge =
-            $status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-            ($status === 'confirmed' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-            ($status === 'out_for_delivery' ? 'bg-brand-50 text-brand-700 border-brand-100' :
-            ($status === 'delivered' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-            ($status === 'completed' ? 'bg-surface-900 text-white border-surface-900' :
-            'bg-red-50 text-red-600 border-red-100'))));
+          $badge = match ($status) {
+            'pending' => 'badge-warning',
+            'confirmed', 'out_for_delivery' => 'badge-info',
+            'delivered', 'completed' => 'badge-success',
+            default => 'badge-danger',
+          };
           $statusLabel = $status === 'delivered' && ! $order->customer_confirmed_at
             ? 'Delivered - Pending Confirmation'
             : ucfirst(str_replace('_',' ', $status));
         @endphp
 
-        <div class="customer-card overflow-hidden">
+        <div class="customer-card lift overflow-hidden">
           <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-surface-100">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <h3 class="text-sm font-semibold text-surface-900">
+                <h3 class="text-[15px] font-bold text-surface-900">
                   Order <span class="font-mono text-brand-600">{{ $order->order_number }}</span>
                 </h3>
-                <span class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border {{ $badge }}">
+                <span class="badge {{ $badge }}">
                   {{ $statusLabel }}
                 </span>
               </div>
-              <p class="text-xs text-surface-400 mt-0.5">
+              <p class="mt-1 text-xs font-medium text-surface-500">
                 Placed {{ optional($order->created_at)->format('M d, Y h:i A') }}
               </p>
             </div>
             <div class="sm:text-right flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2">
               <div>
-                <p class="text-[10px] text-surface-400 uppercase tracking-wider">Total</p>
-                <p class="text-lg font-display font-bold text-surface-900">&#8369;{{ number_format((float) $order->total_amount, 2) }}</p>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-surface-400">Total</p>
+                <p class="font-display text-xl font-bold text-surface-900">&#8369;{{ number_format((float) $order->total_amount, 2) }}</p>
               </div>
               <div class="flex items-center flex-wrap gap-1.5 justify-end">
                 @if ($status === 'delivered' && $order->delivery_proof_url)
                   <form method="POST" action="{{ route('orders.confirm-received', $order) }}">
                     @csrf
-                    <button type="submit" data-loading-label="Confirming..."
-                      class="inline-flex items-center gap-1 text-[11px] font-medium text-brand-700 hover:text-brand-800 border border-brand-200 hover:border-brand-400 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      Confirm Received
+                    <button type="submit" data-loading-label="Confirming..." class="btn btn-soft btn-sm">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg>
+                      Confirm received
                     </button>
                   </form>
                 @endif
                 @if ($status === 'completed' && !$order->feedback)
                   <button onclick="openFeedbackModal({{ $order->id }}, '{{ $order->order_number }}')"
-                    class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-400 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Leave Feedback
+                    class="btn btn-sm border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Leave feedback
                   </button>
                 @elseif ($status === 'completed' && $order->feedback)
-                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-green-600 border border-green-200 bg-green-50 px-2.5 py-1.5 rounded-lg min-h-[34px]">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span class="badge badge-success">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><polyline points="20 6 9 17 4 12"/></svg>
                     Reviewed
                   </span>
                 @endif
-                <a href="{{ route('orders.receipt', $order) }}"
-                   class="inline-flex items-center gap-1 text-[11px] font-medium text-surface-400 hover:text-surface-700 border border-surface-200 hover:border-surface-300 px-2.5 py-1.5 rounded-lg transition-colors touch-manipulation min-h-[34px]">
+                <a href="{{ route('orders.receipt', $order) }}" class="btn btn-secondary btn-sm">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                     <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
@@ -239,7 +243,7 @@
                 <div class="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 mt-3 text-xs text-left sm:text-right">
                   <p class="font-semibold text-indigo-700 mb-1">Dispatch Information</p>
                   <a href="{{ $order->dispatch_proof_url }}" class="inline-block overflow-hidden rounded-lg border border-indigo-100 bg-white mb-2">
-                    <img src="{{ $order->dispatch_proof_url }}" alt="Dispatch proof for order {{ $order->order_number }}" class="w-full max-h-36 object-cover">
+                    <img src="{{ $order->dispatch_proof_url }}" alt="Dispatch proof for order {{ $order->order_number }}" loading="lazy" decoding="async" class="w-full max-h-36 object-cover">
                   </a>
                   <p class="text-surface-500">Dispatched: {{ optional($order->dispatched_at)->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
                   <p class="text-surface-500">Driver: {{ $order->driver_name ?: 'Not recorded' }}{{ $order->driver_phone ? ' · '.$order->driver_phone : '' }}</p>
@@ -249,7 +253,7 @@
                 <div class="rounded-lg border border-brand-100 bg-brand-50/50 p-3 mt-3 text-xs">
                   <p class="font-semibold text-brand-700 mb-1">Delivery Proof</p>
                   <a href="{{ $order->delivery_proof_url }}" class="inline-block overflow-hidden rounded-lg border border-brand-100 bg-white mb-2">
-                    <img src="{{ $order->delivery_proof_url }}" alt="Delivery proof for order {{ $order->order_number }}" class="w-full max-h-36 object-cover">
+                    <img src="{{ $order->delivery_proof_url }}" alt="Delivery proof for order {{ $order->order_number }}" loading="lazy" decoding="async" class="w-full max-h-36 object-cover">
                   </a>
                   <p class="text-surface-500">Delivered: {{ optional($order->delivered_at)->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
                   @if($order->delivery_recipient_name)<p class="text-surface-500">Received by: {{ $order->delivery_recipient_name }}</p>@endif
@@ -427,9 +431,9 @@
           <div class="customer-empty-icon">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           </div>
-          <h2 class="text-sm font-semibold text-surface-900 mb-1">No orders yet</h2>
-          <p class="text-surface-400 text-sm mb-4">Your purchases and delivery updates will appear here.</p>
-          <a href="{{ route('shop') }}" class="customer-action bg-surface-900 text-white text-xs font-medium px-5 py-2 hover:bg-surface-800">Browse products</a>
+          <h2 class="text-base font-bold text-surface-900 mb-1">No orders yet</h2>
+          <p class="text-surface-500 text-sm mb-5">Your purchases and delivery updates will appear here.</p>
+          <a href="{{ route('shop') }}" class="btn btn-primary btn-sm">Browse products</a>
         </div>
       @endforelse
     </div>
@@ -535,8 +539,8 @@
             Cancel
           </button>
           <button type="submit" id="modal-submit-btn" data-loading-label="Submitting..."
-            class="flex-1 bg-surface-900 hover:bg-surface-800 active:bg-surface-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
-            Submit Feedback
+            class="btn btn-primary flex-1 touch-manipulation">
+            Submit feedback
           </button>
         </div>
       </form>
@@ -561,12 +565,12 @@
 
   // ── Status helpers ─────────────────────────────────────────────────────
   const STATUS_BADGE = {
-    pending:          'bg-amber-50 text-amber-700 border-amber-100',
-    confirmed:        'bg-blue-50 text-blue-700 border-blue-100',
-    out_for_delivery: 'bg-brand-50 text-brand-700 border-brand-100',
-    delivered:        'bg-emerald-50 text-emerald-700 border-emerald-100',
-    completed:        'bg-surface-900 text-white border-surface-900',
-    cancelled:        'bg-red-50 text-red-600 border-red-100',
+    pending:          'badge-warning',
+    confirmed:        'badge-info',
+    out_for_delivery: 'badge-info',
+    delivered:        'badge-success',
+    completed:        'badge-success',
+    cancelled:        'badge-danger',
   };
 
   // step index: pending=1, confirmed=2, out_for_delivery=3, delivered/completed=4
@@ -622,9 +626,9 @@
       document.getElementById('display-id').textContent    = data.order_number;
       document.getElementById('track-placed-at').textContent = 'Placed on ' + (data.created_at || '');
 
-      const badgeCls = STATUS_BADGE[data.status] ?? 'bg-surface-100 text-surface-600 border-surface-200';
+      const badgeCls = STATUS_BADGE[data.status] ?? 'badge-neutral';
       const badge    = document.getElementById('track-status-badge');
-      badge.className = 'text-[10px] font-semibold px-2 py-1 rounded border uppercase tracking-wide ' + badgeCls;
+      badge.className = 'badge ' + badgeCls;
       badge.textContent = data.status === 'delivered' && !data.customer_confirmed_at
         ? 'delivered - pending confirmation'
         : data.status.replace(/_/g,' ');

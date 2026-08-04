@@ -407,7 +407,8 @@ private fun ProductFact(
  * Example: 1299.0 → "₱1,299.00"
  */
 private fun formatPricePeso(price: Double): String {
-    val format = NumberFormat.getNumberInstance(Locale("en", "PH")).apply {
+    // Locale("en","PH") is deprecated in favour of forLanguageTag.
+    val format = NumberFormat.getNumberInstance(Locale.forLanguageTag("en-PH")).apply {
         minimumFractionDigits = 2
         maximumFractionDigits = 2
     }

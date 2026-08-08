@@ -46,6 +46,18 @@ class AdminController extends Controller
 
     private const AR_MODEL_MIN_HEIGHT_UNITS = 0.000001;
 
+    private const AR_TRIANGLE_WARN_LIMIT = 100000;
+
+    private const AR_TRIANGLE_HARD_LIMIT = 250000;
+
+    private const AR_TEXTURE_WARN_EDGE = 2048;
+
+    private const AR_TEXTURE_HARD_EDGE = 4096;
+
+    private const AR_TEXTURE_WARN_DECODED_BYTES = 48 * 1024 * 1024;
+
+    private const AR_FILE_WARN_BYTES = 8 * 1024 * 1024;
+
     /** @var list<string> */
     private const AR_SUPPORTED_REQUIRED_EXTENSIONS = [
         'KHR_draco_mesh_compression',
@@ -1916,6 +1928,7 @@ class AdminController extends Controller
             $chunkIndex = 0;
             $jsonDocument = null;
             $binChunkLength = null;
+            $binChunkOffset = null;
 
             while ($offset < $declaredLength) {
                 if (($declaredLength - $offset) < 8) {
@@ -1982,6 +1995,7 @@ class AdminController extends Controller
                         }
 
                         $binChunkLength = $chunkLength;
+                        $binChunkOffset = $offset;
                     }
                 }
 
@@ -1993,11 +2007,18 @@ class AdminController extends Controller
                 return 'The GLB container is incomplete.';
             }
 
-            if ($binChunkLength === null) {
+            if ($binChunkLength === null || $binChunkOffset === null) {
                 return 'The GLB must include its binary model data in a BIN chunk.';
             }
 
-            if ($resourceError = $this->validateGlbResources($jsonDocument, $binChunkLength, $warnings)) {
+            if ($resourceError = $this->validateGlbResources(
+                $jsonDocument,
+                $binChunkLength,
+                $handle,
+                $binChunkOffset,
+                $actualLength,
+                $warnings,
+            )) {
                 return $resourceError;
             }
 
@@ -2049,10 +2070,22 @@ class AdminController extends Controller
 
     /**
      * @param  array<string, mixed>  $document
+     * @param  resource  $handle
      * @param  list<string>  $warnings
      */
-    private function validateGlbResources(array $document, int $binChunkLength, array &$warnings = []): ?string
+    private function validateGlbResources(
+        array $document,
+        int $binChunkLength,
+        $handle,
+        int $binChunkOffset,
+        int $fileSize,
+        array &$warnings = [],
+    ): ?string
     {
+        if ($fileSize > self::AR_FILE_WARN_BYTES) {
+            $warnings[] = "The GLB file is {$fileSize} bytes; the recommended budget is ".self::AR_FILE_WARN_BYTES.' bytes.';
+        }
+
         $assetVersion = data_get($document, 'asset.version');
         if (! is_string($assetVersion) || ! str_starts_with($assetVersion, '2.')) {
             return 'The GLB model JSON must declare glTF asset version 2.x.';
@@ -2110,11 +2143,256 @@ class AdminController extends Controller
             return 'The GLB binary chunk does not match the buffer length declared by the model.';
         }
 
-        if ($geometryError = $this->validateGlbRenderableGeometry($document)) {
+        if ($geometryError = $this->validateGlbRenderableGeometry($document, $warnings)) {
             return $geometryError;
         }
 
+        if ($textureError = $this->validateGlbTextures(
+            $document,
+            $handle,
+            $binChunkOffset,
+            $binChunkLength,
+            $warnings,
+        )) {
+            return $textureError;
+        }
+
         return null;
+    }
+
+    /**
+     * Inspect image headers in the embedded BIN chunk without loading entire textures into memory.
+     *
+     * @param  resource  $handle
+     * @param  list<string>  $warnings
+     */
+    private function validateGlbTextures(
+        array $document,
+        $handle,
+        int $binChunkOffset,
+        int $binChunkLength,
+        array &$warnings = [],
+    ): ?string {
+        $images = $document['images'] ?? [];
+        if ($images === []) {
+            return null;
+        }
+        if (! is_array($images)) {
+            return 'The GLB images list is invalid.';
+        }
+
+        $bufferViews = $document['bufferViews'] ?? [];
+        if (! is_array($bufferViews)) {
+            return 'The GLB bufferViews list is invalid.';
+        }
+
+        $largestTextureEdge = 0;
+        $decodedTextureBytes = 0.0;
+
+        foreach ($images as $imageIndex => $image) {
+            if (! is_array($image)) {
+                return 'The GLB contains an invalid image entry.';
+            }
+
+            // Data URIs are self-contained but are not part of the BIN header scan. The existing
+            // URI validation still ensures they do not reference an external file.
+            if (! array_key_exists('bufferView', $image)) {
+                continue;
+            }
+
+            $bufferViewIndex = $image['bufferView'];
+            if (! is_int($bufferViewIndex) || ! is_array($bufferViews[$bufferViewIndex] ?? null)) {
+                return "The GLB image {$imageIndex} references an invalid bufferView.";
+            }
+
+            $bufferView = $bufferViews[$bufferViewIndex];
+            $byteOffset = $bufferView['byteOffset'] ?? 0;
+            $byteLength = $bufferView['byteLength'] ?? null;
+            if (! is_int($byteOffset) || $byteOffset < 0 ||
+                ! is_int($byteLength) || $byteLength <= 0 ||
+                $byteOffset > $binChunkLength || $byteLength > ($binChunkLength - $byteOffset)) {
+                return "The GLB image {$imageIndex} bufferView is outside the embedded binary data.";
+            }
+
+            $dimensions = $this->readGlbImageDimensions(
+                $handle,
+                $binChunkOffset,
+                $binChunkLength,
+                $byteOffset,
+                $byteLength,
+            );
+            if ($dimensions === null) {
+                continue;
+            }
+
+            [$width, $height] = $dimensions;
+            $largestTextureEdge = max($largestTextureEdge, $width, $height);
+            if ($largestTextureEdge > self::AR_TEXTURE_HARD_EDGE) {
+                return "The GLB texture {$imageIndex} is {$width}x{$height}px; the maximum supported edge is ".self::AR_TEXTURE_HARD_EDGE.'px. Resize it before uploading.';
+            }
+
+            $decodedTextureBytes += ((float) $width * $height * 4 * 4) / 3;
+        }
+
+        if ($largestTextureEdge > self::AR_TEXTURE_WARN_EDGE) {
+            $warnings[] = "The largest GLB texture edge is {$largestTextureEdge}px; the recommended budget is ".self::AR_TEXTURE_WARN_EDGE.'px.';
+        }
+
+        if ($decodedTextureBytes > self::AR_TEXTURE_WARN_DECODED_BYTES) {
+            $decodedMegabytes = number_format(
+                $decodedTextureBytes / (1024 * 1024),
+                2,
+                '.',
+                '',
+            );
+            $warnings[] = "The GLB textures require approximately {$decodedMegabytes} MB decoded memory; the recommended budget is 48 MB.";
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  resource  $handle
+     * @return array{0: int, 1: int}|null
+     */
+    private function readGlbImageDimensions(
+        $handle,
+        int $binChunkOffset,
+        int $binChunkLength,
+        int $imageOffset,
+        int $imageLength,
+    ): ?array {
+        $headerLength = min(32, $imageLength);
+        $header = $this->readGlbBinBytes(
+            $handle,
+            $binChunkOffset,
+            $binChunkLength,
+            $imageOffset,
+            $headerLength,
+        );
+        if ($header === null) {
+            return null;
+        }
+
+        if (strlen($header) >= 24 && substr($header, 0, 8) === "\x89PNG\r\n\x1a\n") {
+            $pngValues = unpack('Nwidth/Nheight', substr($header, 16, 8));
+            if (is_array($pngValues) && (int) ($pngValues['width'] ?? 0) > 0 && (int) ($pngValues['height'] ?? 0) > 0) {
+                return [(int) $pngValues['width'], (int) $pngValues['height']];
+            }
+
+            return null;
+        }
+
+        if (substr($header, 0, 2) !== "\xFF\xD8") {
+            return null;
+        }
+
+        $position = 2;
+        $sofMarkers = [
+            0xC0, 0xC1, 0xC2, 0xC3,
+            0xC5, 0xC6, 0xC7, 0xC9,
+            0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+        ];
+
+        while ($position + 4 <= $imageLength) {
+            $markerBytes = $this->readGlbBinBytes(
+                $handle,
+                $binChunkOffset,
+                $binChunkLength,
+                $imageOffset + $position,
+                2,
+            );
+            if ($markerBytes === null || ord($markerBytes[0]) !== 0xFF) {
+                return null;
+            }
+
+            $marker = ord($markerBytes[1]);
+            $position += 2;
+            while ($marker === 0xFF && $position < $imageLength) {
+                $markerByte = $this->readGlbBinBytes(
+                    $handle,
+                    $binChunkOffset,
+                    $binChunkLength,
+                    $imageOffset + $position,
+                    1,
+                );
+                if ($markerByte === null) {
+                    return null;
+                }
+
+                $marker = ord($markerByte[0]);
+                $position++;
+            }
+
+            $isStandaloneMarker = $marker === 0xD8 || $marker === 0xD9 || $marker === 0xDA ||
+                ($marker >= 0xD0 && $marker <= 0xD7) || $marker === 0x01;
+            if ($isStandaloneMarker) {
+                if ($marker === 0xD9 || $marker === 0xDA) {
+                    return null;
+                }
+
+                continue;
+            }
+
+            $lengthBytes = $this->readGlbBinBytes(
+                $handle,
+                $binChunkOffset,
+                $binChunkLength,
+                $imageOffset + $position,
+                2,
+            );
+            if ($lengthBytes === null) {
+                return null;
+            }
+
+            $segmentValues = unpack('nlength', $lengthBytes);
+            $segmentLength = (int) ($segmentValues['length'] ?? 0);
+            if ($segmentLength < 2 || $position + $segmentLength > $imageLength) {
+                return null;
+            }
+
+            if (in_array($marker, $sofMarkers, true)) {
+                $sizeBytes = $this->readGlbBinBytes(
+                    $handle,
+                    $binChunkOffset,
+                    $binChunkLength,
+                    $imageOffset + $position + 3,
+                    4,
+                );
+                if ($sizeBytes === null) {
+                    return null;
+                }
+
+                $sizeValues = unpack('nheight/nwidth', $sizeBytes);
+                if (is_array($sizeValues) && (int) ($sizeValues['width'] ?? 0) > 0 && (int) ($sizeValues['height'] ?? 0) > 0) {
+                    return [(int) $sizeValues['width'], (int) $sizeValues['height']];
+                }
+
+                return null;
+            }
+
+            $position += $segmentLength;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    private function readGlbBinBytes(
+        $handle,
+        int $binChunkOffset,
+        int $binChunkLength,
+        int $relativeOffset,
+        int $length,
+    ): ?string {
+        if ($relativeOffset < 0 || $length < 0 || $relativeOffset > $binChunkLength ||
+            $length > ($binChunkLength - $relativeOffset) || fseek($handle, $binChunkOffset + $relativeOffset) !== 0) {
+            return null;
+        }
+
+        return $this->readGlbBytes($handle, $length);
     }
 
     /**
@@ -2125,8 +2403,9 @@ class AdminController extends Controller
      * otherwise produce a successful upload followed by an invisible AR placement.
      *
      * @param  array<string, mixed>  $document
+     * @param  list<string>  $warnings
      */
-    private function validateGlbRenderableGeometry(array $document): ?string
+    private function validateGlbRenderableGeometry(array $document, array &$warnings = []): ?string
     {
         $scenes = $document['scenes'] ?? null;
         $nodes = $document['nodes'] ?? null;
@@ -2190,6 +2469,7 @@ class AdminController extends Controller
         $minimumY = INF;
         $maximumY = -INF;
         $positionCount = 0;
+        $triangleCount = 0;
 
         foreach (array_keys($reachableMeshIndexes) as $meshIndex) {
             $primitives = $meshes[$meshIndex]['primitives'] ?? null;
@@ -2240,12 +2520,44 @@ class AdminController extends Controller
                 $minimumY = min($minimumY, (float) $minimum[1]);
                 $maximumY = max($maximumY, (float) $maximum[1]);
                 $positionCount += $accessor['count'];
+
+                $triangleInputCount = $accessor['count'];
+                if (array_key_exists('indices', $primitive)) {
+                    $indicesAccessorIndex = $primitive['indices'];
+                    if (! is_int($indicesAccessorIndex) ||
+                        ! is_array($accessors[$indicesAccessorIndex] ?? null) ||
+                        ! is_int($accessors[$indicesAccessorIndex]['count'] ?? null) ||
+                        $accessors[$indicesAccessorIndex]['count'] <= 0) {
+                        return 'The GLB mesh indices must reference a valid accessor count.';
+                    }
+
+                    $triangleInputCount = $accessors[$indicesAccessorIndex]['count'];
+                }
+
+                $primitiveMode = $primitive['mode'] ?? 4;
+                if (! is_int($primitiveMode) || $primitiveMode < 0 || $primitiveMode > 6) {
+                    return 'The GLB mesh primitive mode is invalid.';
+                }
+
+                $triangleCount += match ($primitiveMode) {
+                    4 => intdiv($triangleInputCount, 3),
+                    5, 6 => max(0, $triangleInputCount - 2),
+                    default => 0,
+                };
             }
         }
 
         if ($positionCount === 0 ||
             ($maximumY - $minimumY) <= self::AR_MODEL_MIN_HEIGHT_UNITS) {
             return 'The GLB has no measurable height. Export it with Y as the up axis.';
+        }
+
+        if ($triangleCount > self::AR_TRIANGLE_HARD_LIMIT) {
+            return "The GLB contains {$triangleCount} triangles, above the hard limit of ".self::AR_TRIANGLE_HARD_LIMIT.'. Reduce the mesh before uploading.';
+        }
+
+        if ($triangleCount > self::AR_TRIANGLE_WARN_LIMIT) {
+            $warnings[] = "The GLB contains {$triangleCount} triangles; the recommended budget is ".self::AR_TRIANGLE_WARN_LIMIT.'.';
         }
 
         return null;

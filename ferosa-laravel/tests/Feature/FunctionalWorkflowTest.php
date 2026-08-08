@@ -197,6 +197,59 @@ class FunctionalWorkflowTest extends TestCase
         $this->assertSame('emissive-used.glb', $product->fresh()->plantModel->file_name);
     }
 
+    public function test_glb_performance_budgets_warn_and_hard_limits_reject(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create(['role' => 'admin']);
+        $product = $this->product(stock: 5);
+        $warningGlb = $this->budgetGlb(
+            triangleCount: 100_001,
+            textureWidth: 3000,
+            textureHeight: 3000,
+            textureCopies: 2,
+            filePaddingBytes: 8 * 1024 * 1024,
+            textureMime: 'image/jpeg',
+        );
+
+        $warningResponse = $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+            'ar_model' => UploadedFile::fake()->createWithContent('over-budget.glb', $warningGlb),
+            'height_cm' => 120,
+        ])->assertSessionHasNoErrors();
+
+        $warningResponse->assertSessionHas('ar_model_warnings', function (array $warnings) use ($warningGlb): bool {
+            $message = implode('\n', $warnings);
+
+            return str_contains($message, '100001 triangles')
+                && str_contains($message, '3000px')
+                && str_contains($message, '48 MB')
+                && str_contains($message, (string) strlen($warningGlb).' bytes');
+        });
+
+        $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+            'ar_model' => UploadedFile::fake()->createWithContent(
+                'too-many-triangles.glb',
+                $this->budgetGlb(triangleCount: 250_001)
+            ),
+            'height_cm' => 120,
+        ])->assertSessionHasErrors('ar_model')
+            ->assertSessionHas('errors', function ($errors): bool {
+                return str_contains($errors->first('ar_model'), '250001 triangles')
+                    && str_contains($errors->first('ar_model'), '250000');
+            });
+
+        $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+            'ar_model' => UploadedFile::fake()->createWithContent(
+                'texture-too-large.glb',
+                $this->budgetGlb(textureWidth: 4097, textureHeight: 4097, textureCopies: 1)
+            ),
+            'height_cm' => 120,
+        ])->assertSessionHasErrors('ar_model')
+            ->assertSessionHas('errors', function ($errors): bool {
+                return str_contains($errors->first('ar_model'), '4097px')
+                    && str_contains($errors->first('ar_model'), '4096px');
+            });
+    }
+
     public function test_glbs_without_reachable_geometry_or_measurable_height_are_rejected(): void
     {
         Storage::fake('public');
@@ -642,5 +695,103 @@ class FunctionalWorkflowTest extends TestCase
         ];
 
         return $this->validGlb(array_replace($document, $overrides), $binary);
+    }
+
+    private function budgetGlb(
+        int $triangleCount = 1,
+        int $textureWidth = 0,
+        int $textureHeight = 0,
+        int $textureCopies = 0,
+        int $filePaddingBytes = 0,
+        string $textureMime = 'image/png',
+    ): string {
+        $geometry = pack(
+            'g*',
+            0.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.1,
+        ).pack('v*', 0, 1, 2);
+        $positionCount = max(3, $triangleCount * 3);
+        $binary = $geometry;
+        $images = [];
+        $bufferViews = [
+            [
+                'buffer' => 0,
+                'byteOffset' => 0,
+                'byteLength' => 36,
+                'target' => 34962,
+            ],
+            [
+                'buffer' => 0,
+                'byteOffset' => 36,
+                'byteLength' => 6,
+                'target' => 34963,
+            ],
+        ];
+
+        if ($textureCopies > 0) {
+            $textureHeader = $textureMime === 'image/jpeg'
+                ? "\xFF\xD8\xFF\xC0"
+                    .pack('n', 17)
+                    ."\x08"
+                    .pack('n2', $textureHeight, $textureWidth)
+                    ."\x01\x01\x11\0\x02\x11\0\x03\x11\0"
+                : "\x89PNG\r\n\x1a\n"
+                    .pack('N', 13)
+                    .'IHDR'
+                    .pack('N2', $textureWidth, $textureHeight)
+                    .str_repeat("\0", 13);
+
+            for ($copy = 0; $copy < $textureCopies; $copy++) {
+                $bufferViewIndex = count($bufferViews);
+                $bufferViews[] = [
+                    'buffer' => 0,
+                    'byteOffset' => strlen($binary),
+                    'byteLength' => strlen($textureHeader),
+                ];
+                $images[] = [
+                    'bufferView' => $bufferViewIndex,
+                    'mimeType' => $textureMime,
+                ];
+                $binary .= $textureHeader;
+            }
+        }
+
+        $binary .= str_repeat("\0", $filePaddingBytes);
+        $document = [
+            'asset' => ['version' => '2.0'],
+            'scene' => 0,
+            'scenes' => [['nodes' => [0]]],
+            'nodes' => [['mesh' => 0]],
+            'meshes' => [[
+                'primitives' => [[
+                    'attributes' => ['POSITION' => 0],
+                    'indices' => 1,
+                ]],
+            ]],
+            'accessors' => [
+                [
+                    'bufferView' => 0,
+                    'componentType' => 5126,
+                    'count' => $positionCount,
+                    'type' => 'VEC3',
+                    'min' => [0, 0, 0],
+                    'max' => [1, 1, 0.1],
+                ],
+                [
+                    'bufferView' => 1,
+                    'componentType' => 5123,
+                    'count' => $positionCount,
+                    'type' => 'SCALAR',
+                ],
+            ],
+            'bufferViews' => $bufferViews,
+            'buffers' => [['byteLength' => strlen($binary)]],
+        ];
+        if ($images !== []) {
+            $document['images'] = $images;
+        }
+
+        return $this->validGlb($document, $binary);
     }
 }

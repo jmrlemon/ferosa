@@ -1091,6 +1091,22 @@ private fun ArScreen(
                         Config.DepthMode.DISABLED
                     }
                     configuredSceneView?.cameraStream?.isDepthOcclusionEnabled = depthSupported
+
+                    // SceneView can apply this callback while its constructor is still running,
+                    // before onSessionConfigChanged is assigned below. Log from the constructor
+                    // callback as well so the first live session configuration is never invisible
+                    // to the physical-device verification script.
+                    if (BuildConfig.DEBUG) {
+                        Log.d(
+                            "FerosaAR",
+                            formatArSessionConfigLog(
+                                planeFindingMode = config.planeFindingMode.toString(),
+                                lightEstimationMode = config.lightEstimationMode.toString(),
+                                depthMode = config.depthMode.toString(),
+                                depthOcclusionEnabled = depthSupported,
+                            ),
+                        )
+                    }
                 }
                 val newSceneView = activity?.let {
                     ARSceneView(

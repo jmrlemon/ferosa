@@ -67,13 +67,13 @@ The IPv4 address used by the phone must match the host portion of `FEROSA_SERVER
    the step-3 `FerosaAR` line as evidence; `heightMeters=0.57`, `scale=...`, and `position=...` are
    the fields that explain the result.
 
-5. **Place five models in one session.** Reset the scene, then place five products/models without
-   restarting the Activity. If only the temporary product is available, repeat it five times after
-   resetting between placements only when the app permits the same selection; otherwise use five
-   AR-enabled catalog products. Each successful placement must add one `FerosaAR: Placed product=`
-   line with `renderables>0`. There must be five lines, no renderer crash, and no later placement
-   silently disappearing. This step is mandatory: one successful placement does not prove that the
-   SceneView model-loader scope survived its first load.
+5. **Place five different models in one session.** Reset the scene, then place five distinct
+   AR-enabled products/models without restarting the Activity. Do not count reusing one product as
+   the five-model checkpoint; if fewer than five distinct models are available, provision temporary
+   test products with validated models before signing this gate off. Each successful placement must
+   add one `FerosaAR: Placed product=` line with `renderables>0`. There must be five lines, no
+   renderer crash, and no later placement silently disappearing. This step is mandatory: one
+   successful placement does not prove that the SceneView model-loader scope survived its first load.
 
 6. **Verify the requested session configuration.** On the first session creation and after returning
    from the background, capture the `FerosaAR` line containing:

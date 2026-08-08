@@ -93,6 +93,7 @@ import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
 import kotlinx.coroutines.*
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 // ─── Screenshot helper ─────────────────────────────────────────────────────────
@@ -833,6 +834,12 @@ private fun ArScreen(
         }
 
         val anchor = hit.createAnchor()
+        val anchorDetached = AtomicBoolean(false)
+        fun detachPlacementAnchor() {
+            if (anchorDetached.compareAndSet(false, true)) {
+                anchor.detach()
+            }
+        }
         val placementGeneration = sceneGeneration.get()
         placementNotice = null
         viewModel.clearError()
@@ -850,7 +857,7 @@ private fun ArScreen(
 
                 withContext(Dispatchers.Main) {
                     if (!isSceneCurrent(sv, placementGeneration)) {
-                        anchor.detach()
+                        detachPlacementAnchor()
                         return@withContext
                     }
 
@@ -858,7 +865,7 @@ private fun ArScreen(
                     try {
                         val instance = sv.modelLoader.createModelInstance(modelBuffer)
                         if (!isSceneCurrent(sv, placementGeneration)) {
-                            anchor.detach()
+                            detachPlacementAnchor()
                             return@withContext
                         }
 
@@ -908,10 +915,10 @@ private fun ArScreen(
                         } else {
                             // The limit may have been reached while the model loaded. A rejected
                             // node must never become visible or untracked.
-                            anchor.detach()
+                            detachPlacementAnchor()
                         }
                     } catch (exception: Exception) {
-                        anchor.detach()
+                        detachPlacementAnchor()
                         placementStage = ModelPlacementStage.Idle
                         viewModel.setModelLoadError(customerReadableModelError(exception))
                         if (BuildConfig.DEBUG) {
@@ -924,11 +931,11 @@ private fun ArScreen(
                     }
                 }
             } catch (e: CancellationException) {
-                anchor.detach()
+                detachPlacementAnchor()
                 throw e
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    anchor.detach()
+                    detachPlacementAnchor()
                     if (isSceneCurrent(sv, placementGeneration)) {
                         placementStage = ModelPlacementStage.Idle
                         viewModel.setModelLoadError(customerReadableModelError(e))
@@ -944,8 +951,13 @@ private fun ArScreen(
             }
         }
         pendingModelLoads += modelLoadJob
-        modelLoadJob.invokeOnCompletion {
+        modelLoadJob.invokeOnCompletion { cause ->
             pendingModelLoads -= modelLoadJob
+            // Cancellation can win before the coroutine body starts, so keep a main-thread cleanup
+            // guard for the anchor created before the job was launched.
+            if (cause != null && anchorDetached.compareAndSet(false, true)) {
+                Handler(Looper.getMainLooper()).post { anchor.detach() }
+            }
         }
     }
 

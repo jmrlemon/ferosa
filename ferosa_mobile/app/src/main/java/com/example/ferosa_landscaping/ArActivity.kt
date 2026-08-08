@@ -74,6 +74,7 @@ import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
+import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.readCachedModelBuffer
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
@@ -83,6 +84,7 @@ import com.example.ferosa_landscaping.util.ArCompatibilityChecker
 import com.example.ferosa_landscaping.util.ConnectivityMonitor
 import com.google.ar.core.Config
 import com.google.ar.core.Plane
+import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
@@ -1064,31 +1066,55 @@ private fun ArScreen(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory  = { ctx ->
-                (activity?.let {
-                    ARSceneView(ctx, null, 0, 0, it, lifecycleOwner.lifecycle)
-                } ?: ARSceneView(ctx).apply {
-                    lifecycle = lifecycleOwner.lifecycle
-                }).also { sv ->
+                var configuredSceneView: ARSceneView? = null
+                var depthSupported = false
+                val sessionConfiguration: (Session, Config) -> Unit = { session, config ->
+                    config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
+                    config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
+
+                    depthSupported = session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
+                    config.depthMode = if (depthSupported) {
+                        Config.DepthMode.AUTOMATIC
+                    } else {
+                        Config.DepthMode.DISABLED
+                    }
+                    configuredSceneView?.cameraStream?.isDepthOcclusionEnabled = depthSupported
+                }
+                val newSceneView = activity?.let {
+                    ARSceneView(
+                        context = ctx,
+                        sharedActivity = it,
+                        sessionConfiguration = sessionConfiguration,
+                    )
+                } ?: ARSceneView(
+                    context = ctx,
+                    sessionConfiguration = sessionConfiguration,
+                )
+                configuredSceneView = newSceneView
+                newSceneView.cameraStream?.isDepthOcclusionEnabled = depthSupported
+
+                newSceneView.also { sv ->
                     sceneViewRef.value = sv
                     onSceneViewReady(sv)
-                    sv.sessionConfiguration = { session, config ->
-                        config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
-                        config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
-
-                        val supportsDepth =
-                            session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
-                        config.depthMode = if (supportsDepth) {
-                            Config.DepthMode.AUTOMATIC
-                        } else {
-                            Config.DepthMode.DISABLED
-                        }
-                        sv.cameraStream?.isDepthOcclusionEnabled = supportsDepth
-                    }
                     sv.planeRenderer.isEnabled = true
                     sv.planeRenderer.isVisible = true
                     sv.planeRenderer.isShadowReceiver = true
                     var lastDragAnchorUpdateAt = 0L
                     var lastSurfaceProbeAt = 0L
+                    sv.onSessionConfigChanged = { _, config ->
+                        if (BuildConfig.DEBUG) {
+                            Log.d(
+                                "FerosaAR",
+                                formatArSessionConfigLog(
+                                    planeFindingMode = config.planeFindingMode.toString(),
+                                    lightEstimationMode = config.lightEstimationMode.toString(),
+                                    depthMode = config.depthMode.toString(),
+                                    depthOcclusionEnabled =
+                                        sv.cameraStream?.isDepthOcclusionEnabled == true,
+                                ),
+                            )
+                        }
+                    }
                     sv.onSessionCreated = {
                         arSessionMessage = "Starting camera..."
                         isPlacementSurfaceReady = false
@@ -1311,6 +1337,9 @@ private fun ArScreen(
                         gestureDetector.onTouchEvent(event)
                         true
                     }
+                    // Install callbacks before attaching an already-resumed lifecycle: ARSceneView
+                    // may create and configure its session synchronously when the observer is added.
+                    sv.lifecycle = lifecycleOwner.lifecycle
                 }
             }
         )

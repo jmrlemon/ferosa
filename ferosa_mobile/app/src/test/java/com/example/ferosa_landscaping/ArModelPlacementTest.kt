@@ -3,6 +3,7 @@ package com.example.ferosa_landscaping
 import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
+import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.readCachedModelBuffer
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
@@ -44,6 +45,20 @@ class ArModelPlacementTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun session_config_log_includes_the_live_requested_modes() {
+        assertEquals(
+            "Session config applied planeFindingMode=HORIZONTAL " +
+                "lightEstimationMode=ENVIRONMENTAL_HDR depthMode=AUTOMATIC depthOcclusion=true",
+            formatArSessionConfigLog(
+                planeFindingMode = "HORIZONTAL",
+                lightEstimationMode = "ENVIRONMENTAL_HDR",
+                depthMode = "AUTOMATIC",
+                depthOcclusionEnabled = true,
+            ),
+        )
     }
 
     @Test

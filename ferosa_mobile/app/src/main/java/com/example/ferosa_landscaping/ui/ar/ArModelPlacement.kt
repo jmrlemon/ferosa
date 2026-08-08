@@ -127,3 +127,13 @@ fun readCachedModelBuffer(file: File): ByteBuffer {
     }
     return ByteBuffer.wrap(file.readBytes())
 }
+
+fun formatArSessionConfigLog(
+    planeFindingMode: String,
+    lightEstimationMode: String,
+    depthMode: String,
+    depthOcclusionEnabled: Boolean,
+): String =
+    "Session config applied planeFindingMode=$planeFindingMode " +
+        "lightEstimationMode=$lightEstimationMode depthMode=$depthMode " +
+        "depthOcclusion=$depthOcclusionEnabled"

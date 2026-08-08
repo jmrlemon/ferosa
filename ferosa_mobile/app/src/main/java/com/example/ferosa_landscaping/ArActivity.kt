@@ -75,7 +75,7 @@ import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
-import com.example.ferosa_landscaping.ui.ar.readCachedModelBuffer
+import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
@@ -845,7 +845,7 @@ private fun ArScreen(
                 val modelResult = modelRepository.getModel(product.id)
                 val modelBuffer = withContext(Dispatchers.IO) {
                     validateGlbFile(modelResult.file)
-                    readCachedModelBuffer(modelResult.file)
+                    resolveCachedModelLoaderInput(modelResult.file)
                 }
 
                 withContext(Dispatchers.Main) {

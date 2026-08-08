@@ -4,7 +4,7 @@ import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
-import com.example.ferosa_landscaping.ui.ar.readCachedModelBuffer
+import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import org.junit.Assert.assertArrayEquals
@@ -32,13 +32,13 @@ class ArModelPlacementTest {
     }
 
     @Test
-    fun cached_model_file_is_read_as_a_byte_buffer() {
+    fun cache_loader_input_is_a_byte_buffer_not_a_bare_path() {
         val file = Files.createTempFile("ferosa-model-buffer", ".glb").toFile()
         val expected = byteArrayOf(0x67, 0x6c, 0x54, 0x46, 0x02, 0x00)
         try {
             file.writeBytes(expected)
 
-            val buffer = readCachedModelBuffer(file)
+            val buffer = resolveCachedModelLoaderInput(file)
             val actual = ByteArray(buffer.remaining()).also(buffer::get)
 
             assertArrayEquals(expected, actual)

@@ -121,7 +121,7 @@ fun validateGlbFile(file: File) {
  * SceneView's string loader treats a bare absolute path as an APK asset name. Keeping this file
  * read in a renderer-independent helper makes the cache-to-loader boundary explicit and testable.
  */
-fun readCachedModelBuffer(file: File): ByteBuffer {
+fun resolveCachedModelLoaderInput(file: File): ByteBuffer {
     require(file.isFile) {
         "The downloaded 3D model is missing."
     }

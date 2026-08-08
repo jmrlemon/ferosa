@@ -104,6 +104,14 @@
       text-align: center;
       box-shadow: 0 1px 2px rgba(18,52,38,0.03), 0 10px 30px rgba(18,52,38,0.045);
     }
+    /* A width-constrained paragraph needs auto margins to sit in the middle of
+       the card. Without them the block hugs the left edge and its centred text
+       lands left of everything else, which reads as broken alignment rather
+       than as a narrow column. */
+    .customer-empty p {
+      margin-left: auto;
+      margin-right: auto;
+    }
     .customer-empty-icon {
       width: 3.5rem;
       height: 3.5rem;
@@ -475,6 +483,7 @@
       }
     });
   </script>
+  @include('partials.type-scale')
 </head>
 @php
   // The Android WebView appends "FerosaApp" to its User-Agent, so the in-app

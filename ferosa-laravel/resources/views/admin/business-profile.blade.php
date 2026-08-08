@@ -6,9 +6,9 @@
 @section('header-eyebrow', 'Customer confidence')
 @section('header-title', 'Business Profile')
 
-@section('header-actions')
-  <a href="{{ route('admin.dashboard', ['tab' => 'overview']) }}" class="rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600">Dashboard</a>
-@endsection
+{{-- No page-specific header actions: the layout renders the shared
+     messages / notifications / account cluster. The sidebar already links
+     back to the dashboard. --}}
 
 @section('content')
     @if(session('success'))<div class="mb-5 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-800">{{ session('success') }}</div>@endif

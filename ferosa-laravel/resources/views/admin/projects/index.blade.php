@@ -6,10 +6,10 @@
 @section('header-eyebrow', 'Trust content')
 @section('header-title', 'Project Portfolio')
 
-@section('header-actions')
-  <a href="{{ route('projects.index') }}" class="hidden rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600 sm:inline-flex">View public portfolio</a>
-  <a href="{{ route('admin.projects.create') }}" class="inline-flex rounded-lg bg-brand-700 px-3 py-2 text-xs font-bold text-white">Add project</a>
-@endsection
+{{-- No page-specific header actions: the layout renders the shared
+     messages / notifications / account cluster. "Add a project" and "View
+     public portfolio" live in the hero section below, where there is room to
+     label them properly. --}}
 
 @section('content')
     @if(session('success'))
@@ -19,7 +19,10 @@
     <section class="mb-6 overflow-hidden rounded-[1.5rem] bg-brand-950 px-6 py-7 text-white shadow-lg sm:px-8">
       <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p class="text-[10px] font-bold uppercase tracking-[.16em] text-brand-200">Trust content</p><h2 class="mt-2 text-3xl text-white">Publish work customers can believe.</h2><p class="mt-2 max-w-2xl text-sm leading-6 text-brand-100/70">Use only genuine project details, real photos, and feedback you have permission to share. Drafts stay private until you publish them.</p></div>
-        <a href="{{ route('admin.projects.create') }}" class="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-brand-950">Add a project</a>
+        <div class="flex flex-shrink-0 flex-wrap items-center gap-2.5">
+          <a href="{{ route('projects.index') }}" class="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10">View public portfolio</a>
+          <a href="{{ route('admin.projects.create') }}" class="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-brand-950">Add a project</a>
+        </div>
       </div>
     </section>
 
@@ -58,7 +61,10 @@
               <div class="mt-5 flex items-center gap-2 border-t border-surface-100 pt-4">
                 <a href="{{ route('admin.projects.edit', $project) }}" class="flex-1 rounded-lg bg-brand-700 px-3 py-2 text-center text-xs font-bold text-white">Edit project</a>
                 @if($project->is_published)<a href="{{ route('projects.show', $project) }}" class="rounded-lg border border-surface-200 px-3 py-2 text-xs font-bold text-surface-600">Preview</a>@endif
-                <form method="POST" action="{{ route('admin.projects.destroy', $project) }}" onsubmit="return confirm('Remove this project permanently?')">@csrf @method('DELETE')<button class="rounded-lg border border-red-100 px-3 py-2 text-xs font-bold text-red-600">Remove</button></form>
+                <form method="POST" action="{{ route('admin.projects.destroy', $project) }}"
+                      data-confirm-title="Delete this project permanently?"
+                      data-confirm="&ldquo;{{ $project->title }}&rdquo; will be deleted for good. This cannot be undone."
+                      data-confirm-action="Delete permanently">@csrf @method('DELETE')<button class="rounded-lg border border-red-100 px-3 py-2 text-xs font-bold text-red-600">Remove</button></form>
               </div>
             </div>
           </article>

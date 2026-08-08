@@ -32,7 +32,7 @@
     <section class="customer-empty mt-8">
       <div class="customer-empty-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6"/></svg></div>
       <h2 class="text-base font-bold text-surface-900">Verified case studies are being prepared</h2>
-      <p class="mt-2 max-w-lg text-sm leading-6 text-surface-500">Ferosa has not published a matching project yet. Ask the team for examples related to your space or start with a consultation.</p>
+      <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-surface-500">Ferosa has not published a matching project yet. Ask the team for examples related to your space or start with a consultation.</p>
       <div class="mt-5 flex flex-wrap justify-center gap-3">
         <a href="{{ route('messages') }}" class="btn btn-secondary btn-sm">Ask the team</a>
         <a href="{{ route('schedule') }}" class="btn btn-primary btn-sm">Book a visit</a>

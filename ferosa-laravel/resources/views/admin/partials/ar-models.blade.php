@@ -76,7 +76,11 @@
     </form>
 
     @if($product->plantModel)
-      <form method="POST" action="{{ route('admin.ar-models.delete', $product) }}" onsubmit="return confirm('Remove the AR model from this product? This will disable AR for this product.');" class="border-t border-surface-100 pt-4">
+      <form method="POST" action="{{ route('admin.ar-models.delete', $product) }}"
+            data-confirm-title="Remove the AR model?"
+            data-confirm="Customers will no longer be able to view {{ $product->name }} in AR. You can upload a new model afterwards."
+            data-confirm-action="Remove model"
+            class="border-t border-surface-100 pt-4">
         @csrf
         @method('DELETE')
         <button type="submit" data-saving-label="Removing..." class="text-sm font-medium text-red-600 transition-colors hover:text-red-700">Remove AR Model</button>

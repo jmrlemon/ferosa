@@ -137,5 +137,6 @@
       </aside>
     </div>
   </main>
+  @include('partials.confirm-dialog')
 </body>
 </html>

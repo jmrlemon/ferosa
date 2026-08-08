@@ -11,14 +11,42 @@ class AppSetting extends Model
         'value',
     ];
 
+    /**
+     * Values already read during this request, keyed by setting name.
+     *
+     * Settings are read from layouts and partials that render many times per
+     * page — getBusinessProfile() alone is nine reads — which put 12-21
+     * identical queries on every admin page. They change rarely enough that one
+     * read per request is plenty.
+     *
+     * @var array<string, string|null>
+     */
+    private static array $memo = [];
+
     public static function getValue(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        if (! array_key_exists($key, static::$memo)) {
+            static::$memo[$key] = static::query()->where('key', $key)->value('value');
+        }
+
+        return static::$memo[$key] ?? $default;
     }
 
     public static function setValue(string $key, ?string $value): void
     {
         static::query()->updateOrCreate(['key' => $key], ['value' => $value]);
+
+        unset(static::$memo[$key]);
+    }
+
+    /**
+     * Drop everything memoised. Long-running processes (queue workers, Octane)
+     * and tests share one PHP process across many requests, so they need a way
+     * to stop serving another request's values.
+     */
+    public static function flushMemo(): void
+    {
+        static::$memo = [];
     }
 
     public static function getGcashSettings(): array

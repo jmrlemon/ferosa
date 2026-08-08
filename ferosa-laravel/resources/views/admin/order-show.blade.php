@@ -78,7 +78,10 @@
             </form>
           @endif
           @if(! in_array($order->status, ['cancelled', 'completed'], true))
-            <form method="POST" action="{{ route('admin.orders.status', $order) }}" onsubmit="return confirm('Cancel this order?');">
+            <form method="POST" action="{{ route('admin.orders.status', $order) }}"
+                  data-confirm-title="Cancel this order?"
+                  data-confirm="Order {{ $order->order_number }} will be cancelled and any reserved stock returned. The customer is notified."
+                  data-confirm-action="Cancel order">
               @csrf @method('PUT')
               <input type="hidden" name="redirect_to" value="show">
               <input type="hidden" name="status" value="cancelled">
@@ -281,5 +284,6 @@
       </aside>
     </div>
   </main>
+  @include('partials.confirm-dialog')
 </body>
 </html>

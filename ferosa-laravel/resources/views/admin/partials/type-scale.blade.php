@@ -7,6 +7,7 @@
      below comfortable reading size. These rules lift the whole scale. Adjust the
      numbers here and every admin screen follows. --}}
 <style id="ferosa-admin-type-scale">
+  .text-\[8px\]  { font-size: 11px !important; }
   .text-\[9px\]  { font-size: 12px !important; }
   .text-\[10px\] { font-size: 13px !important; }
   .text-\[11px\] { font-size: 13.5px !important; }
@@ -35,6 +36,14 @@
      outgrow their container. */
   .h-7.w-7.text-\[10px\]        { font-size: 12px !important; }
   .min-w-\[18px\].text-\[10px\] { font-size: 11px !important; }
+
+  /* Header count badges (unread messages, unread notifications) were 8px - the
+     smallest text on the page was the number saying how much needs attention.
+     The circle has to grow with the digits or "9+" clips. */
+  .text-\[8px\].min-w-\[13px\] {
+    min-width: 17px !important;
+    height: 17px !important;
+  }
 
   /* Larger body text needs a little more vertical room in dense tables. */
   table td { padding-top: .85rem !important; padding-bottom: .85rem !important; }

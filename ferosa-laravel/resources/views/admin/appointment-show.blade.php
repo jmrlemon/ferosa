@@ -67,7 +67,10 @@
             </form>
           @endif
           @if(! in_array($appointment->status, ['cancelled', 'completed'], true))
-            <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}" onsubmit="return confirm('Cancel this booking?');">
+            <form method="POST" action="{{ route('admin.appointments.status', $appointment) }}"
+                  data-confirm-title="Cancel this booking?"
+                  data-confirm="{{ $appointment->user?->name ?? 'This customer' }}'s {{ $appointment->serviceType?->name ?? 'booking' }} on {{ $appointment->appointment_at?->format('M j, Y \a\t g:i A') }} will be cancelled. The customer is notified."
+                  data-confirm-action="Cancel booking">
               @csrf @method('PUT')
               <input type="hidden" name="redirect_to" value="show">
               <input type="hidden" name="status" value="cancelled">
@@ -188,5 +191,6 @@
       </aside>
     </div>
   </main>
+  @include('partials.confirm-dialog')
 </body>
 </html>

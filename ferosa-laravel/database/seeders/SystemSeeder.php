@@ -115,8 +115,9 @@ class SystemSeeder extends Seeder
             );
         }
 
-        // Demo orders (idempotent)
-        $productSoil = Product::where('name', 'Organic/Loam Soil')->first();
+        // Demo orders (idempotent). Names must match the product list seeded
+        // above, otherwise the whole block below is silently skipped.
+        $productSoil = Product::where('name', 'Garden Soil')->first();
         $productGravel = Product::where('name', 'Gravel')->first();
 
         if ($productSoil && $productGravel) {

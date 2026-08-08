@@ -9,7 +9,7 @@
 
   <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
 
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin/notifications.js'])
   @include('admin.partials.premium-theme')
   <style>
     :focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
@@ -110,8 +110,11 @@
           <h1 class="truncate text-sm font-bold text-surface-800">@yield('header-title', 'Ferosa workspace')</h1>
         </div>
       </div>
-      <div class="flex flex-shrink-0 items-center gap-2">
+      {{-- Same cluster on every admin screen. Pages add their own actions via
+           the `header-actions` section; they no longer replace the header. --}}
+      <div class="flex flex-shrink-0 items-center justify-end gap-1.5">
         @yield('header-actions')
+        @include('admin.partials.workspace-header-actions')
       </div>
     </header>
 
@@ -121,5 +124,6 @@
       </main>
     </div>
   </div>
+  @include('partials.confirm-dialog')
 </body>
 </html>

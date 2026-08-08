@@ -59,6 +59,11 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+
+            // Used by `php artisan db:backup`. Leave unset to auto-detect the
+            // mysqldump that ships beside this PHP install (XAMPP), or on PATH.
+            'dump_binary' => env('MYSQLDUMP_PATH'),
+
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

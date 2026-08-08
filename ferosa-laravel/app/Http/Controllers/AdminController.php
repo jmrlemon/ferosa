@@ -532,7 +532,7 @@ class AdminController extends Controller
             [
                 'name' => 'Billing',
                 'status' => ! empty($gcashSettings['name']) || ! empty($gcashSettings['number']) ? 'Configured' : 'Needs Setup',
-                'metric' => Order::query()->whereNull('archived_at')->whereIn('payment_status', ['unpaid', 'pending_verification', 'rejected'])->count().' need attention',
+                'metric' => $orderFlowStats['unpaid'].' need attention',
                 'description' => 'Payment status, receipts, and GCash checkout details.',
                 'tab' => $isAdmin ? 'payment' : null,
                 'tone' => 'amber',

@@ -7,7 +7,12 @@ const devHost = process.env.FEROSA_DEV_HOST;
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                'resources/js/admin/dashboard.js',
+                'resources/js/admin/notifications.js',
+            ],
             refresh: true,
         }),
         tailwindcss(),

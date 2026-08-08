@@ -3,8 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "dev": "vite"
+        "build": "npm run lint:blade-js && vite build",
+        "dev": "vite",
+        "lint:blade-js": "node scripts/check-blade-js.mjs"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

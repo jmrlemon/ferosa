@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\AppSetting;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Order;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -13,6 +16,38 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // A worker keeps one PHP process alive across many jobs, so settings
+        // memoised while handling one job would otherwise leak into the next.
+        Queue::before(fn () => AppSetting::flushMemo());
+
+        // The admin header cluster renders on pages served by several different
+        // controllers, so its unread counts come from here rather than from
+        // whichever controller happens to own the page.
+        View::composer('admin.partials.workspace-header-actions', function ($view) {
+            $user = auth()->user();
+
+            if (! $user?->isStaffOrAdmin()) {
+                $view->with(['totalUnreadMessages' => 0, 'adminUnreadNotifications' => 0]);
+
+                return;
+            }
+
+            if (! app()->has('_adminHeaderCounts')) {
+                app()->instance('_adminHeaderCounts', [
+                    // Mirrors AdminController::dashboard() so the badge does not
+                    // change value as you move between admin screens.
+                    'totalUnreadMessages' => Message::query()
+                        ->whereNull('read_at')
+                        ->where('sender_id', '!=', $user->id)
+                        ->whereHas('conversation.customer', fn ($q) => $q->where('role', 'user'))
+                        ->count(),
+                    'adminUnreadNotifications' => $user->unreadNotifications()->count(),
+                ]);
+            }
+
+            $view->with(app('_adminHeaderCounts'));
+        });
+
         $layouts = ['layouts.customer', 'partials.mobile-bottom-customer'];
 
         // Unread message count

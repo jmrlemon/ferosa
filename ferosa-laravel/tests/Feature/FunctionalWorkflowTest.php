@@ -155,6 +155,48 @@ class FunctionalWorkflowTest extends TestCase
         $this->assertSame([], Storage::disk('public')->allFiles('ar-models'));
     }
 
+    public function test_required_extensions_are_allowlisted_without_rejecting_optional_extensions(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create(['role' => 'admin']);
+        $product = $this->product(stock: 5);
+
+        $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+            'ar_model' => UploadedFile::fake()->createWithContent(
+                'webp-required.glb',
+                $this->validGlbWithOverrides(['extensionsRequired' => ['EXT_texture_webp']])
+            ),
+            'height_cm' => 120,
+        ])->assertSessionHasErrors('ar_model')
+            ->assertSessionHas('errors', function ($errors): bool {
+                return str_contains($errors->first('ar_model'), 'EXT_texture_webp');
+            });
+
+        $meshoptResponse = $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+            'ar_model' => UploadedFile::fake()->createWithContent(
+                'meshopt-required.glb',
+                $this->validGlbWithOverrides(['extensionsRequired' => ['EXT_meshopt_compression']])
+            ),
+            'height_cm' => 120,
+        ])->assertSessionHasNoErrors();
+
+        $meshoptResponse->assertSessionHas('ar_model_warnings', function (array $warnings): bool {
+            return collect($warnings)->contains(
+                fn (string $warning): bool => str_contains($warning, 'EXT_meshopt_compression')
+            );
+        });
+
+        $this->actingAs($admin)->post(route('admin.ar-models.upload', $product), [
+            'ar_model' => UploadedFile::fake()->createWithContent(
+                'emissive-used.glb',
+                $this->validGlbWithOverrides(['extensionsUsed' => ['KHR_materials_emissive_strength']])
+            ),
+            'height_cm' => 120,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('emissive-used.glb', $product->fresh()->plantModel->file_name);
+    }
+
     public function test_glbs_without_reachable_geometry_or_measurable_height_are_rejected(): void
     {
         Storage::fake('public');
@@ -539,5 +581,66 @@ class FunctionalWorkflowTest extends TestCase
             .pack('V', strlen($binaryChunk))
             .pack('V', 0x004E4942)
             .$binaryChunk;
+    }
+
+    /**
+     * Build a valid fixture and override only the JSON members under test.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    private function validGlbWithOverrides(array $overrides): string
+    {
+        $binary = pack(
+            'g*',
+            0.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.1,
+        ).pack('v*', 0, 1, 2);
+
+        $document = [
+            'asset' => ['version' => '2.0'],
+            'scene' => 0,
+            'scenes' => [['nodes' => [0]]],
+            'nodes' => [['mesh' => 0]],
+            'meshes' => [[
+                'primitives' => [[
+                    'attributes' => ['POSITION' => 0],
+                    'indices' => 1,
+                ]],
+            ]],
+            'accessors' => [
+                [
+                    'bufferView' => 0,
+                    'componentType' => 5126,
+                    'count' => 3,
+                    'type' => 'VEC3',
+                    'min' => [0, 0, 0],
+                    'max' => [1, 1, 0.1],
+                ],
+                [
+                    'bufferView' => 1,
+                    'componentType' => 5123,
+                    'count' => 3,
+                    'type' => 'SCALAR',
+                ],
+            ],
+            'bufferViews' => [
+                [
+                    'buffer' => 0,
+                    'byteOffset' => 0,
+                    'byteLength' => 36,
+                    'target' => 34962,
+                ],
+                [
+                    'buffer' => 0,
+                    'byteOffset' => 36,
+                    'byteLength' => 6,
+                    'target' => 34963,
+                ],
+            ],
+            'buffers' => [['byteLength' => strlen($binary)]],
+        ];
+
+        return $this->validGlb(array_replace($document, $overrides), $binary);
     }
 }

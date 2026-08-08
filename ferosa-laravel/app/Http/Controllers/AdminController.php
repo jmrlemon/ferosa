@@ -46,6 +46,29 @@ class AdminController extends Controller
 
     private const AR_MODEL_MIN_HEIGHT_UNITS = 0.000001;
 
+    /** @var list<string> */
+    private const AR_SUPPORTED_REQUIRED_EXTENSIONS = [
+        'KHR_draco_mesh_compression',
+        'EXT_meshopt_compression',
+        'EXT_mesh_gpu_instancing',
+        'KHR_lights_punctual',
+        'KHR_materials_clearcoat',
+        'KHR_materials_emissive_strength',
+        'KHR_materials_ior',
+        'KHR_materials_iridescence',
+        'KHR_materials_pbrSpecularGlossiness',
+        'KHR_materials_sheen',
+        'KHR_materials_specular',
+        'KHR_materials_transmission',
+        'KHR_materials_unlit',
+        'KHR_materials_variants',
+        'KHR_materials_volume',
+        'KHR_texture_basisu',
+        'KHR_texture_transform',
+    ];
+
+    private const AR_MESHOPT_EXTENSION = 'EXT_meshopt_compression';
+
     public function archiveOrder(Request $request, Order $order): RedirectResponse
     {
         $before = Audit::snapshot($order, ['status', 'total_amount', 'archived_at']);
@@ -1766,6 +1789,7 @@ class AdminController extends Controller
         }
 
         $data = $request->validate($rules);
+        $validationWarnings = [];
 
         // Validate file extension if a file is uploaded
         if ($request->hasFile('ar_model')) {
@@ -1778,7 +1802,7 @@ class AdminController extends Controller
                     ->withInput();
             }
 
-            if ($validationError = $this->validateGlb($file)) {
+            if ($validationError = $this->validateGlb($file, $validationWarnings)) {
                 return redirect()->route('admin.products.edit', $product)
                     ->withErrors(['ar_model' => $validationError])
                     ->withInput();
@@ -1823,8 +1847,14 @@ class AdminController extends Controller
             }
         }
 
-        return redirect()->route('admin.products.edit', $product)
+        $redirect = redirect()->route('admin.products.edit', $product)
             ->with('status', "AR model for \"{$product->name}\" updated successfully.");
+
+        if ($validationWarnings !== []) {
+            $redirect->with('ar_model_warnings', $validationWarnings);
+        }
+
+        return $redirect;
     }
 
     /**
@@ -1848,9 +1878,12 @@ class AdminController extends Controller
 
     /**
      * Validate the GLB container before it can replace a working product model.
+     *
+     * @param  list<string>  $warnings
      */
-    private function validateGlb(UploadedFile $file): ?string
+    private function validateGlb(UploadedFile $file, array &$warnings = []): ?string
     {
+        $warnings = [];
         $path = $file->getRealPath();
         $actualLength = $file->getSize();
 
@@ -1964,7 +1997,7 @@ class AdminController extends Controller
                 return 'The GLB must include its binary model data in a BIN chunk.';
             }
 
-            if ($resourceError = $this->validateGlbResources($jsonDocument, $binChunkLength)) {
+            if ($resourceError = $this->validateGlbResources($jsonDocument, $binChunkLength, $warnings)) {
                 return $resourceError;
             }
 
@@ -2016,12 +2049,32 @@ class AdminController extends Controller
 
     /**
      * @param  array<string, mixed>  $document
+     * @param  list<string>  $warnings
      */
-    private function validateGlbResources(array $document, int $binChunkLength): ?string
+    private function validateGlbResources(array $document, int $binChunkLength, array &$warnings = []): ?string
     {
         $assetVersion = data_get($document, 'asset.version');
         if (! is_string($assetVersion) || ! str_starts_with($assetVersion, '2.')) {
             return 'The GLB model JSON must declare glTF asset version 2.x.';
+        }
+
+        $extensionsRequired = $document['extensionsRequired'] ?? [];
+        if (! is_array($extensionsRequired)) {
+            return 'The GLB extensionsRequired list is invalid.';
+        }
+
+        foreach ($extensionsRequired as $extension) {
+            if (! is_string($extension) || trim($extension) === '') {
+                return 'The GLB extensionsRequired list contains an invalid extension name.';
+            }
+
+            if (! in_array($extension, self::AR_SUPPORTED_REQUIRED_EXTENSIONS, true)) {
+                return "The GLB requires unsupported extension \"{$extension}\". Remove it or export the model without requiring it.";
+            }
+
+            if ($extension === self::AR_MESHOPT_EXTENSION) {
+                $warnings[] = 'The GLB requires EXT_meshopt_compression. Verify this asset on a physical ARCore phone before publishing it.';
+            }
         }
 
         foreach (['buffers', 'images'] as $resourceType) {

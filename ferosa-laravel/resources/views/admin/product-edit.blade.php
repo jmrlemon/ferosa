@@ -30,6 +30,17 @@
       </div>
     @endif
 
+    @if (session('ar_model_warnings'))
+      <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p class="font-semibold">AR model uploaded with review warnings.</p>
+        <ul class="mt-1 list-disc pl-5">
+          @foreach (session('ar_model_warnings') as $warning)
+            <li>{{ $warning }}</li>
+          @endforeach
+        </ul>
+      </div>
+    @endif
+
     @if ($errors->any())
       <div class="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
         <p class="font-semibold">Please check the form and try again.</p>

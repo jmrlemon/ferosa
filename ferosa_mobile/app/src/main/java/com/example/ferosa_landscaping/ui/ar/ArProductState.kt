@@ -19,6 +19,11 @@ data class ArProduct(
     val inStock: Boolean,
 )
 
+const val AR_EMPTY_CATALOG_TITLE = "No AR products available yet"
+
+fun shouldShowArEmptyState(products: List<ArProduct>, isLoading: Boolean): Boolean =
+    products.isEmpty() && !isLoading
+
 /**
  * Represents a 3D model placed in the AR scene.
  *

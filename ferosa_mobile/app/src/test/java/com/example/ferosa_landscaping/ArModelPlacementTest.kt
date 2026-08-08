@@ -1,15 +1,32 @@
 package com.example.ferosa_landscaping
 
+import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
+import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
+import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 
 class ArModelPlacementTest {
+
+    @Test
+    fun empty_catalog_title_explains_that_ar_products_are_not_ready_yet() {
+        assertEquals("No AR products available yet", AR_EMPTY_CATALOG_TITLE)
+    }
+
+    @Test
+    fun empty_catalog_state_only_shows_after_loading_finishes_without_products() {
+        assertTrue(shouldShowArEmptyState(emptyList(), isLoading = false))
+        assertFalse(shouldShowArEmptyState(emptyList(), isLoading = true))
+        assertFalse(shouldShowArEmptyState(listOf(sampleArProduct()), isLoading = false))
+    }
 
     @Test
     fun transform_uses_y_height_and_places_bottom_center_on_anchor() {
@@ -86,4 +103,16 @@ class ArModelPlacementTest {
             file.delete()
         }
     }
+
+    private fun sampleArProduct() = ArProduct(
+        id = 1,
+        name = "Test plant",
+        price = 10.0,
+        thumbnailUrl = "",
+        modelUrl = "https://example.test/model.glb",
+        heightCm = 50f,
+        category = "Plants",
+        description = "",
+        inStock = true,
+    )
 }

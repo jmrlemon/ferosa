@@ -70,9 +70,11 @@ import com.example.ferosa_landscaping.ui.ar.ArError
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.ArViewModel
 import com.example.ferosa_landscaping.ui.ar.PlacedModel
+import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
+import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
 import com.example.ferosa_landscaping.util.ArAvailability
@@ -1636,14 +1638,19 @@ private fun ArScreen(
         }
 
         AnimatedVisibility(
-            visible = arSessionMessage == null && !isLoading && products.isEmpty() && error == null,
+            visible = arSessionMessage == null &&
+                shouldShowArEmptyState(products, isLoading) &&
+                error == null,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(24.dp),
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            EmptyCatalogMessage(isOffline = isOffline)
+            EmptyCatalogMessage(
+                isOffline = isOffline,
+                onBack = onBackToWeb,
+            )
         }
 
         AnimatedVisibility(
@@ -1857,7 +1864,10 @@ private fun PlacementReticle(
 }
 
 @Composable
-private fun EmptyCatalogMessage(isOffline: Boolean) {
+private fun EmptyCatalogMessage(
+    isOffline: Boolean,
+    onBack: () -> Unit,
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -1865,7 +1875,7 @@ private fun EmptyCatalogMessage(isOffline: Boolean) {
             .padding(22.dp)
     ) {
         Text(
-            text = if (isOffline) "No cached AR models" else "No AR models available",
+            text = AR_EMPTY_CATALOG_TITLE,
             color = Color.White,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -1874,13 +1884,20 @@ private fun EmptyCatalogMessage(isOffline: Boolean) {
         Spacer(Modifier.height(6.dp))
         Text(
             text = if (isOffline) {
-                "Connect to the internet once to download 3D models."
+                "Connect to the internet once to download AR products."
             } else {
-                "Add 3D-enabled products in the admin catalog to use AR placement."
+                "AR products will appear here after the catalog has a 3D model."
             },
             color = Color(0xCCFFFFFF),
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center
         )
+        Spacer(Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = onBack,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+        ) {
+            Text("Back to App", fontWeight = FontWeight.SemiBold)
+        }
     }
 }

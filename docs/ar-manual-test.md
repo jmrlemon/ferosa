@@ -107,12 +107,15 @@ The IPv4 address used by the phone must match the host portion of `FEROSA_SERVER
     Confirm there is a `FerosaAR` model-load/download failure line or equivalent readable diagnostic,
     and no `AndroidRuntime:E` line. Restore network access and re-download the model before step 11.
 
-11. **Corrupt-GLB failure path.** In the local admin upload form, replace the temporary model with a
-    deliberately corrupt `.glb` fixture that passes the file extension check but cannot be loaded,
-    then open AR and tap a tracked plane. The anchor must be detached, the notice must tell the user
-    the 3D model could not be opened/prepared, and the Activity must remain usable. Confirm the
-    `FerosaAR` model-load failure line and the absence of `AndroidRuntime:E`. Restore the validated
-    lantern upload with `height_cm = 57` after the test.
+11. **Corrupt-GLB failure path.** Keep the validated lantern upload in the admin form; the server
+    validator must reject malformed uploads before they can reach a customer. After the valid model
+    is cached on the debug phone, use Android Studio Device File Explorer or `adb shell run-as
+    com.example.ferosa_landscaping` to replace that cached `.glb` with a truncated/invalid copy. Open
+    AR and tap a tracked plane. The anchor must be detached, the notice must tell the user the 3D
+    model could not be opened/prepared, and the Activity must remain usable. Confirm the `FerosaAR`
+    model-load failure line and the absence of `AndroidRuntime:E`; do not bypass the admin upload
+    validator or attach the corrupt file to a real catalog product. Restore the validated lantern
+    cache/upload with `height_cm = 57` after the test.
 
 12. **Record the result and clean up.** Save the date, device model/Android version, host IP, APK
     version, and the relevant `FerosaAR` lines. Leave the temporary product clearly named and active

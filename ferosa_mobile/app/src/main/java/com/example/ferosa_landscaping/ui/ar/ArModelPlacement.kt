@@ -114,3 +114,16 @@ fun validateGlbFile(file: File) {
         "The downloaded GLB file is incomplete."
     }
 }
+
+/**
+ * Reads a validated cache file into the buffer type accepted by Filament.
+ *
+ * SceneView's string loader treats a bare absolute path as an APK asset name. Keeping this file
+ * read in a renderer-independent helper makes the cache-to-loader boundary explicit and testable.
+ */
+fun readCachedModelBuffer(file: File): ByteBuffer {
+    require(file.isFile) {
+        "The downloaded 3D model is missing."
+    }
+    return ByteBuffer.wrap(file.readBytes())
+}

@@ -74,6 +74,7 @@ import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
+import com.example.ferosa_landscaping.ui.ar.readCachedModelBuffer
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
@@ -148,6 +149,18 @@ private enum class ModelPlacementStage(val progressMessage: String) {
     Idle(""),
     Downloading("Downloading 3D product..."),
     Preparing("Preparing real-size preview..."),
+}
+
+private fun customerReadableModelError(exception: Throwable): String {
+    val message = exception.message.orEmpty()
+    return when {
+        "no network" in message.lowercase() || "offline" in message.lowercase() ->
+            "This model is not available offline. Connect to the internet once, then try again."
+        "authentication" in message.lowercase() ->
+            "Your sign-in session expired. Sign in again, then try this item."
+        exception is IllegalArgumentException && message.isNotBlank() -> message
+        else -> "This 3D model could not be opened for AR. Try another item."
+    }
 }
 
 class ArActivity : ComponentActivity() {
@@ -703,7 +716,6 @@ private fun ArScreen(
     val pendingModelLoads = remember {
         Collections.synchronizedSet(mutableSetOf<Job>())
     }
-    val mainHandler = remember { Handler(Looper.getMainLooper()) }
     var arSessionMessage by remember { mutableStateOf<String?>("Starting camera...") }
     var hasArFrame by remember { mutableStateOf(false) }
 
@@ -824,17 +836,16 @@ private fun ArScreen(
         viewModel.clearError()
         placementStage = ModelPlacementStage.Downloading
 
-        // Download via ModelRepository (handles caching + retry with exponential backoff)
-        // then load the cached local file into SceneView
-        coroutineScope.launch {
+        // Download via ModelRepository (handles caching + retry with exponential backoff), read the
+        // cache off the main thread, then create Filament entities on the main thread.
+        val modelLoadJob = coroutineScope.launch {
             try {
                 val modelResult = modelRepository.getModel(product.id)
-                withContext(Dispatchers.IO) {
+                val modelBuffer = withContext(Dispatchers.IO) {
                     validateGlbFile(modelResult.file)
+                    readCachedModelBuffer(modelResult.file)
                 }
-                val localFilePath = modelResult.file.absolutePath
 
-                // Load the cached local file into SceneView
                 withContext(Dispatchers.Main) {
                     if (!isSceneCurrent(sv, placementGeneration)) {
                         anchor.detach()
@@ -842,97 +853,71 @@ private fun ArScreen(
                     }
 
                     placementStage = ModelPlacementStage.Preparing
-                    val loadJob = sv.modelLoader.loadModelInstanceAsync(
-                        fileLocation = localFilePath
-                    ) { instance ->
-                        // ModelLoader invokes this callback from its IO scope. Marshal
-                        // all Compose and renderer mutations to the main thread.
-                        mainHandler.post callback@{
-                            // Loading may finish after reset, exit, or Activity
-                            // recreation. Never touch a stale SceneView engine.
-                            if (!isSceneCurrent(sv, placementGeneration)) {
-                                anchor.detach()
-                                return@callback
-                            }
-
-                            placementStage = ModelPlacementStage.Idle
-                            try {
-                                requireNotNull(instance) {
-                                    "This 3D model could not be opened. Try another item."
-                                }
-
-                                val anchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
-                                val modelNode = ModelNode(modelInstance = instance)
-                                require(modelNode.renderableNodes.isNotEmpty()) {
-                                    "This 3D model does not contain visible geometry."
-                                }
-
-                                val transform = calculateGroundedModelTransform(
-                                    centerX = modelNode.center.x,
-                                    centerY = modelNode.center.y,
-                                    centerZ = modelNode.center.z,
-                                    halfExtentX = modelNode.halfExtent.x,
-                                    halfExtentY = modelNode.halfExtent.y,
-                                    halfExtentZ = modelNode.halfExtent.z,
-                                    desiredHeightMeters = product.heightCm / 100f,
-                                )
-                                modelNode.scale = Scale(
-                                    x = transform.uniformScale,
-                                    y = transform.uniformScale,
-                                    z = transform.uniformScale,
-                                )
-                                modelNode.position = Position(
-                                    x = transform.positionX,
-                                    y = transform.positionY,
-                                    z = transform.positionZ,
-                                )
-                                modelNode.isShadowCaster = true
-
-                                if (BuildConfig.DEBUG) {
-                                    Log.d(
-                                        "FerosaAR",
-                                        "Placed product=${product.id}, center=${modelNode.center}, " +
-                                            "halfExtent=${modelNode.halfExtent}, " +
-                                            "heightMeters=${product.heightCm / 100f}, " +
-                                            "scale=${transform.uniformScale}, " +
-                                            "position=${modelNode.position}, " +
-                                            "renderables=${modelNode.renderableNodes.size}"
-                                    )
-                                }
-
-                                anchorNode.addChildNode(modelNode)
-                                if (viewModel.placeModel(anchorNode, product)) {
-                                    sv.addChildNode(anchorNode)
-                                } else {
-                                    // The limit may have been reached while the model loaded.
-                                    // A rejected node must never become visible or untracked.
-                                    anchor.detach()
-                                }
-                            } catch (exception: Exception) {
-                                anchor.detach()
-                                viewModel.setModelLoadError(
-                                    exception.message
-                                        ?: "This 3D model could not be prepared for AR."
-                                )
-                            }
+                    try {
+                        val instance = sv.modelLoader.createModelInstance(modelBuffer)
+                        if (!isSceneCurrent(sv, placementGeneration)) {
+                            anchor.detach()
+                            return@withContext
                         }
-                    }
-                    pendingModelLoads += loadJob
-                    loadJob.invokeOnCompletion { cause ->
-                        pendingModelLoads -= loadJob
-                        if (cause != null) {
-                            mainHandler.post {
-                                anchor.detach()
-                                if (cause !is CancellationException &&
-                                    isSceneCurrent(sv, placementGeneration)
-                                ) {
-                                    placementStage = ModelPlacementStage.Idle
-                                    viewModel.setModelLoadError(
-                                        cause.message
-                                            ?: "This 3D model could not be loaded by the renderer."
-                                    )
-                                }
-                            }
+
+                        placementStage = ModelPlacementStage.Idle
+                        val anchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
+                        val modelNode = ModelNode(modelInstance = instance)
+                        require(modelNode.renderableNodes.isNotEmpty()) {
+                            "This 3D model does not contain visible geometry."
+                        }
+
+                        val transform = calculateGroundedModelTransform(
+                            centerX = modelNode.center.x,
+                            centerY = modelNode.center.y,
+                            centerZ = modelNode.center.z,
+                            halfExtentX = modelNode.halfExtent.x,
+                            halfExtentY = modelNode.halfExtent.y,
+                            halfExtentZ = modelNode.halfExtent.z,
+                            desiredHeightMeters = product.heightCm / 100f,
+                        )
+                        modelNode.scale = Scale(
+                            x = transform.uniformScale,
+                            y = transform.uniformScale,
+                            z = transform.uniformScale,
+                        )
+                        modelNode.position = Position(
+                            x = transform.positionX,
+                            y = transform.positionY,
+                            z = transform.positionZ,
+                        )
+                        modelNode.isShadowCaster = true
+
+                        if (BuildConfig.DEBUG) {
+                            Log.d(
+                                "FerosaAR",
+                                "Placed product=${product.id}, center=${modelNode.center}, " +
+                                    "halfExtent=${modelNode.halfExtent}, " +
+                                    "heightMeters=${product.heightCm / 100f}, " +
+                                    "scale=${transform.uniformScale}, " +
+                                    "position=${modelNode.position}, " +
+                                    "renderables=${modelNode.renderableNodes.size}"
+                            )
+                        }
+
+                        anchorNode.addChildNode(modelNode)
+                        if (viewModel.placeModel(anchorNode, product)) {
+                            sv.addChildNode(anchorNode)
+                        } else {
+                            // The limit may have been reached while the model loaded. A rejected
+                            // node must never become visible or untracked.
+                            anchor.detach()
+                        }
+                    } catch (exception: Exception) {
+                        anchor.detach()
+                        placementStage = ModelPlacementStage.Idle
+                        viewModel.setModelLoadError(customerReadableModelError(exception))
+                        if (BuildConfig.DEBUG) {
+                            Log.w(
+                                "FerosaAR",
+                                "Model load failed for product=${product.id}: " +
+                                    "${exception::class.simpleName}: ${exception.message}",
+                            )
                         }
                     }
                 }
@@ -944,19 +929,27 @@ private fun ArScreen(
                     anchor.detach()
                     if (isSceneCurrent(sv, placementGeneration)) {
                         placementStage = ModelPlacementStage.Idle
-                        viewModel.clearError()
-                        // Show error from the download failure
-                        val errorMsg = e.message ?: "Failed to download model"
-                        viewModel.setModelLoadError(errorMsg)
+                        viewModel.setModelLoadError(customerReadableModelError(e))
+                        if (BuildConfig.DEBUG) {
+                            Log.w(
+                                "FerosaAR",
+                                "Model load failed for product=${product.id}: " +
+                                    "${e::class.simpleName}: ${e.message}",
+                            )
+                        }
                     }
                 }
             }
         }
+        pendingModelLoads += modelLoadJob
+        modelLoadJob.invokeOnCompletion {
+            pendingModelLoads -= modelLoadJob
+        }
     }
 
     fun resetScene() {
-        // Invalidates downloads and SceneView model-loader callbacks started before
-        // this reset. They will detach their pending anchor instead of placing later.
+        // Invalidates downloads and model preparation started before this reset. Pending jobs detach
+        // their anchors instead of placing into the new scene generation.
         sceneGeneration.incrementAndGet()
         val loadsToCancel = synchronized(pendingModelLoads) {
             pendingModelLoads.toList().also {

@@ -3,8 +3,10 @@ package com.example.ferosa_landscaping
 import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
+import com.example.ferosa_landscaping.ui.ar.readCachedModelBuffer
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertFalse
@@ -26,6 +28,22 @@ class ArModelPlacementTest {
         assertTrue(shouldShowArEmptyState(emptyList(), isLoading = false))
         assertFalse(shouldShowArEmptyState(emptyList(), isLoading = true))
         assertFalse(shouldShowArEmptyState(listOf(sampleArProduct()), isLoading = false))
+    }
+
+    @Test
+    fun cached_model_file_is_read_as_a_byte_buffer() {
+        val file = Files.createTempFile("ferosa-model-buffer", ".glb").toFile()
+        val expected = byteArrayOf(0x67, 0x6c, 0x54, 0x46, 0x02, 0x00)
+        try {
+            file.writeBytes(expected)
+
+            val buffer = readCachedModelBuffer(file)
+            val actual = ByteArray(buffer.remaining()).also(buffer::get)
+
+            assertArrayEquals(expected, actual)
+        } finally {
+            file.delete()
+        }
     }
 
     @Test

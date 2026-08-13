@@ -1,0 +1,24 @@
+# ── Repository-level exposure guards ───────────────────────────────────────
+# This directory sits inside htdocs, so everything checked out here is web
+# reachable. ferosa-laravel/.htaccess covers the application tree; these rules
+# cover the files that live beside it.
+
+# Never serve the git directory - it exposes full source and history.
+RedirectMatch 404 /\.git
+
+<IfModule mod_authz_core.c>
+    # Schema dumps, shell transcripts and diagrams are working artefacts, not
+    # public assets.
+    <FilesMatch "\.(sql|txt|drawio|md|ini|bat)$">
+        Require all denied
+    </FilesMatch>
+
+    # Dotfiles of any kind.
+    <FilesMatch "^\.">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_negotiation.c>
+    Options -Indexes
+</IfModule>

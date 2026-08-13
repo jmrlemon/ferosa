@@ -84,7 +84,23 @@
       "Bash(echo \"exit=$?\")",
       "Bash(node refs.js)",
       "Bash(xargs wc -l)",
-      "Bash(./gradlew compileDebugKotlin --offline -q)"
+      "Bash(./gradlew compileDebugKotlin --offline -q)",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain)",
+      "Bash(./gradlew :app:assembleDebug --console=plain)",
+      "Bash(composer check *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(composer check *)",
+      "PowerShell(composer analyse *)",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain --rerun-tasks)",
+      "Bash(./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain)",
+      "Bash(./gradlew :app:lintDebug --console=plain)",
+      "Bash(./gradlew :app:verifyReleaseServerUrl --console=plain)",
+      "Bash(./gradlew :app:verifyReleaseServerUrl -PFEROSA_SERVER_URL=https://ferosa.example.com/app --console=plain)",
+      "Bash(./gradlew :app:assembleRelease -PFEROSA_SERVER_URL=https://ferosa.example.com/app --dry-run --console=plain)",
+      "Bash(./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --console=plain)",
+      "Bash(sed -i 's/portal-topbar/app-topbar/g; s/portal-icon-button/app-icon-button/g; s/\\\\$portalPage/\\\\$currentPage/g' layouts/customer.blade.php)",
+      "Bash(sed -i 's/portal-mark-icon/auth-mark-icon/g; s/portal-mark/auth-mark/g' auth/auth.blade.php)",
+      "Bash(git checkout *)"
     ]
   },
   "enabledPlugins": {}

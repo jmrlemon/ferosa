@@ -14,18 +14,21 @@ use App\Models\OrderItem;
 use App\Models\PlantModel;
 use App\Models\Product;
 use App\Models\ServiceType;
+use App\Models\StockMovement;
 use App\Models\User;
 use App\Notifications\AppointmentStatusChanged;
 use App\Notifications\OrderPaymentReviewed;
 use App\Notifications\OrderStatusChanged;
+use App\Services\BillingService;
+use App\Services\GlbValidator;
+use App\Services\InventoryService;
 use App\Support\Audit;
 use App\Support\MessageAttachment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -37,49 +40,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AdminController extends Controller
 {
     private const AR_MODEL_MAX_KB = 102400;
-
-    private const AR_MODEL_JSON_MAX_BYTES = 8 * 1024 * 1024;
-
-    private const GLB_JSON_CHUNK_TYPE = 0x4E4F534A;
-
-    private const GLB_BIN_CHUNK_TYPE = 0x004E4942;
-
-    private const AR_MODEL_MIN_HEIGHT_UNITS = 0.000001;
-
-    private const AR_TRIANGLE_WARN_LIMIT = 100000;
-
-    private const AR_TRIANGLE_HARD_LIMIT = 250000;
-
-    private const AR_TEXTURE_WARN_EDGE = 2048;
-
-    private const AR_TEXTURE_HARD_EDGE = 4096;
-
-    private const AR_TEXTURE_WARN_DECODED_BYTES = 48 * 1024 * 1024;
-
-    private const AR_FILE_WARN_BYTES = 8 * 1024 * 1024;
-
-    /** @var list<string> */
-    private const AR_SUPPORTED_REQUIRED_EXTENSIONS = [
-        'KHR_draco_mesh_compression',
-        'EXT_meshopt_compression',
-        'EXT_mesh_gpu_instancing',
-        'KHR_lights_punctual',
-        'KHR_materials_clearcoat',
-        'KHR_materials_emissive_strength',
-        'KHR_materials_ior',
-        'KHR_materials_iridescence',
-        'KHR_materials_pbrSpecularGlossiness',
-        'KHR_materials_sheen',
-        'KHR_materials_specular',
-        'KHR_materials_transmission',
-        'KHR_materials_unlit',
-        'KHR_materials_variants',
-        'KHR_materials_volume',
-        'KHR_texture_basisu',
-        'KHR_texture_transform',
-    ];
-
-    private const AR_MESHOPT_EXTENSION = 'EXT_meshopt_compression';
 
     public function archiveOrder(Request $request, Order $order): RedirectResponse
     {
@@ -807,7 +767,7 @@ class AdminController extends Controller
         ]);
     }
 
-    public function storeProduct(Request $request): RedirectResponse
+    public function storeProduct(Request $request, InventoryService $inventory): RedirectResponse
     {
         $data = $request->validate([
             'name' => [
@@ -831,16 +791,33 @@ class AdminController extends Controller
             );
         }
 
-        $product = Product::query()->create([
-            'name' => $data['name'],
-            'description' => $data['description'] ?? '',
-            'image_url' => $imageUrl,
-            'price' => $data['price'],
-            'stock_qty' => (int) ($data['stock_qty'] ?? 0),
-            'category' => strtolower(trim($data['category'])),
-            'is_active' => (bool) ($data['is_active'] ?? false),
-            'archived_at' => null,
-        ]);
+        $openingStock = (int) ($data['stock_qty'] ?? 0);
+
+        // The product row and its opening stock movement commit together, so a
+        // failed movement can never leave a product with phantom stock.
+        $product = DB::transaction(function () use ($data, $imageUrl, $openingStock, $inventory, $request): Product {
+            $product = Product::query()->create([
+                'name' => $data['name'],
+                'description' => $data['description'] ?? '',
+                'image_url' => $imageUrl,
+                'price' => $data['price'],
+                // Created at zero so the opening stock is booked through the ledger
+                // rather than appearing from nowhere.
+                'stock_qty' => 0,
+                'category' => strtolower(trim($data['category'])),
+                'is_active' => (bool) ($data['is_active'] ?? false),
+                'archived_at' => null,
+            ]);
+
+            if ($openingStock > 0) {
+                $inventory->record($product, StockMovement::TYPE_OPENING, $openingStock, [
+                    'user_id' => $request->user()->id,
+                    'note' => 'Opening stock entered when the product was created.',
+                ]);
+            }
+
+            return $product;
+        }, 3);
 
         Audit::log(
             $request,
@@ -862,9 +839,14 @@ class AdminController extends Controller
 
         $product->load('plantModel');
 
+        // Stock movements are admin-only, matching the inventory routes; staff
+        // still edit shop details but do not move stock.
+        $canManageStock = (bool) auth()->user()?->isAdmin();
+
         return view('admin.product-edit', [
             'product' => $product,
             'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
+            'canManageStock' => $canManageStock,
         ]);
     }
 
@@ -886,7 +868,9 @@ class AdminController extends Controller
             'description' => ['nullable', 'string', 'max:2000'],
             'image' => ['nullable', 'image', 'max:2048'],
             'price' => ['required', 'numeric', 'min:0'],
-            'stock_qty' => ['nullable', 'integer', 'min:0'],
+            // stock_qty is deliberately absent: stock only moves through the
+            // ledger, where every change carries a reason. A posted value is
+            // ignored rather than silently applied.
             'category' => ['required', 'string', 'max:100'],
             'is_active' => ['nullable', 'boolean'],
         ]);
@@ -903,7 +887,6 @@ class AdminController extends Controller
             'description' => $data['description'] ?? '',
             'image_url' => $imageUrl,
             'price' => $data['price'],
-            'stock_qty' => (int) ($data['stock_qty'] ?? 0),
             'category' => strtolower(trim($data['category'])),
             'is_active' => (bool) ($data['is_active'] ?? false),
         ]);
@@ -970,7 +953,7 @@ class AdminController extends Controller
             ->with('status', 'Product restored successfully.');
     }
 
-    public function updateOrderStatus(Request $request, Order $order): RedirectResponse|JsonResponse
+    public function updateOrderStatus(Request $request, Order $order, InventoryService $inventory, BillingService $billing): RedirectResponse|JsonResponse
     {
         $isDeliveryOrder = ($order->delivery_method ?? 'delivery') === 'delivery';
 
@@ -1115,18 +1098,26 @@ class AdminController extends Controller
         $before = Audit::snapshot($order, $workflowFields);
         $orderStatusChanged = $order->status !== $data['status'];
         $paymentStatusChanged = $order->payment_status !== $data['payment_status'];
-        DB::transaction(function () use ($order, $updates, $data): void {
+        DB::transaction(function () use ($order, $updates, $data, $inventory): void {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
             abort_unless($lockedOrder->canTransitionTo($data['status']), 422, 'Order status changed. Refresh and try again.');
 
             if ($data['status'] === 'cancelled' && $lockedOrder->status !== 'cancelled') {
                 foreach ($lockedOrder->orderItems()->with('product')->get() as $item) {
-                    $item->product?->increment('stock_qty', $item->qty);
+                    if ($item->product) {
+                        $inventory->recordReturn($item->product, $item->qty, $lockedOrder->order_number);
+                    }
                 }
             }
 
             $lockedOrder->update($updates);
         }, 3);
+
+        // Marking an order paid writes a settling entry, so the status the admin
+        // chose and the payment ledger can never disagree.
+        if ($data['payment_status'] === 'paid') {
+            $billing->settle($order->refresh(), $request->user()->id, $order->payment_method ?: 'cash');
+        }
 
         $order->refresh()->load('user');
         Audit::log($request, 'order.status.update', $order, $before, Audit::snapshot($order, $workflowFields));
@@ -1194,7 +1185,7 @@ class AdminController extends Controller
             ->with('status', $message);
     }
 
-    public function bulkOrderStatus(Request $request): RedirectResponse
+    public function bulkOrderStatus(Request $request, InventoryService $inventory): RedirectResponse
     {
         $data = $request->validate([
             'order_ids' => ['required', 'array', 'min:1'],
@@ -1231,7 +1222,7 @@ class AdminController extends Controller
             }
 
             $before = Audit::snapshot($order, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
-            DB::transaction(function () use ($order, $bulkUpdates, $data): void {
+            DB::transaction(function () use ($order, $bulkUpdates, $data, $inventory): void {
                 $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
                 if (! $lockedOrder->canTransitionTo($data['status'])) {
                     return;
@@ -1239,7 +1230,9 @@ class AdminController extends Controller
 
                 if ($data['status'] === 'cancelled' && $lockedOrder->status !== 'cancelled') {
                     foreach ($lockedOrder->orderItems()->with('product')->get() as $item) {
-                        $item->product?->increment('stock_qty', $item->qty);
+                        if ($item->product) {
+                            $inventory->recordReturn($item->product, $item->qty, $lockedOrder->order_number);
+                        }
                     }
                 }
 
@@ -1282,6 +1275,27 @@ class AdminController extends Controller
             ->with('status', "Updated {$orders->count()} order(s) to ".str_replace('_', ' ', $data['status']).'.');
     }
 
+    /**
+     * Write one CSV row with spreadsheet formulas defused.
+     *
+     * Customer names are free text, so a customer who registers as
+     * `=cmd|'/c calc'!A1` would otherwise ship a live formula to whichever
+     * admin opens the export. fputcsv quotes the field but Excel still parses
+     * a leading =, +, -, @, tab or CR as the start of a formula, so those cells
+     * get a leading apostrophe - which Excel treats as "this is text" and does
+     * not display.
+     */
+    private function writeCsvRow($out, array $row): void
+    {
+        fputcsv($out, array_map(static function ($cell) {
+            if (! is_string($cell) || $cell === '') {
+                return $cell;
+            }
+
+            return str_contains("=+-@\t\r", $cell[0]) ? "'".$cell : $cell;
+        }, $row));
+    }
+
     public function exportOrdersCsv(): StreamedResponse
     {
         $filename = 'orders-'.now()->format('Y-m-d-His').'.csv';
@@ -1289,10 +1303,10 @@ class AdminController extends Controller
         return response()->streamDownload(function () {
             $out = fopen('php://output', 'w');
             fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($out, ['Order #', 'Customer', 'Email', 'Amount', 'Status', 'Created']);
+            $this->writeCsvRow($out, ['Order #', 'Customer', 'Email', 'Amount', 'Status', 'Created']);
 
             foreach ($this->filteredOrdersQuery()->cursor() as $order) {
-                fputcsv($out, [
+                $this->writeCsvRow($out, [
                     $order->order_number,
                     $order->user->name ?? '',
                     $order->user->email ?? '',
@@ -1322,43 +1336,43 @@ class AdminController extends Controller
             $out = fopen('php://output', 'w');
             fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            fputcsv($out, ['Ferosa Revenue Overview Report']);
-            fputcsv($out, ['Generated', $data['generatedAt']->format('M d, Y h:i A')]);
-            fputcsv($out, ['From', $data['salesFrom'] ?: 'Any']);
-            fputcsv($out, ['To', $data['salesTo'] ?: 'Any']);
-            fputcsv($out, []);
+            $this->writeCsvRow($out, ['Ferosa Revenue Overview Report']);
+            $this->writeCsvRow($out, ['Generated', $data['generatedAt']->format('M d, Y h:i A')]);
+            $this->writeCsvRow($out, ['From', $data['salesFrom'] ?: 'Any']);
+            $this->writeCsvRow($out, ['To', $data['salesTo'] ?: 'Any']);
+            $this->writeCsvRow($out, []);
 
-            fputcsv($out, ['Summary']);
-            fputcsv($out, ['Total Sales', $data['totalSales']]);
-            fputcsv($out, ['Total Orders', $data['totalOrders']]);
-            fputcsv($out, ['Delivered Orders', $data['deliveredOrders']]);
-            fputcsv($out, ['Pending Orders', $data['pendingOrders']]);
-            fputcsv($out, []);
+            $this->writeCsvRow($out, ['Summary']);
+            $this->writeCsvRow($out, ['Total Sales', $data['totalSales']]);
+            $this->writeCsvRow($out, ['Total Orders', $data['totalOrders']]);
+            $this->writeCsvRow($out, ['Delivered Orders', $data['deliveredOrders']]);
+            $this->writeCsvRow($out, ['Pending Orders', $data['pendingOrders']]);
+            $this->writeCsvRow($out, []);
 
-            fputcsv($out, ['Sales by Status']);
-            fputcsv($out, ['Status', 'Orders', 'Sales']);
+            $this->writeCsvRow($out, ['Sales by Status']);
+            $this->writeCsvRow($out, ['Status', 'Orders', 'Sales']);
             foreach ($data['salesByStatus'] as $row) {
-                fputcsv($out, [ucfirst(str_replace('_', ' ', $row->status)), $row->order_count, (float) $row->sales_total]);
+                $this->writeCsvRow($out, [ucfirst(str_replace('_', ' ', $row->status)), $row->order_count, (float) $row->sales_total]);
             }
-            fputcsv($out, []);
+            $this->writeCsvRow($out, []);
 
-            fputcsv($out, ['Monthly Sales']);
-            fputcsv($out, ['Month', 'Sales']);
+            $this->writeCsvRow($out, ['Monthly Sales']);
+            $this->writeCsvRow($out, ['Month', 'Sales']);
             foreach ($data['monthlySales'] as $row) {
-                fputcsv($out, [$row['label'], $row['total']]);
+                $this->writeCsvRow($out, [$row['label'], $row['total']]);
             }
-            fputcsv($out, []);
+            $this->writeCsvRow($out, []);
 
-            fputcsv($out, ['Week vs Week Revenue']);
-            fputcsv($out, ['This Week', $data['thisWeekSales']]);
-            fputcsv($out, ['Last Week', $data['lastWeekSales']]);
-            fputcsv($out, ['Change %', $data['weekSalesDeltaPct'] === null ? 'N/A' : $data['weekSalesDeltaPct']]);
-            fputcsv($out, []);
+            $this->writeCsvRow($out, ['Week vs Week Revenue']);
+            $this->writeCsvRow($out, ['This Week', $data['thisWeekSales']]);
+            $this->writeCsvRow($out, ['Last Week', $data['lastWeekSales']]);
+            $this->writeCsvRow($out, ['Change %', $data['weekSalesDeltaPct'] === null ? 'N/A' : $data['weekSalesDeltaPct']]);
+            $this->writeCsvRow($out, []);
 
-            fputcsv($out, ['Top Products']);
-            fputcsv($out, ['Product', 'Units Sold']);
+            $this->writeCsvRow($out, ['Top Products']);
+            $this->writeCsvRow($out, ['Product', 'Units Sold']);
             foreach ($data['topProducts'] as $row) {
-                fputcsv($out, [$row['name'], $row['qty']]);
+                $this->writeCsvRow($out, [$row['name'], $row['qty']]);
             }
 
             fclose($out);
@@ -1627,10 +1641,11 @@ class AdminController extends Controller
             ->with('status', 'Appointment cancelled and customer notified.');
     }
 
-    public function updateAppointmentStatus(Request $request, Appointment $appointment): RedirectResponse|JsonResponse
+    public function updateAppointmentStatus(Request $request, Appointment $appointment, BillingService $billing): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'status' => ['required', 'string', 'in:scheduled,confirmed,completed,cancelled'],
+            // `partial` is derived from the ledger, never chosen here.
             'payment_status' => ['required', 'string', 'in:unpaid,paid'],
         ]);
 
@@ -1668,6 +1683,11 @@ class AdminController extends Controller
             abort_unless($lockedAppointment->canTransitionTo($data['status']), 422, 'Appointment status changed. Refresh and try again.');
             $lockedAppointment->update($updates);
         }, 3);
+
+        // Same rule as orders: marking it paid books a settling ledger entry.
+        if ($data['payment_status'] === 'paid') {
+            $billing->settle($appointment->refresh(), $request->user()->id);
+        }
 
         $appointment->refresh()->load(['user', 'serviceType']);
         Audit::log($request, 'appointment.status.update', $appointment, $before, Audit::snapshot($appointment, ['status', 'payment_status', 'slot_key', 'cancel_reason', 'cancelled_at', 'cancelled_by']));
@@ -1787,7 +1807,7 @@ class AdminController extends Controller
     /**
      * Upload or replace an AR 3D model for a product.
      */
-    public function uploadArModel(Request $request, Product $product): RedirectResponse
+    public function uploadArModel(Request $request, Product $product, GlbValidator $glb): RedirectResponse
     {
         $rules = [
             'height_cm' => ['required', 'numeric', 'min:1', 'max:500'],
@@ -1814,7 +1834,7 @@ class AdminController extends Controller
                     ->withInput();
             }
 
-            if ($validationError = $this->validateGlb($file, $validationWarnings)) {
+            if ($validationError = $glb->validate($file, $validationWarnings)) {
                 return redirect()->route('admin.products.edit', $product)
                     ->withErrors(['ar_model' => $validationError])
                     ->withInput();
@@ -1886,681 +1906,6 @@ class AdminController extends Controller
 
         return redirect()->route('admin.products.edit', $product)
             ->with('status', "AR model removed from \"{$product->name}\".");
-    }
-
-    /**
-     * Validate the GLB container before it can replace a working product model.
-     *
-     * @param  list<string>  $warnings
-     */
-    private function validateGlb(UploadedFile $file, array &$warnings = []): ?string
-    {
-        $warnings = [];
-        $path = $file->getRealPath();
-        $actualLength = $file->getSize();
-
-        if (! is_string($path) || $path === '' || ! is_int($actualLength) || $actualLength < 28) {
-            return 'This GLB is incomplete. Upload a complete, self-contained GLB 2.0 file.';
-        }
-
-        $handle = @fopen($path, 'rb');
-        if (! is_resource($handle)) {
-            return 'The GLB could not be read. Please export it again and retry.';
-        }
-
-        try {
-            $header = $this->readGlbBytes($handle, 12);
-            if ($header === null || substr($header, 0, 4) !== 'glTF') {
-                return 'This file is not a valid binary GLB model.';
-            }
-
-            $headerValues = unpack('Vversion/Vlength', substr($header, 4));
-            if (! is_array($headerValues) || (int) ($headerValues['version'] ?? 0) !== 2) {
-                return 'This model must use the GLB 2.0 format.';
-            }
-
-            $declaredLength = (int) ($headerValues['length'] ?? 0);
-            if ($declaredLength !== $actualLength) {
-                return 'The GLB file length is inconsistent. Export the model again before uploading.';
-            }
-
-            $offset = 12;
-            $chunkIndex = 0;
-            $jsonDocument = null;
-            $binChunkLength = null;
-            $binChunkOffset = null;
-
-            while ($offset < $declaredLength) {
-                if (($declaredLength - $offset) < 8) {
-                    return 'The GLB contains a truncated chunk header.';
-                }
-
-                $chunkHeader = $this->readGlbBytes($handle, 8);
-                if ($chunkHeader === null) {
-                    return 'The GLB contains a truncated chunk header.';
-                }
-
-                $chunkValues = unpack('Vlength/Vtype', $chunkHeader);
-                if (! is_array($chunkValues)) {
-                    return 'The GLB chunk table could not be read.';
-                }
-
-                $chunkLength = (int) ($chunkValues['length'] ?? -1);
-                $chunkType = (int) ($chunkValues['type'] ?? -1);
-                $offset += 8;
-
-                if ($chunkLength < 0 || ($chunkLength % 4) !== 0) {
-                    return 'The GLB contains a chunk with an invalid length.';
-                }
-
-                if ($chunkLength > ($declaredLength - $offset)) {
-                    return 'The GLB contains truncated chunk data.';
-                }
-
-                if ($chunkIndex === 0 && $chunkType !== self::GLB_JSON_CHUNK_TYPE) {
-                    return 'The first GLB chunk must contain the model JSON.';
-                }
-
-                if ($chunkType === self::GLB_JSON_CHUNK_TYPE) {
-                    if ($chunkIndex !== 0 || $jsonDocument !== null) {
-                        return 'The GLB contains an unexpected additional JSON chunk.';
-                    }
-
-                    if ($chunkLength === 0 || $chunkLength > self::AR_MODEL_JSON_MAX_BYTES) {
-                        return 'The GLB model JSON is empty or too large to validate safely.';
-                    }
-
-                    $jsonChunk = $this->readGlbBytes($handle, $chunkLength);
-                    if ($jsonChunk === null) {
-                        return 'The GLB contains truncated model JSON.';
-                    }
-
-                    try {
-                        $jsonDocument = json_decode(rtrim($jsonChunk, " \t\r\n"), true, 512, JSON_THROW_ON_ERROR);
-                    } catch (\JsonException) {
-                        return 'The GLB contains invalid model JSON.';
-                    }
-
-                    if (! is_array($jsonDocument)) {
-                        return 'The GLB model JSON must be an object.';
-                    }
-                } else {
-                    if (! $this->skipGlbBytes($handle, $chunkLength)) {
-                        return 'The GLB contains truncated chunk data.';
-                    }
-
-                    if ($chunkType === self::GLB_BIN_CHUNK_TYPE) {
-                        if ($binChunkLength !== null) {
-                            return 'The GLB contains more than one binary data chunk.';
-                        }
-
-                        $binChunkLength = $chunkLength;
-                        $binChunkOffset = $offset;
-                    }
-                }
-
-                $offset += $chunkLength;
-                $chunkIndex++;
-            }
-
-            if ($offset !== $declaredLength || $jsonDocument === null) {
-                return 'The GLB container is incomplete.';
-            }
-
-            if ($binChunkLength === null || $binChunkOffset === null) {
-                return 'The GLB must include its binary model data in a BIN chunk.';
-            }
-
-            if ($resourceError = $this->validateGlbResources(
-                $jsonDocument,
-                $binChunkLength,
-                $handle,
-                $binChunkOffset,
-                $actualLength,
-                $warnings,
-            )) {
-                return $resourceError;
-            }
-
-            return null;
-        } finally {
-            fclose($handle);
-        }
-    }
-
-    /**
-     * @param  resource  $handle
-     */
-    private function readGlbBytes($handle, int $length): ?string
-    {
-        if ($length === 0) {
-            return '';
-        }
-
-        $data = '';
-        while (strlen($data) < $length && ! feof($handle)) {
-            $part = fread($handle, $length - strlen($data));
-            if ($part === false || $part === '') {
-                break;
-            }
-
-            $data .= $part;
-        }
-
-        return strlen($data) === $length ? $data : null;
-    }
-
-    /**
-     * @param  resource  $handle
-     */
-    private function skipGlbBytes($handle, int $length): bool
-    {
-        $remaining = $length;
-        while ($remaining > 0) {
-            $part = fread($handle, min($remaining, 1024 * 1024));
-            if ($part === false || $part === '') {
-                return false;
-            }
-
-            $remaining -= strlen($part);
-        }
-
-        return true;
-    }
-
-    /**
-     * @param  array<string, mixed>  $document
-     * @param  resource  $handle
-     * @param  list<string>  $warnings
-     */
-    private function validateGlbResources(
-        array $document,
-        int $binChunkLength,
-        $handle,
-        int $binChunkOffset,
-        int $fileSize,
-        array &$warnings = [],
-    ): ?string
-    {
-        if ($fileSize > self::AR_FILE_WARN_BYTES) {
-            $warnings[] = "The GLB file is {$fileSize} bytes; the recommended budget is ".self::AR_FILE_WARN_BYTES.' bytes.';
-        }
-
-        $assetVersion = data_get($document, 'asset.version');
-        if (! is_string($assetVersion) || ! str_starts_with($assetVersion, '2.')) {
-            return 'The GLB model JSON must declare glTF asset version 2.x.';
-        }
-
-        $extensionsRequired = $document['extensionsRequired'] ?? [];
-        if (! is_array($extensionsRequired)) {
-            return 'The GLB extensionsRequired list is invalid.';
-        }
-
-        foreach ($extensionsRequired as $extension) {
-            if (! is_string($extension) || trim($extension) === '') {
-                return 'The GLB extensionsRequired list contains an invalid extension name.';
-            }
-
-            if (! in_array($extension, self::AR_SUPPORTED_REQUIRED_EXTENSIONS, true)) {
-                return "The GLB requires unsupported extension \"{$extension}\". Remove it or export the model without requiring it.";
-            }
-
-            if ($extension === self::AR_MESHOPT_EXTENSION) {
-                $warnings[] = 'The GLB requires EXT_meshopt_compression. Verify this asset on a physical ARCore phone before publishing it.';
-            }
-        }
-
-        foreach (['buffers', 'images'] as $resourceType) {
-            $resources = $document[$resourceType] ?? [];
-            if (! is_array($resources)) {
-                return "The GLB {$resourceType} list is invalid.";
-            }
-
-            foreach ($resources as $resource) {
-                if (! is_array($resource) || ! array_key_exists('uri', $resource)) {
-                    continue;
-                }
-
-                $uri = $resource['uri'];
-                if (! is_string($uri) || ! str_starts_with(strtolower(trim($uri)), 'data:')) {
-                    return 'The GLB references an external file. Embed all buffers and images before uploading.';
-                }
-            }
-        }
-
-        $buffers = $document['buffers'] ?? null;
-        if (! is_array($buffers) || $buffers === [] || ! is_array($buffers[0] ?? null)) {
-            return 'The GLB model JSON must describe its embedded binary buffer.';
-        }
-
-        $embeddedBufferLength = $buffers[0]['byteLength'] ?? null;
-        if (! is_int($embeddedBufferLength) || $embeddedBufferLength < 0) {
-            return 'The GLB embedded buffer length is invalid.';
-        }
-
-        // A GLB BIN chunk can contain up to three trailing padding bytes.
-        if ($embeddedBufferLength > $binChunkLength || ($binChunkLength - $embeddedBufferLength) > 3) {
-            return 'The GLB binary chunk does not match the buffer length declared by the model.';
-        }
-
-        if ($geometryError = $this->validateGlbRenderableGeometry($document, $warnings)) {
-            return $geometryError;
-        }
-
-        if ($textureError = $this->validateGlbTextures(
-            $document,
-            $handle,
-            $binChunkOffset,
-            $binChunkLength,
-            $warnings,
-        )) {
-            return $textureError;
-        }
-
-        return null;
-    }
-
-    /**
-     * Inspect image headers in the embedded BIN chunk without loading entire textures into memory.
-     *
-     * @param  resource  $handle
-     * @param  list<string>  $warnings
-     */
-    private function validateGlbTextures(
-        array $document,
-        $handle,
-        int $binChunkOffset,
-        int $binChunkLength,
-        array &$warnings = [],
-    ): ?string {
-        $images = $document['images'] ?? [];
-        if ($images === []) {
-            return null;
-        }
-        if (! is_array($images)) {
-            return 'The GLB images list is invalid.';
-        }
-
-        $bufferViews = $document['bufferViews'] ?? [];
-        if (! is_array($bufferViews)) {
-            return 'The GLB bufferViews list is invalid.';
-        }
-
-        $largestTextureEdge = 0;
-        $decodedTextureBytes = 0.0;
-
-        foreach ($images as $imageIndex => $image) {
-            if (! is_array($image)) {
-                return 'The GLB contains an invalid image entry.';
-            }
-
-            // Data URIs are self-contained but are not part of the BIN header scan. The existing
-            // URI validation still ensures they do not reference an external file.
-            if (! array_key_exists('bufferView', $image)) {
-                continue;
-            }
-
-            $bufferViewIndex = $image['bufferView'];
-            if (! is_int($bufferViewIndex) || ! is_array($bufferViews[$bufferViewIndex] ?? null)) {
-                return "The GLB image {$imageIndex} references an invalid bufferView.";
-            }
-
-            $bufferView = $bufferViews[$bufferViewIndex];
-            $byteOffset = $bufferView['byteOffset'] ?? 0;
-            $byteLength = $bufferView['byteLength'] ?? null;
-            if (! is_int($byteOffset) || $byteOffset < 0 ||
-                ! is_int($byteLength) || $byteLength <= 0 ||
-                $byteOffset > $binChunkLength || $byteLength > ($binChunkLength - $byteOffset)) {
-                return "The GLB image {$imageIndex} bufferView is outside the embedded binary data.";
-            }
-
-            $dimensions = $this->readGlbImageDimensions(
-                $handle,
-                $binChunkOffset,
-                $binChunkLength,
-                $byteOffset,
-                $byteLength,
-            );
-            if ($dimensions === null) {
-                continue;
-            }
-
-            [$width, $height] = $dimensions;
-            $largestTextureEdge = max($largestTextureEdge, $width, $height);
-            if ($largestTextureEdge > self::AR_TEXTURE_HARD_EDGE) {
-                return "The GLB texture {$imageIndex} is {$width}x{$height}px; the maximum supported edge is ".self::AR_TEXTURE_HARD_EDGE.'px. Resize it before uploading.';
-            }
-
-            $decodedTextureBytes += ((float) $width * $height * 4 * 4) / 3;
-        }
-
-        if ($largestTextureEdge > self::AR_TEXTURE_WARN_EDGE) {
-            $warnings[] = "The largest GLB texture edge is {$largestTextureEdge}px; the recommended budget is ".self::AR_TEXTURE_WARN_EDGE.'px.';
-        }
-
-        if ($decodedTextureBytes > self::AR_TEXTURE_WARN_DECODED_BYTES) {
-            $decodedMegabytes = number_format(
-                $decodedTextureBytes / (1024 * 1024),
-                2,
-                '.',
-                '',
-            );
-            $warnings[] = "The GLB textures require approximately {$decodedMegabytes} MB decoded memory; the recommended budget is 48 MB.";
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  resource  $handle
-     * @return array{0: int, 1: int}|null
-     */
-    private function readGlbImageDimensions(
-        $handle,
-        int $binChunkOffset,
-        int $binChunkLength,
-        int $imageOffset,
-        int $imageLength,
-    ): ?array {
-        $headerLength = min(32, $imageLength);
-        $header = $this->readGlbBinBytes(
-            $handle,
-            $binChunkOffset,
-            $binChunkLength,
-            $imageOffset,
-            $headerLength,
-        );
-        if ($header === null) {
-            return null;
-        }
-
-        if (strlen($header) >= 24 && substr($header, 0, 8) === "\x89PNG\r\n\x1a\n") {
-            $pngValues = unpack('Nwidth/Nheight', substr($header, 16, 8));
-            if (is_array($pngValues) && (int) ($pngValues['width'] ?? 0) > 0 && (int) ($pngValues['height'] ?? 0) > 0) {
-                return [(int) $pngValues['width'], (int) $pngValues['height']];
-            }
-
-            return null;
-        }
-
-        if (substr($header, 0, 2) !== "\xFF\xD8") {
-            return null;
-        }
-
-        $position = 2;
-        $sofMarkers = [
-            0xC0, 0xC1, 0xC2, 0xC3,
-            0xC5, 0xC6, 0xC7, 0xC9,
-            0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
-        ];
-
-        while ($position + 4 <= $imageLength) {
-            $markerBytes = $this->readGlbBinBytes(
-                $handle,
-                $binChunkOffset,
-                $binChunkLength,
-                $imageOffset + $position,
-                2,
-            );
-            if ($markerBytes === null || ord($markerBytes[0]) !== 0xFF) {
-                return null;
-            }
-
-            $marker = ord($markerBytes[1]);
-            $position += 2;
-            while ($marker === 0xFF && $position < $imageLength) {
-                $markerByte = $this->readGlbBinBytes(
-                    $handle,
-                    $binChunkOffset,
-                    $binChunkLength,
-                    $imageOffset + $position,
-                    1,
-                );
-                if ($markerByte === null) {
-                    return null;
-                }
-
-                $marker = ord($markerByte[0]);
-                $position++;
-            }
-
-            $isStandaloneMarker = $marker === 0xD8 || $marker === 0xD9 || $marker === 0xDA ||
-                ($marker >= 0xD0 && $marker <= 0xD7) || $marker === 0x01;
-            if ($isStandaloneMarker) {
-                if ($marker === 0xD9 || $marker === 0xDA) {
-                    return null;
-                }
-
-                continue;
-            }
-
-            $lengthBytes = $this->readGlbBinBytes(
-                $handle,
-                $binChunkOffset,
-                $binChunkLength,
-                $imageOffset + $position,
-                2,
-            );
-            if ($lengthBytes === null) {
-                return null;
-            }
-
-            $segmentValues = unpack('nlength', $lengthBytes);
-            $segmentLength = (int) ($segmentValues['length'] ?? 0);
-            if ($segmentLength < 2 || $position + $segmentLength > $imageLength) {
-                return null;
-            }
-
-            if (in_array($marker, $sofMarkers, true)) {
-                $sizeBytes = $this->readGlbBinBytes(
-                    $handle,
-                    $binChunkOffset,
-                    $binChunkLength,
-                    $imageOffset + $position + 3,
-                    4,
-                );
-                if ($sizeBytes === null) {
-                    return null;
-                }
-
-                $sizeValues = unpack('nheight/nwidth', $sizeBytes);
-                if (is_array($sizeValues) && (int) ($sizeValues['width'] ?? 0) > 0 && (int) ($sizeValues['height'] ?? 0) > 0) {
-                    return [(int) $sizeValues['width'], (int) $sizeValues['height']];
-                }
-
-                return null;
-            }
-
-            $position += $segmentLength;
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  resource  $handle
-     */
-    private function readGlbBinBytes(
-        $handle,
-        int $binChunkOffset,
-        int $binChunkLength,
-        int $relativeOffset,
-        int $length,
-    ): ?string {
-        if ($relativeOffset < 0 || $length < 0 || $relativeOffset > $binChunkLength ||
-            $length > ($binChunkLength - $relativeOffset) || fseek($handle, $binChunkOffset + $relativeOffset) !== 0) {
-            return null;
-        }
-
-        return $this->readGlbBytes($handle, $length);
-    }
-
-    /**
-     * Ensure the default scene contains a reachable mesh with finite, non-zero Y bounds.
-     *
-     * SceneView uses POSITION accessor bounds to calculate the runtime model bounding box. A GLB
-     * container can be structurally valid while containing no visible scene geometry, which would
-     * otherwise produce a successful upload followed by an invisible AR placement.
-     *
-     * @param  array<string, mixed>  $document
-     * @param  list<string>  $warnings
-     */
-    private function validateGlbRenderableGeometry(array $document, array &$warnings = []): ?string
-    {
-        $scenes = $document['scenes'] ?? null;
-        $nodes = $document['nodes'] ?? null;
-        $meshes = $document['meshes'] ?? null;
-        $accessors = $document['accessors'] ?? null;
-
-        if (! is_array($scenes) || $scenes === [] ||
-            ! is_array($nodes) || $nodes === [] ||
-            ! is_array($meshes) || $meshes === [] ||
-            ! is_array($accessors) || $accessors === []) {
-            return 'The GLB must contain a scene with visible mesh geometry.';
-        }
-
-        $sceneIndex = $document['scene'] ?? 0;
-        if (! is_int($sceneIndex) || ! is_array($scenes[$sceneIndex] ?? null)) {
-            return 'The GLB default scene is invalid.';
-        }
-
-        $rootNodes = $scenes[$sceneIndex]['nodes'] ?? null;
-        if (! is_array($rootNodes) || $rootNodes === []) {
-            return 'The GLB default scene does not contain any nodes.';
-        }
-
-        $pendingNodeIndexes = array_values($rootNodes);
-        $visitedNodeIndexes = [];
-        $reachableMeshIndexes = [];
-
-        while ($pendingNodeIndexes !== []) {
-            $nodeIndex = array_pop($pendingNodeIndexes);
-            if (! is_int($nodeIndex) || ! is_array($nodes[$nodeIndex] ?? null)) {
-                return 'The GLB scene references an invalid node.';
-            }
-            if (isset($visitedNodeIndexes[$nodeIndex])) {
-                continue;
-            }
-
-            $visitedNodeIndexes[$nodeIndex] = true;
-            $node = $nodes[$nodeIndex];
-
-            if (array_key_exists('mesh', $node)) {
-                $meshIndex = $node['mesh'];
-                if (! is_int($meshIndex) || ! is_array($meshes[$meshIndex] ?? null)) {
-                    return 'The GLB scene references an invalid mesh.';
-                }
-                $reachableMeshIndexes[$meshIndex] = true;
-            }
-
-            $children = $node['children'] ?? [];
-            if (! is_array($children)) {
-                return 'The GLB contains an invalid node hierarchy.';
-            }
-            foreach ($children as $childIndex) {
-                $pendingNodeIndexes[] = $childIndex;
-            }
-        }
-
-        if ($reachableMeshIndexes === []) {
-            return 'The GLB default scene does not contain visible mesh geometry.';
-        }
-
-        $minimumY = INF;
-        $maximumY = -INF;
-        $positionCount = 0;
-        $triangleCount = 0;
-
-        foreach (array_keys($reachableMeshIndexes) as $meshIndex) {
-            $primitives = $meshes[$meshIndex]['primitives'] ?? null;
-            if (! is_array($primitives) || $primitives === []) {
-                return 'The GLB contains a mesh without renderable primitives.';
-            }
-
-            foreach ($primitives as $primitive) {
-                if (! is_array($primitive) || ! is_array($primitive['attributes'] ?? null)) {
-                    return 'The GLB contains an invalid mesh primitive.';
-                }
-
-                $positionAccessorIndex = $primitive['attributes']['POSITION'] ?? null;
-                if (! is_int($positionAccessorIndex) ||
-                    ! is_array($accessors[$positionAccessorIndex] ?? null)) {
-                    return 'Every GLB mesh primitive must contain a valid POSITION attribute.';
-                }
-
-                $accessor = $accessors[$positionAccessorIndex];
-                if (($accessor['componentType'] ?? null) !== 5126 ||
-                    ($accessor['type'] ?? null) !== 'VEC3' ||
-                    ! is_int($accessor['count'] ?? null) ||
-                    $accessor['count'] <= 0) {
-                    return 'The GLB POSITION data must contain floating-point VEC3 vertices.';
-                }
-
-                $minimum = $accessor['min'] ?? null;
-                $maximum = $accessor['max'] ?? null;
-                if (! is_array($minimum) || count($minimum) !== 3 ||
-                    ! is_array($maximum) || count($maximum) !== 3) {
-                    return 'The GLB POSITION accessor must include three-dimensional min/max bounds.';
-                }
-
-                for ($axis = 0; $axis < 3; $axis++) {
-                    if ((! is_int($minimum[$axis]) && ! is_float($minimum[$axis])) ||
-                        (! is_int($maximum[$axis]) && ! is_float($maximum[$axis]))) {
-                        return 'The GLB contains non-numeric model bounds.';
-                    }
-
-                    $minimumValue = (float) $minimum[$axis];
-                    $maximumValue = (float) $maximum[$axis];
-                    if (! is_finite($minimumValue) || ! is_finite($maximumValue) ||
-                        $minimumValue > $maximumValue) {
-                        return 'The GLB contains invalid model bounds.';
-                    }
-                }
-
-                $minimumY = min($minimumY, (float) $minimum[1]);
-                $maximumY = max($maximumY, (float) $maximum[1]);
-                $positionCount += $accessor['count'];
-
-                $triangleInputCount = $accessor['count'];
-                if (array_key_exists('indices', $primitive)) {
-                    $indicesAccessorIndex = $primitive['indices'];
-                    if (! is_int($indicesAccessorIndex) ||
-                        ! is_array($accessors[$indicesAccessorIndex] ?? null) ||
-                        ! is_int($accessors[$indicesAccessorIndex]['count'] ?? null) ||
-                        $accessors[$indicesAccessorIndex]['count'] <= 0) {
-                        return 'The GLB mesh indices must reference a valid accessor count.';
-                    }
-
-                    $triangleInputCount = $accessors[$indicesAccessorIndex]['count'];
-                }
-
-                $primitiveMode = $primitive['mode'] ?? 4;
-                if (! is_int($primitiveMode) || $primitiveMode < 0 || $primitiveMode > 6) {
-                    return 'The GLB mesh primitive mode is invalid.';
-                }
-
-                $triangleCount += match ($primitiveMode) {
-                    4 => intdiv($triangleInputCount, 3),
-                    5, 6 => max(0, $triangleInputCount - 2),
-                    default => 0,
-                };
-            }
-        }
-
-        if ($positionCount === 0 ||
-            ($maximumY - $minimumY) <= self::AR_MODEL_MIN_HEIGHT_UNITS) {
-            return 'The GLB has no measurable height. Export it with Y as the up axis.';
-        }
-
-        if ($triangleCount > self::AR_TRIANGLE_HARD_LIMIT) {
-            return "The GLB contains {$triangleCount} triangles, above the hard limit of ".self::AR_TRIANGLE_HARD_LIMIT.'. Reduce the mesh before uploading.';
-        }
-
-        if ($triangleCount > self::AR_TRIANGLE_WARN_LIMIT) {
-            $warnings[] = "The GLB contains {$triangleCount} triangles; the recommended budget is ".self::AR_TRIANGLE_WARN_LIMIT.'.';
-        }
-
-        return null;
     }
 
     private function orderStatusError(Request $request, string $field, string $message): RedirectResponse|JsonResponse

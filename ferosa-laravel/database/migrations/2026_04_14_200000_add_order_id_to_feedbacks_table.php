@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('feedbacks', function (Blueprint $table) {
             $table->foreignId('order_id')->nullable()->after('service_type_id')
-                  ->constrained('orders')->nullOnDelete();
+                ->constrained('orders')->nullOnDelete();
         });
     }
 

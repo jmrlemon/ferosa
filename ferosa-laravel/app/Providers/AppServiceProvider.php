@@ -52,7 +52,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Unread message count
         View::composer($layouts, function ($view) {
-            if (!app()->has('_customerUnreadMessages')) {
+            if (! app()->has('_customerUnreadMessages')) {
                 $count = 0;
                 if ($user = auth()->user()) {
                     $convo = Conversation::where('customer_id', $user->id)->first();
@@ -70,7 +70,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Unread notification count
         View::composer($layouts, function ($view) {
-            if (!app()->has('_customerUnreadNotifications')) {
+            if (! app()->has('_customerUnreadNotifications')) {
                 $count = 0;
                 if ($user = auth()->user()) {
                     $count = $user->unreadNotifications()->count();
@@ -82,7 +82,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Orders that need customer confirmation after staff uploaded delivery proof.
         View::composer($layouts, function ($view) {
-            if (!app()->has('_customerPendingConfirmations')) {
+            if (! app()->has('_customerPendingConfirmations')) {
                 $count = 0;
                 if ($user = auth()->user()) {
                     $count = Order::query()

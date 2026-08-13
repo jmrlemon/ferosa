@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Notifications\AdminCancellationNotice;
 use App\Notifications\WorkCreatedNotice;
 use App\Services\CartService;
+use App\Services\InventoryService;
 use App\Support\Audit;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -190,7 +191,7 @@ class PageController extends Controller
         ]);
     }
 
-    public function storeCheckout(Request $request, CartService $cart): RedirectResponse
+    public function storeCheckout(Request $request, CartService $cart, InventoryService $inventory): RedirectResponse
     {
         $data = $request->validate([
             'checkout_token' => ['nullable', 'uuid'],
@@ -245,9 +246,12 @@ class PageController extends Controller
             : null;
 
         try {
-            $order = DB::transaction(function () use ($summary, $data, $request, $cart, $paymentProofPath) {
+            $order = DB::transaction(function () use ($summary, $data, $request, $cart, $paymentProofPath, $inventory) {
                 $lineItems = [];
                 $totalPrice = 0.0;
+                // Stock leaves once the order number exists, so the movement can
+                // reference it. Collected here, applied below.
+                $stockOut = [];
 
                 foreach ($summary['items'] as $cartItem) {
                     $product = Product::query()
@@ -276,7 +280,7 @@ class PageController extends Controller
                         'qty' => $qty,
                     ];
                     $totalPrice += $price * $qty;
-                    $product->decrement('stock_qty', $qty);
+                    $stockOut[] = [$product, $qty];
                 }
                 Cache::forget('shop_products_active');
 
@@ -307,6 +311,10 @@ class PageController extends Controller
                         'price' => $item['price'],
                         'qty' => $item['qty'],
                     ]);
+                }
+
+                foreach ($stockOut as [$product, $qty]) {
+                    $inventory->recordSale($product, $qty, $order->order_number);
                 }
 
                 $cart->clear($request->user());
@@ -637,6 +645,9 @@ class PageController extends Controller
     public function estimator(): View
     {
         return view('estimator', [
+            // Shared with the Android app via GET /api/mobile/estimator-rates,
+            // so both surfaces quote from the same numbers. See config/estimator.php.
+            'rateCard' => config('estimator'),
             'estimateProducts' => Product::query()
                 ->where('is_active', true)
                 ->whereNull('archived_at')
@@ -691,6 +702,7 @@ class PageController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'phone_number' => ['nullable', 'string', 'max:20'],
+            'current_password' => ['nullable', 'required_with:password', 'current_password'],
             'password' => ['nullable', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
 
@@ -707,7 +719,7 @@ class PageController extends Controller
         return back()->with('status', 'Profile updated successfully.');
     }
 
-    public function cancelOrder(Request $request, Order $order): RedirectResponse
+    public function cancelOrder(Request $request, Order $order, InventoryService $inventory): RedirectResponse
     {
         abort_unless((int) $order->user_id === (int) $request->user()->id, 403);
 
@@ -720,7 +732,7 @@ class PageController extends Controller
         }
 
         $before = Audit::snapshot($order, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
-        DB::transaction(function () use ($order, $request, $data) {
+        DB::transaction(function () use ($order, $request, $data, $inventory) {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->id);
             abort_unless($lockedOrder->canTransitionTo('cancelled'), 422, 'This order can no longer be cancelled.');
 
@@ -733,7 +745,7 @@ class PageController extends Controller
 
             foreach ($lockedOrder->orderItems()->with('product')->get() as $item) {
                 if ($item->product) {
-                    $item->product->increment('stock_qty', $item->qty);
+                    $inventory->recordReturn($item->product, $item->qty, $lockedOrder->order_number);
                 }
             }
         });

@@ -1,0 +1,21 @@
+# There was no .gitignore at this level, which is how .idea/, .kiro/ and stray
+# shell transcripts ended up committed - ferosa-laravel/.gitignore only covers
+# its own subdirectory.
+
+# IDE and AI-tool workspaces
+.idea/
+.kiro/
+.agents/
+.vscode/
+.fleet/
+
+# Machine-specific Claude Code settings (the shared .claude/settings.json is
+# fine to commit; the .local one holds absolute paths from one workstation).
+.claude/settings.local.json
+
+# Scratch output from debugging sessions
+temp_*.txt
+*.log
+
+# Build/tooling caches
+.phpunit.result.cache

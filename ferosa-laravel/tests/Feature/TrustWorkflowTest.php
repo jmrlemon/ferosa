@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Mail\AppointmentBooked;
 use App\Mail\OrderPlaced;
-use App\Models\Appointment;
 use App\Models\Conversation;
 use App\Models\Product;
 use App\Models\Project;
@@ -295,7 +294,8 @@ class TrustWorkflowTest extends TestCase
             'appointment_amount' => 750,
             'status' => 'scheduled',
         ]);
-        Mail::assertSent(AppointmentBooked::class);
+        // Mailables are queued so a slow SMTP host cannot stall the booking.
+        Mail::assertQueued(AppointmentBooked::class);
         Notification::assertSentTo($staff, WorkCreatedNotice::class);
 
         Notification::fake();
@@ -330,7 +330,7 @@ class TrustWorkflowTest extends TestCase
             'id' => $product->id,
             'stock_qty' => 6,
         ]);
-        Mail::assertSent(OrderPlaced::class);
+        Mail::assertQueued(OrderPlaced::class);
         Notification::assertSentTo($staff, WorkCreatedNotice::class);
 
         Carbon::setTestNow();

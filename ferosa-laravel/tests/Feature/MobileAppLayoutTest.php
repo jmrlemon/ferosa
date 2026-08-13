@@ -41,6 +41,49 @@ class MobileAppLayoutTest extends TestCase
         $this->assertStringContainsString('in-app', $body[0]);
     }
 
+    public function test_android_app_uses_compiled_assets_when_desktop_vite_is_hot(): void
+    {
+        $hotFile = public_path('hot');
+        $originalHotFile = is_file($hotFile) ? file_get_contents($hotFile) : null;
+
+        file_put_contents($hotFile, 'http://[::1]:5173');
+
+        try {
+            $html = $this->actingAs($this->customer())
+                ->withHeaders(['User-Agent' => self::APP_UA])
+                ->get('/shop')->assertOk()->getContent();
+
+            $this->assertStringContainsString('/build/assets/app-', $html);
+            $this->assertStringNotContainsString('[::1]:5173', $html);
+        } finally {
+            if ($originalHotFile === null) {
+                @unlink($hotFile);
+            } else {
+                file_put_contents($hotFile, $originalHotFile);
+            }
+        }
+    }
+
+    public function test_desktop_browser_keeps_vite_hot_reload(): void
+    {
+        $hotFile = public_path('hot');
+        $originalHotFile = is_file($hotFile) ? file_get_contents($hotFile) : null;
+
+        file_put_contents($hotFile, 'http://[::1]:5173');
+
+        try {
+            $html = $this->actingAs($this->customer())->get('/shop')->assertOk()->getContent();
+
+            $this->assertStringContainsString('[::1]:5173', $html);
+        } finally {
+            if ($originalHotFile === null) {
+                @unlink($hotFile);
+            } else {
+                file_put_contents($hotFile, $originalHotFile);
+            }
+        }
+    }
+
     public function test_the_bottom_nav_the_in_app_css_hides_actually_exists(): void
     {
         $html = $this->actingAs($this->customer())

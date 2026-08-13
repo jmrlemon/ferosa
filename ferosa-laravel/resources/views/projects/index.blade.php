@@ -9,7 +9,7 @@
       <div>
         <p class="text-[11px] font-bold uppercase tracking-[.18em] text-brand-200">Verified work by Ferosa</p>
         <h1 class="mt-3 max-w-3xl font-display text-3xl font-bold tracking-[-.025em] sm:text-5xl">Landscapes planned around real homes and real needs.</h1>
-        <p class="mt-4 max-w-2xl text-sm leading-7 text-brand-100/75">Explore projects the Ferosa team has chosen to publish. Each entry is managed from the staff portal so the details and images stay authentic.</p>
+        <p class="mt-4 max-w-2xl text-sm leading-7 text-brand-100/75">Explore projects the Ferosa team has chosen to publish. Each entry is managed from the staff workspace so the details and images stay authentic.</p>
       </div>
       <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
         <p class="text-[10px] font-bold uppercase tracking-wider text-brand-200">Serving</p>

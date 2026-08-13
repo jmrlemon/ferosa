@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Jobs\SendSmsJob;
 use App\Models\AppSetting;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\User;
 use App\Support\MessageAttachment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MessageController extends Controller
 {
@@ -46,7 +49,7 @@ class MessageController extends Controller
         // no caption. Requiring both would block the common "here's a picture"
         // case, but an entirely empty message is still rejected.
         $data = $request->validate([
-            'body'       => ['nullable', 'string', 'max:2000', 'required_without:attachment'],
+            'body' => ['nullable', 'string', 'max:2000', 'required_without:attachment'],
             'attachment' => MessageAttachment::rules(),
         ], [
             'body.required_without' => 'Type a message or attach a file.',
@@ -66,7 +69,7 @@ class MessageController extends Controller
 
         $message = $conversation->messages()->create([
             'sender_id' => $user->id,
-            'body'      => trim((string) ($data['body'] ?? '')) ?: null,
+            'body' => trim((string) ($data['body'] ?? '')) ?: null,
             ...$attachment,
         ]);
 
@@ -93,11 +96,11 @@ class MessageController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'message' => [
-                    'id'         => $message->id,
-                    'body'       => $message->body,
+                    'id' => $message->id,
+                    'body' => $message->body,
                     'created_at' => $message->created_at->toISOString(),
-                    'is_mine'    => true,
-                    'sender'     => $user->name,
+                    'is_mine' => true,
+                    'sender' => $user->name,
                     'attachment' => $message->attachmentPayload(),
                 ],
             ], 201);
@@ -125,11 +128,11 @@ class MessageController extends Controller
             ->oldest()
             ->get()
             ->map(fn ($m) => [
-                'id'         => $m->id,
-                'body'       => $m->body,
+                'id' => $m->id,
+                'body' => $m->body,
                 'created_at' => $m->created_at->toISOString(),
-                'is_mine'    => $m->sender_id === $user->id,
-                'sender'     => $m->sender->name,
+                'is_mine' => $m->sender_id === $user->id,
+                'sender' => $m->sender->name,
                 'attachment' => $m->attachmentPayload(),
             ]);
 
@@ -140,5 +143,33 @@ class MessageController extends Controller
             ->update(['read_at' => now()]);
 
         return response()->json(['messages' => $messages]);
+    }
+
+    /**
+     * Stream a chat attachment to the two parties entitled to see it.
+     *
+     * These files used to sit on the public disk, which meant a receipt or an
+     * ID photo was retrievable by URL with no session at all. Access is now the
+     * conversation's own customer, or staff answering it.
+     */
+    public function attachment(Request $request, Message $message): StreamedResponse
+    {
+        abort_unless($message->hasAttachment(), 404);
+
+        $user = $request->user();
+        $isOwner = (int) $message->conversation->customer_id === (int) $user->id;
+
+        abort_unless($isOwner || $user->isStaffOrAdmin(), 403);
+
+        $disk = MessageAttachment::diskFor($message->attachment_path);
+        abort_unless($disk !== null, 404);
+
+        // inline so images render in the thread; the stored name is only used
+        // as the download filename, never as a filesystem path.
+        return Storage::disk($disk)->response(
+            $message->attachment_path,
+            $message->attachment_name,
+            ['Content-Type' => $message->attachment_mime ?: 'application/octet-stream']
+        );
     }
 }

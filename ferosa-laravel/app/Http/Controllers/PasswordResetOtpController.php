@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class PasswordResetOtpController extends Controller
 {
@@ -109,6 +110,18 @@ class PasswordResetOtpController extends Controller
             }
 
             $user->update(['password' => Hash::make($data['password'])]);
+
+            // A reset is the one action a compromised user has left, so it has
+            // to actually evict the attacker. Rotating the remember token kills
+            // any long-lived cookie, and because sessions live in the database
+            // we can drop the server-side records too - otherwise the old
+            // session cookie keeps working with the new password in place.
+            $user->setRememberToken(Str::random(60));
+            $user->save();
+
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)
+                ->delete();
 
             return true;
         });

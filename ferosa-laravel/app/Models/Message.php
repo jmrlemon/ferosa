@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class Message extends Model
 {
@@ -47,10 +46,14 @@ class Message extends Model
         return $this->hasAttachment() && str_starts_with((string) $this->attachment_mime, 'image/');
     }
 
+    /**
+     * Attachments are on the private disk, so this points at the route that
+     * checks who is asking rather than straight at a public file.
+     */
     public function attachmentUrl(): ?string
     {
         return $this->hasAttachment()
-            ? Storage::disk('public')->url($this->attachment_path)
+            ? route('messages.attachment', $this)
             : null;
     }
 
@@ -79,10 +82,10 @@ class Message extends Model
         }
 
         return [
-            'url'        => $this->attachmentUrl(),
-            'name'       => $this->attachment_name,
-            'mime'       => $this->attachment_mime,
-            'is_image'   => $this->attachmentIsImage(),
+            'url' => $this->attachmentUrl(),
+            'name' => $this->attachment_name,
+            'mime' => $this->attachment_mime,
+            'is_image' => $this->attachmentIsImage(),
             'size_label' => $this->attachmentSizeLabel(),
         ];
     }

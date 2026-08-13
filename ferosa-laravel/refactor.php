@@ -7,11 +7,13 @@ $files = [
     'resources/views/schedule.blade.php',
     'resources/views/shop.blade.php',
     'resources/views/checkout.blade.php',
-    'resources/views/estimator.blade.php'
+    'resources/views/estimator.blade.php',
 ];
 
 foreach ($files as $file) {
-    if (!file_exists($file)) continue;
+    if (! file_exists($file)) {
+        continue;
+    }
 
     $content = file_get_contents($file);
 
@@ -30,7 +32,7 @@ foreach ($files as $file) {
     // Let's use string operations instead of regex for safety on the nav block.
     $navStart = strpos($content, '<nav');
     $navEnd = strpos($content, '</nav>');
-    
+
     if ($navStart !== false && $navEnd !== false) {
         $contentAfterNav = substr($content, $navEnd + 6);
     } else {
@@ -50,7 +52,7 @@ foreach ($files as $file) {
     if ($logoutStart !== false) {
         $contentAfterNav = substr($contentAfterNav, 0, $logoutStart);
     }
-    
+
     // Also strip trailing </body> and </html> and any remaining <script> handleLogout()
     $contentAfterNav = preg_replace('/<script>\s*window\.addEventListener\(\'pageshow\'.*?<\/script>/s', '', $contentAfterNav);
     $contentAfterNav = preg_replace('/<script>\s*function handleLogout\(\).*?<\/script>/s', '', $contentAfterNav);
@@ -65,13 +67,13 @@ foreach ($files as $file) {
     // Build new file content
     $newContent = "@extends('layouts.customer')\n\n";
     if (trim($styles) !== '') {
-        $newContent .= "@section('styles')\n<style>\n" . trim($styles) . "\n</style>\n@endsection\n\n";
+        $newContent .= "@section('styles')\n<style>\n".trim($styles)."\n</style>\n@endsection\n\n";
     }
-    
+
     // Check if the file already had @section('content') somewhere, wait, previously they were standalone HTML files.
     // Wait, let's just wrap everything in @section('content')
     $newContent .= "@section('content')\n";
-    $newContent .= trim($contentAfterNav) . "\n";
+    $newContent .= trim($contentAfterNav)."\n";
     $newContent .= "@endsection\n";
 
     file_put_contents($file, $newContent);

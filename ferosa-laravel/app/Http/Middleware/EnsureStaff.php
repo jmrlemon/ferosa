@@ -20,4 +20,3 @@ class EnsureStaff
         return $next($request);
     }
 }
-

@@ -23,19 +23,19 @@ class AppointmentStatusChanged extends Notification implements ShouldQueue
         $service = $this->appointment->serviceType->name ?? 'Service';
 
         $label = match ($this->appointment->status) {
-            'confirmed'  => 'confirmed',
-            'completed'  => 'completed',
-            'cancelled'  => 'cancelled',
-            default      => $this->appointment->status,
+            'confirmed' => 'confirmed',
+            'completed' => 'completed',
+            'cancelled' => 'cancelled',
+            default => $this->appointment->status,
         };
 
         return [
-            'type'           => 'appointment',
+            'type' => 'appointment',
             'appointment_id' => $this->appointment->id,
-            'service'        => $service,
-            'status'         => $this->appointment->status,
-            'message'        => "Your {$service} appointment has been {$label}.",
-            'url'            => route('appointments', absolute: false),
+            'service' => $service,
+            'status' => $this->appointment->status,
+            'message' => "Your {$service} appointment has been {$label}.",
+            'url' => route('appointments', absolute: false),
         ];
     }
 }

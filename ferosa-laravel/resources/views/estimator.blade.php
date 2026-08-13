@@ -177,13 +177,25 @@
             </div>
           </div>
           <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            @foreach ([
-              ['design',       'Garden Design',   'Full landscape design, plant selection & installation.',   '₱50/sq m',  'M12 2a9 9 0 0 1 9 9c0 6-9 13-9 13S3 17 3 11a9 9 0 0 1 9-9z" /><circle cx="12" cy="11" r="3',   'bg-green-50 text-green-600'],
-              ['maintenance',  'Maintenance',     'Regular lawn care, pruning, weeding & cleanup.',          '₱10/sq m',  'M3 12h18M3 6h18M3 18h12',                                                                      'bg-blue-50 text-blue-600'],
-              ['hardscaping',  'Hardscaping',     'Patios, walkways, retaining walls & stonework.',          '₱120/sq m', 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22',  'bg-amber-50 text-amber-600'],
-            ] as [$val, $title, $desc, $rate, $icon, $iconClass])
+            {{-- Labels, descriptions and rates come from config/estimator.php so the
+                 web page and the Android app cannot drift apart. Only the artwork
+                 below is web-specific. --}}
+            @php
+              $projectArt = [
+                'design'      => ['M12 2a9 9 0 0 1 9 9c0 6-9 13-9 13S3 17 3 11a9 9 0 0 1 9-9z" /><circle cx="12" cy="11" r="3',  'bg-green-50 text-green-600'],
+                'maintenance' => ['M3 12h18M3 6h18M3 18h12',                                                                     'bg-blue-50 text-blue-600'],
+                'hardscaping' => ['M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22',   'bg-amber-50 text-amber-600'],
+              ];
+            @endphp
+            @foreach ($rateCard['project_types'] as $val => $projectType)
+            @php
+              $title = $projectType['label'];
+              $desc = $projectType['description'];
+              $rate = '₱'.number_format($projectType['rate']).'/sq m';
+              [$icon, $iconClass] = $projectArt[$val] ?? ['M3 12h18M3 6h18M3 18h12', 'bg-surface-100 text-surface-600'];
+            @endphp
             <label class="step-card cursor-pointer">
-              <input type="radio" name="project_type" value="{{ $val }}" class="sr-only" {{ $val === 'design' ? 'checked' : '' }} onchange="calculate()">
+              <input type="radio" name="project_type" value="{{ $val }}" class="sr-only" {{ $val === $rateCard['defaults']['project_type'] ? 'checked' : '' }} onchange="calculate()">
               <div class="card-body border border-surface-200 rounded-xl p-4 hover:border-brand-200 relative">
                 {{-- Checkmark badge (top-right corner) --}}
                 <div class="card-check absolute top-2.5 right-2.5 w-5 h-5 bg-brand-600 rounded-full flex items-center justify-center">
@@ -216,7 +228,7 @@
           </div>
           <div class="p-5">
             <div class="relative mb-1">
-              <input type="number" id="size-input" min="1" step="1" value="100" placeholder="e.g. 2500"
+              <input type="number" id="size-input" min="1" step="1" value="{{ $rateCard['defaults']['size'] }}" placeholder="e.g. 2500"
                      class="w-full border border-surface-200 rounded-xl px-4 py-3.5 text-2xl font-display font-bold text-surface-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition-all pr-20"
                      oninput="updateSizeUI(); calculate()">
               <span class="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 text-sm font-medium pointer-events-none">sq m</span>
@@ -226,7 +238,7 @@
             {{-- Quick-pick buttons --}}
             <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-50">
               <span class="text-[11px] text-surface-400 self-center mr-1">Quick pick:</span>
-              @foreach ([50, 100, 250, 500, 1000, 2000, 5000] as $sz)
+              @foreach ($rateCard['quick_sizes'] as $sz)
               <button type="button" onclick="setSize({{ $sz }})"
                       class="size-btn text-xs px-3 py-1.5 rounded-lg border border-surface-200 text-surface-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 transition-colors font-medium">
                 {{ number_format($sz) }} sq m
@@ -246,13 +258,23 @@
             </div>
           </div>
           <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            @foreach ([
-              ['standard', 'Standard', '1×', 'Budget-friendly materials with solid craftsmanship.', 'bg-zinc-100 text-zinc-600'],
-              ['premium', 'Premium', '1.6×', 'Higher-grade plants and materials with more visual detail.', 'bg-violet-50 text-violet-700'],
-              ['luxury', 'Luxury', '2.4×', 'Top-tier finishes, specimen plants, and bespoke design.', 'bg-amber-50 text-amber-700'],
-            ] as [$val, $label, $mult, $desc, $badgeClass])
+            @php
+              $tierBadgeClasses = [
+                'standard' => 'bg-zinc-100 text-zinc-600',
+                'premium'  => 'bg-violet-50 text-violet-700',
+                'luxury'   => 'bg-amber-50 text-amber-700',
+              ];
+            @endphp
+            @foreach ($rateCard['tiers'] as $val => $tier)
+            @php
+              $label = $tier['label'];
+              $desc = $tier['description'];
+              // 1.0 reads as "1×", 1.6 stays "1.6×".
+              $mult = rtrim(rtrim(number_format($tier['multiplier'], 1), '0'), '.').'×';
+              $badgeClass = $tierBadgeClasses[$val] ?? 'bg-surface-100 text-surface-600';
+            @endphp
             <label class="tier-card cursor-pointer">
-              <input type="radio" name="quality_tier" value="{{ $val }}" data-mult="{{ $mult }}" class="sr-only" {{ $val === 'standard' ? 'checked' : '' }} onchange="calculate()">
+              <input type="radio" name="quality_tier" value="{{ $val }}" data-mult="{{ $mult }}" class="sr-only" {{ $val === $rateCard['defaults']['tier'] ? 'checked' : '' }} onchange="calculate()">
               <div class="tier-body h-full border border-surface-200 rounded-xl p-4 hover:border-brand-200">
                 <div class="flex items-center justify-between mb-2">
                   <span class="text-sm font-semibold text-surface-900">{{ $label }}</span>
@@ -288,14 +310,26 @@
             </div>
           </div>
           <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            @foreach ([
-              ['addon-irrigation', 'Irrigation System',        '+ ₱40,000', 'Automated sprinkler & drip lines.',        'M12 2a10 10 0 0 1 0 20A10 10 0 0 1 12 2zm0 4v4m0 4h.01',                            'text-blue-500',   'bg-blue-50',   40000],
-              ['addon-lighting',   'Outdoor Lighting',         '+ ₱25,000', 'Path lights, spotlights & accent LEDs.',   'M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41', 'text-yellow-500', 'bg-yellow-50', 25000],
-              ['addon-water',      'Water Feature',            '+ ₱60,000', 'Custom pond, fountain or water wall.',     'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z', 'text-cyan-500',   'bg-cyan-50',   60000],
-              ['addon-pergola',    'Pergola / Gazebo',         '+ ₱80,000', 'Shaded structure for outdoor living.',     'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',                                    'text-amber-600',  'bg-amber-50',  80000],
-              ['addon-fence',      'Decorative Fencing',       '+ ₱20,000', 'Bamboo, wood or metal boundary fencing.',  'M4 4h16v2H4zm0 7h16v2H4zm0 7h16v2H4z',                                              'text-zinc-500',   'bg-zinc-100',  20000],
-              ['addon-soil',       'Soil Preparation & Mulch', '+ ₱15,000', 'Deep aeration, enriched topsoil & mulch.', 'M3 3h18v18H3z" rx="2',                                                              'text-green-600',  'bg-green-50',  15000],
-            ] as [$id, $label, $price, $desc, $icon, $iconColor, $iconBg, $amount])
+            @php
+              $addonArt = [
+                'irrigation' => ['M12 2a10 10 0 0 1 0 20A10 10 0 0 1 12 2zm0 4v4m0 4h.01',                            'text-blue-500',   'bg-blue-50'],
+                'lighting'   => ['M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41', 'text-yellow-500', 'bg-yellow-50'],
+                'water'      => ['M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z', 'text-cyan-500',   'bg-cyan-50'],
+                'pergola'    => ['M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',                                    'text-amber-600',  'bg-amber-50'],
+                'fence'      => ['M4 4h16v2H4zm0 7h16v2H4zm0 7h16v2H4z',                                              'text-zinc-500',   'bg-zinc-100'],
+                'soil'       => ['M3 3h18v18H3z" rx="2',                                                              'text-green-600',  'bg-green-50'],
+              ];
+            @endphp
+            @foreach ($rateCard['addons'] as $addonKey => $addon)
+            @php
+              // The JS reads these ids and the data-amount attribute below.
+              $id = 'addon-'.$addonKey;
+              $label = $addon['label'];
+              $desc = $addon['description'];
+              $amount = $addon['amount'];
+              $price = '+ ₱'.number_format($amount);
+              [$icon, $iconColor, $iconBg] = $addonArt[$addonKey] ?? ['M3 3h18v18H3z', 'text-surface-500', 'bg-surface-100'];
+            @endphp
             <label class="addon-item cursor-pointer">
               <input type="checkbox" id="{{ $id }}" data-amount="{{ $amount }}" class="sr-only" onchange="calculate(); updateAddonCount()">
               <div class="addon-box border border-surface-200 rounded-xl p-3.5 hover:border-brand-200 flex items-start gap-3 relative">
@@ -534,36 +568,31 @@
 @section('scripts')
 <script>
   // ─── Pricing config ───────────────────────────────────────────────────────
-  const BASE_RATES = { design: 50, maintenance: 10, hardscaping: 120 };   // ₱ per sq m
-  const TIER_MULT  = { standard: 1.0, premium: 1.6, luxury: 2.4 };
-  const TIER_LABEL = { standard: 'Standard (1×)', premium: 'Premium (1.6×)', luxury: 'Luxury (2.4×)' };
-  const TIER_NAME = { standard: 'Standard', premium: 'Premium', luxury: 'Luxury' };
-  const PROJECT_NAME = { design: 'Garden Design', maintenance: 'Maintenance', hardscaping: 'Hardscaping' };
-  const TIER_EXAMPLES = {
-    standard: ['Common shrubs and groundcover', 'Basic soil preparation', 'Simple edging and layout'],
-    premium: ['Mature plants and layered planting', 'Decorative stone and edging', 'Selected garden lighting'],
-    luxury: ['Rare or specimen plants', 'Custom hardscape and irrigation', 'Water feature or signature focal point'],
-  };
-  const TIER_VISUALS = {
-    standard: {
-      title: 'Starter Garden',
-      caption: 'A practical garden using common plants, lawn, and simple edging.',
-      alt: 'Standard starter garden package visualization',
-      position: 0,
-    },
-    premium: {
-      title: 'Enhanced Garden',
-      caption: 'A polished garden with mature planting, a refined path, stone edging, and lighting.',
-      alt: 'Premium enhanced garden package visualization',
-      position: -33.333,
-    },
-    luxury: {
-      title: 'Signature Landscape',
-      caption: 'A bespoke landscape with specimen plants, custom stonework, lighting, and a water feature.',
-      alt: 'Luxury signature landscape package visualization',
-      position: -66.666,
-    },
-  };
+  // Rendered from config/estimator.php. The same structure is served to the
+  // Android app at /api/mobile/estimator-rates, so a price change reaches the
+  // web page and the app from one edit. Do not hardcode rates here again.
+  const RATE_CARD = @json($rateCard);
+
+  /** Object.fromEntries is Chrome 73+; some Android 7 WebViews are older. */
+  function mapValues(source, pick) {
+    const out = {};
+    Object.keys(source).forEach(function (key) { out[key] = pick(source[key]); });
+    return out;
+  }
+
+  const BASE_RATES = mapValues(RATE_CARD.project_types, t => t.rate);          // ₱ per sq m
+  const PROJECT_NAME = mapValues(RATE_CARD.project_types, t => t.label);
+  const TIER_MULT = mapValues(RATE_CARD.tiers, t => t.multiplier);
+  const TIER_NAME = mapValues(RATE_CARD.tiers, t => t.label);
+  const TIER_LABEL = mapValues(RATE_CARD.tiers, t => `${t.label} (${t.multiplier}×)`);
+  const TIER_EXAMPLES = mapValues(RATE_CARD.tiers, t => t.examples);
+  const TIER_VISUALS = mapValues(RATE_CARD.tiers, t => ({
+    title: t.package_title,
+    caption: t.caption,
+    alt: `${t.label} ${t.package_title.toLowerCase()} package visualization`,
+    // The sprite is three panels wide, so panel n starts at -(n × 100/3)%.
+    position: -(t.visual_index * (100 / 3)),
+  }));
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
   function fmt(n) {
@@ -683,8 +712,8 @@
     ` : '');
 
     // ── Range ──
-    document.querySelectorAll('[data-range-low]').forEach(el => { el.textContent = fmt(total * 0.8); });
-    document.querySelectorAll('[data-range-high]').forEach(el => { el.textContent = fmt(total * 1.25); });
+    document.querySelectorAll('[data-range-low]').forEach(el => { el.textContent = fmt(total * RATE_CARD.range.low); });
+    document.querySelectorAll('[data-range-high]').forEach(el => { el.textContent = fmt(total * RATE_CARD.range.high); });
 
     updateGeneratedPackage({
       type,

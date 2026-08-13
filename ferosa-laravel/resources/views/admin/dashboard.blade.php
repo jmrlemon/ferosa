@@ -168,7 +168,7 @@
   <!-- Sidebar -->
   <aside id="admin-sidebar" aria-label="Admin navigation" class="w-64 bg-white border-r border-surface-100 flex flex-col justify-between flex-shrink-0 z-20">
     <div class="min-h-0 overflow-y-auto">
-      <div class="px-4 py-4 border-b border-surface-100 flex items-center gap-3 sticky top-0 bg-white/95 backdrop-blur z-10">
+      <div class="px-4 h-[68px] border-b border-surface-100 flex items-center gap-3 sticky top-0 bg-white/95 backdrop-blur z-10">
         <div class="w-9 h-9 bg-brand-950 rounded-xl flex items-center justify-center shadow-sm">
           <svg class="w-5 h-5 text-brand-100" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 4.5c-6.6.2-11.3 3-13.5 8.3M5.2 19c1.1-5.2 4.8-8.7 10.8-10.7M19.5 4.5c.4 6.8-2.8 11.3-8.1 11.8-2.3.2-4.3-.8-5.4-3.5"/></svg>
         </div>

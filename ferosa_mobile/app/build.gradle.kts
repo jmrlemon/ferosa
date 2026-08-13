@@ -7,6 +7,29 @@ val ferosaServerUrl = providers.gradleProperty("FEROSA_SERVER_URL")
     .orElse(providers.environmentVariable("FEROSA_SERVER_URL"))
     .orElse("http://10.0.2.2/ferosa/ferosa-laravel/public")
 
+/**
+ * A release build sets `usesCleartextTraffic=false`, so an APK built against the
+ * cleartext development default installs fine and then fails every single
+ * request with no visible reason. Fail the build instead of shipping that.
+ */
+val verifyReleaseServerUrl = tasks.register("verifyReleaseServerUrl") {
+    group = "verification"
+    description = "Ensures release builds point at an https:// server."
+
+    val url = ferosaServerUrl
+    doLast {
+        val value = url.get()
+        check(value.startsWith("https://")) {
+            "FEROSA_SERVER_URL must be https:// for release builds (got \"$value\"). " +
+                "Release APKs disable cleartext traffic, so an http:// server cannot be reached. " +
+                "Pass -PFEROSA_SERVER_URL=https://<host>/path when assembling."
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }
+    .configureEach { dependsOn(verifyReleaseServerUrl) }
+
 android {
     namespace = "com.example.ferosa_landscaping"
     compileSdk {
@@ -16,11 +39,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.ferosa_landscaping"
+        // `com.example.*` is rejected by the Play Store. The Kotlin package
+        // (`namespace`, below) is deliberately left alone - it is internal, and
+        // renaming it would touch every file for no functional gain.
+        applicationId = "com.ferosa.landscaping"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SERVER_URL", "\"${ferosaServerUrl.get().trimEnd('/')}\"")
@@ -71,6 +97,10 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.coil.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.swiperefreshlayout)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

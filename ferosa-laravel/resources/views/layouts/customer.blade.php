@@ -1,3 +1,16 @@
+@php
+  // The Android app cannot load Vite's default localhost development URL:
+  // inside a WebView, localhost / ::1 points back to the phone. Detect the app
+  // before rendering <head> so it can use the last compiled build even while a
+  // developer has Vite running for desktop browser work.
+  $inApp = str_contains((string) request()->userAgent(), 'FerosaApp');
+  $customerVite = app(\Illuminate\Foundation\Vite::class);
+
+  if ($inApp && file_exists(public_path('build/manifest.json'))) {
+    $customerVite = clone $customerVite;
+    $customerVite->useHotFile(storage_path('framework/ferosa-mobile-vite.hot'));
+  }
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,7 +33,7 @@
   <meta name="twitter:image" content="{{ asset('og.png') }}">
 
   <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
+  {!! $customerVite(['resources/css/app.css', 'resources/js/app.js']) !!}
   <style>
     /* Palette lives in resources/css/app.css (@theme --color-brand-* / --color-surface-*).
        Do not redeclare colours here — reference the tokens directly. */
@@ -385,12 +398,12 @@
         #fff;
       box-shadow: 12px 0 36px rgba(18,52,38,.025);
     }
-    .portal-topbar {
+    .app-topbar {
       background: rgba(255,255,255,.9);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
     }
-    .portal-icon-button {
+    .app-icon-button {
       width: 40px;
       height: 40px;
       display: inline-flex;
@@ -402,7 +415,7 @@
       color: #706b61;
       transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
     }
-    .portal-icon-button:hover {
+    .app-icon-button:hover {
       color: #1b5239;
       border-color: #cfe3d6;
       background: #f4faf6;
@@ -485,15 +498,6 @@
   </script>
   @include('partials.type-scale')
 </head>
-@php
-  // The Android WebView appends "FerosaApp" to its User-Agent, so the in-app
-  // layout is applied on the very first paint. The app also injects this class
-  // from JavaScript on page load, but that only runs once the page has finished
-  // loading - long enough for the web nav bar to show up underneath the native
-  // one. Detecting it server-side removes that double-nav flash entirely, and
-  // keeps working if the injected script never runs.
-  $inApp = str_contains((string) request()->userAgent(), 'FerosaApp');
-@endphp
 <body class="flex h-screen bg-surface-50 text-surface-900 overflow-hidden font-sans antialiased{{ $inApp ? ' in-app' : '' }}" id="app-body">
 
   <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -516,7 +520,7 @@
             </div>
             <span>
               <span class="block font-display font-bold text-[19px] leading-5 text-surface-900 tracking-tight">Ferosa</span>
-              <span class="block mt-0.5 text-[10px] font-semibold uppercase tracking-[.13em] text-surface-400">Customer portal</span>
+              <span class="block mt-0.5 text-[10px] font-semibold uppercase tracking-[.13em] text-surface-400">Customer dashboard</span>
             </span>
           </a>
         </div>
@@ -622,7 +626,7 @@
   <!-- Main Content Wrapper -->
   <div class="flex-1 flex flex-col h-screen overflow-hidden" id="app-content-wrapper">
     @php
-      $portalPage = match (true) {
+      $currentPage = match (true) {
         request()->routeIs('home') => ['Home', 'Your garden at a glance'],
         request()->routeIs('shop') || request()->routeIs('products.*') || request()->routeIs('checkout*') => ['Shop', 'Plants and garden essentials'],
         request()->routeIs('projects.*') => ['Projects', 'Verified Ferosa work'],
@@ -635,24 +639,24 @@
         default => ['Ferosa', 'Landscaping made simple'],
       };
     @endphp
-    <header class="portal-topbar hidden lg:flex h-[72px] flex-shrink-0 items-center justify-between gap-5 border-b border-surface-100 px-7 relative z-30">
+    <header class="app-topbar hidden lg:flex h-[72px] flex-shrink-0 items-center justify-between gap-5 border-b border-surface-100 px-7 relative z-30">
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-[.14em] text-brand-600">Customer portal</p>
-        <p class="mt-0.5 text-sm font-bold text-surface-800">{{ $portalPage[0] }} <span class="ml-2 font-normal text-surface-400">{{ $portalPage[1] }}</span></p>
+        <p class="text-[10px] font-bold uppercase tracking-[.14em] text-brand-600">Customer dashboard</p>
+        <p class="mt-0.5 text-sm font-bold text-surface-800">{{ $currentPage[0] }} <span class="ml-2 font-normal text-surface-400">{{ $currentPage[1] }}</span></p>
       </div>
       @auth
       <div class="flex items-center gap-2">
-        <a href="{{ route('checkout') }}" class="portal-icon-button relative" id="header-cart-icon" aria-label="Open cart" title="Cart">
+        <a href="{{ route('checkout') }}" class="app-icon-button relative" id="header-cart-icon" aria-label="Open cart" title="Cart">
           <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13 5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm-8 2a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/></svg>
           <span id="header-cart-count" class="hidden absolute -top-1 -right-1 bg-brand-600 text-white text-[8px] font-bold min-w-[16px] h-4 px-1 rounded-full items-center justify-center leading-none">0</span>
         </a>
-        <a href="{{ route('messages') }}" class="portal-icon-button relative" aria-label="Open messages" title="Messages">
+        <a href="{{ route('messages') }}" class="app-icon-button relative" aria-label="Open messages" title="Messages">
           <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-5l-5 5v-5Z"/></svg>
           @if($customerUnreadMessages > 0)
             <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center leading-none">{{ $customerUnreadMessages > 9 ? '9+' : $customerUnreadMessages }}</span>
           @endif
         </a>
-        <button id="desktop-notif-trigger" type="button" onclick="toggleNotifPanel()" class="portal-icon-button relative" aria-label="Open notifications" title="Notifications" aria-haspopup="true" aria-controls="notif-panel-desktop" aria-expanded="false">
+        <button id="desktop-notif-trigger" type="button" onclick="toggleNotifPanel()" class="app-icon-button relative" aria-label="Open notifications" title="Notifications" aria-haspopup="true" aria-controls="notif-panel-desktop" aria-expanded="false">
           <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"/></svg>
           @if($customerUnreadNotifications > 0)
             <span class="absolute -top-1 -right-1 bg-brand-600 text-white text-[8px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center leading-none">{{ $customerUnreadNotifications > 9 ? '9+' : $customerUnreadNotifications }}</span>

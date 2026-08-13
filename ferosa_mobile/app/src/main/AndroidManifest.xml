@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Local notifications for order, appointment and message changes, raised
+         by SummaryPollWorker. Runtime-requested from API 33. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- ARCore: optional so the app can install on non-AR devices -->
@@ -24,12 +27,27 @@
 
         <meta-data android:name="com.google.ar.core" android:value="optional" tools:replace="android:value" />
 
+        <!-- Hands a camera app a destination for photos taken to answer an
+             <input type="file"> in the WebView. See res/xml/file_paths.xml. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Main launcher activity -->
+        <!-- The Starter theme draws the splash; installSplashScreen() swaps in
+             Theme.Ferosa_landscaping (its postSplashScreenTheme) on first frame. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:hardwareAccelerated="true"
-            android:theme="@style/Theme.Ferosa_landscaping"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Ferosa_landscaping.Starter"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

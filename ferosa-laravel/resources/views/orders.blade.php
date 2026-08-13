@@ -178,6 +178,8 @@
           $statusLabel = $status === 'delivered' && ! $order->customer_confirmed_at
             ? 'Delivered - Pending Confirmation'
             : ucfirst(str_replace('_',' ', $status));
+          $balanceDue = $order->balanceDue();
+          $amountPaid = $order->totalPaid();
         @endphp
 
         <div class="customer-card lift overflow-hidden">
@@ -199,6 +201,13 @@
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-surface-400">Total</p>
                 <p class="font-display text-xl font-bold text-surface-900">&#8369;{{ number_format((float) $order->total_amount, 2) }}</p>
+                @if ($balanceDue > 0 && $amountPaid > 0)
+                  <p class="text-[11px] font-semibold text-orange-600">
+                    &#8369;{{ number_format($amountPaid, 2) }} paid · &#8369;{{ number_format($balanceDue, 2) }} due
+                  </p>
+                @elseif ($balanceDue <= 0 && (float) $order->total_amount > 0)
+                  <p class="text-[11px] font-semibold text-brand-700">Fully paid</p>
+                @endif
               </div>
               <div class="flex items-center flex-wrap gap-1.5 justify-end">
                 @if ($status === 'delivered' && $order->delivery_proof_url)
@@ -222,6 +231,13 @@
                     Reviewed
                   </span>
                 @endif
+                <a href="{{ route('orders.invoice', $order) }}" class="btn btn-secondary btn-sm">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/><line x1="12" y1="17" x2="8" y2="17"/>
+                  </svg>
+                  Invoice
+                </a>
                 <a href="{{ route('orders.receipt', $order) }}" class="btn btn-secondary btn-sm">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
@@ -239,21 +255,26 @@
                   </button>
                 @endif
               </div>
+            </div>
+          </div>
+
+          @if($order->dispatch_proof_url || $order->delivery_proof_url || $status === 'cancelled')
+            <div class="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-surface-100">
               @if($order->dispatch_proof_url)
-                <div class="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 mt-3 text-xs text-left sm:text-right">
-                  <p class="font-semibold text-indigo-700 mb-1">Dispatch Information</p>
-                  <a href="{{ $order->dispatch_proof_url }}" class="inline-block overflow-hidden rounded-lg border border-indigo-100 bg-white mb-2">
-                    <img src="{{ $order->dispatch_proof_url }}" alt="Dispatch proof for order {{ $order->order_number }}" loading="lazy" decoding="async" class="w-full max-h-36 object-cover">
+                <div class="rounded-lg border border-indigo-100 bg-indigo-50/50 p-3 text-xs">
+                  <p class="font-semibold text-indigo-700 mb-1.5">Dispatch Information</p>
+                  <a href="{{ $order->dispatch_proof_url }}" class="block overflow-hidden rounded-lg border border-indigo-100 bg-white mb-2">
+                    <img src="{{ $order->dispatch_proof_url }}" alt="Dispatch proof for order {{ $order->order_number }}" loading="lazy" decoding="async" class="w-full h-32 object-cover">
                   </a>
                   <p class="text-surface-500">Dispatched: {{ optional($order->dispatched_at)->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
                   <p class="text-surface-500">Driver: {{ $order->driver_name ?: 'Not recorded' }}{{ $order->driver_phone ? ' · '.$order->driver_phone : '' }}</p>
                 </div>
               @endif
               @if($order->delivery_proof_url)
-                <div class="rounded-lg border border-brand-100 bg-brand-50/50 p-3 mt-3 text-xs">
-                  <p class="font-semibold text-brand-700 mb-1">Delivery Proof</p>
-                  <a href="{{ $order->delivery_proof_url }}" class="inline-block overflow-hidden rounded-lg border border-brand-100 bg-white mb-2">
-                    <img src="{{ $order->delivery_proof_url }}" alt="Delivery proof for order {{ $order->order_number }}" loading="lazy" decoding="async" class="w-full max-h-36 object-cover">
+                <div class="rounded-lg border border-brand-100 bg-brand-50/50 p-3 text-xs">
+                  <p class="font-semibold text-brand-700 mb-1.5">Delivery Proof</p>
+                  <a href="{{ $order->delivery_proof_url }}" class="block overflow-hidden rounded-lg border border-brand-100 bg-white mb-2">
+                    <img src="{{ $order->delivery_proof_url }}" alt="Delivery proof for order {{ $order->order_number }}" loading="lazy" decoding="async" class="w-full h-32 object-cover">
                   </a>
                   <p class="text-surface-500">Delivered: {{ optional($order->delivered_at)->format('M d, Y h:i A') ?? 'Pending timestamp' }}</p>
                   @if($order->delivery_recipient_name)<p class="text-surface-500">Received by: {{ $order->delivery_recipient_name }}</p>@endif
@@ -265,7 +286,7 @@
                 </div>
               @endif
               @if($status === 'cancelled')
-                <div class="rounded-lg border border-red-100 bg-red-50 p-3 mt-3 text-xs text-left sm:text-right">
+                <div class="rounded-lg border border-red-100 bg-red-50 p-3 text-xs">
                   <p class="font-semibold text-red-700 mb-1">Cancellation Record</p>
                   <p class="text-surface-500">
                     Cancelled: {{ optional($order->cancelled_at)->format('M d, Y h:i A') ?? 'Recorded' }}
@@ -276,7 +297,7 @@
                 </div>
               @endif
             </div>
-          </div>
+          @endif
 
           <div class="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
             <!-- Items -->
@@ -302,26 +323,8 @@
                     </li>
                   @endforeach
                 </ul>
-                @if (in_array($status, ['pending', 'confirmed']))
-                  <button type="button" onclick="openCancelModal({{ $order->id }}, @js($order->order_number))"
-                    class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors touch-manipulation min-h-[36px]">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                    Cancel Order
-                  </button>
-                @endif
               @else
                 <p class="text-xs text-surface-400">No line items stored for this order.</p>
-                @if (in_array($status, ['pending', 'confirmed']))
-                  <button type="button" onclick="openCancelModal({{ $order->id }}, @js($order->order_number))"
-                    class="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors touch-manipulation min-h-[36px]">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                    Cancel Order
-                  </button>
-                @endif
               @endif
             </div>
 

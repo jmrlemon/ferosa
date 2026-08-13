@@ -71,6 +71,7 @@ class CartService
 
             if ($quantity <= 0) {
                 $cart->items()->where('product_id', $productId)->delete();
+
                 return;
             }
 

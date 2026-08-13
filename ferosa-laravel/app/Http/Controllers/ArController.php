@@ -26,15 +26,15 @@ class ArController extends Controller
             ->get(['id', 'name', 'description', 'image_url', 'price', 'stock_qty', 'category']);
 
         return response()->json($products->map(fn (Product $p) => [
-            'id'            => $p->id,
-            'name'          => $p->name,
-            'description'   => $p->description,
-            'price'         => (float) $p->price,
+            'id' => $p->id,
+            'name' => $p->name,
+            'description' => $p->description,
+            'price' => (float) $p->price,
             'thumbnail_url' => $p->image_url,
-            'model_url'     => '/api/ar/products/' . $p->id . '/model',
-            'height_cm'     => (float) $p->plantModel->height_cm,
-            'category'      => $p->category,
-            'in_stock'      => $p->inStock(),
+            'model_url' => '/api/ar/products/'.$p->id.'/model',
+            'height_cm' => (float) $p->plantModel->height_cm,
+            'category' => $p->category,
+            'in_stock' => $p->inStock(),
         ]));
     }
 
@@ -89,7 +89,7 @@ class ArController extends Controller
 
         return response()->json([
             'updated_at' => $plantModel->updated_at->toIso8601String(),
-            'file_size'  => $plantModel->file_size,
+            'file_size' => $plantModel->file_size,
         ]);
     }
 
@@ -103,7 +103,7 @@ class ArController extends Controller
     {
         $validated = $request->validate([
             'product_id' => ['required', 'integer'],
-            'quantity'   => ['required', 'integer', 'min:1', 'max:999'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:999'],
         ]);
 
         $summary = $cart->add(
@@ -113,8 +113,8 @@ class ArController extends Controller
         );
 
         return response()->json([
-            'success'    => true,
-            'message'    => 'Item added to cart',
+            'success' => true,
+            'message' => 'Item added to cart',
             ...$summary,
         ]);
     }

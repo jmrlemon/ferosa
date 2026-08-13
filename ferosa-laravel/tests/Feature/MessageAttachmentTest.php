@@ -29,7 +29,7 @@ class MessageAttachmentTest extends TestCase
 
     public function test_customer_can_send_a_picture_without_any_caption(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
         $customer = $this->customer();
 
         $this->actingAs($customer)
@@ -41,12 +41,12 @@ class MessageAttachmentTest extends TestCase
 
         $this->assertNull($message->body);
         $this->assertSame('garden.png', $message->attachment_name);
-        Storage::disk('public')->assertExists($message->attachment_path);
+        Storage::disk(MessageAttachment::DISK)->assertExists($message->attachment_path);
     }
 
     public function test_customer_can_send_a_document_with_a_caption(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
         $customer = $this->customer();
 
         $this->actingAs($customer)->post('/messages', [
@@ -70,19 +70,19 @@ class MessageAttachmentTest extends TestCase
 
     public function test_disallowed_file_type_is_rejected_and_nothing_is_stored(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
 
         $this->actingAs($this->customer())
             ->post('/messages', ['attachment' => UploadedFile::fake()->create('shell.php', 10, 'text/x-php')], self::AJAX)
             ->assertStatus(422)
             ->assertJsonValidationErrors('attachment');
 
-        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertSame([], Storage::disk(MessageAttachment::DISK)->allFiles());
     }
 
     public function test_oversized_file_is_rejected(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
 
         // Derived from the limit itself so raising the cap cannot silently
         // turn this into a test that uploads an allowed file.
@@ -96,7 +96,7 @@ class MessageAttachmentTest extends TestCase
 
     public function test_a_typical_phone_photo_sized_file_is_accepted(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
 
         // 8 MB is a normal camera photo and used to be rejected by the old cap.
         $this->actingAs($this->customer())
@@ -106,7 +106,7 @@ class MessageAttachmentTest extends TestCase
 
     public function test_admin_can_reply_with_an_attachment_and_customer_sees_it(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
         $customer = $this->customer();
         $conversation = Conversation::create(['customer_id' => $customer->id, 'last_message_at' => now()]);
 
@@ -126,7 +126,7 @@ class MessageAttachmentTest extends TestCase
 
     public function test_admin_can_send_an_attachment_with_no_reply_text(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
         $customer = $this->customer();
         $conversation = Conversation::create(['customer_id' => $customer->id, 'last_message_at' => now()]);
 
@@ -142,7 +142,7 @@ class MessageAttachmentTest extends TestCase
 
     public function test_admin_reply_reports_a_rejected_upload_instead_of_redirecting(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
         $conversation = Conversation::create(['customer_id' => $this->customer()->id, 'last_message_at' => now()]);
 
         $this->actingAs($this->admin())
@@ -157,7 +157,7 @@ class MessageAttachmentTest extends TestCase
 
     public function test_admin_inbox_returns_attachment_details(): void
     {
-        Storage::fake('public');
+        Storage::fake(MessageAttachment::DISK);
         $customer = $this->customer();
 
         $this->actingAs($customer)->post('/messages', [
@@ -171,6 +171,65 @@ class MessageAttachmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('messages.0.attachment.name', 'before.png')
             ->assertJsonPath('messages.0.attachment.is_image', true);
+    }
+
+    /**
+     * Attachments are private: these files are receipts, IDs and photos of
+     * people's homes, and they used to be fetchable by URL with no session.
+     */
+    private function sendAttachmentAndGetUrl(User $customer): string
+    {
+        $this->actingAs($customer)->post('/messages', [
+            'attachment' => UploadedFile::fake()->image('receipt.png'),
+        ], self::AJAX)->assertCreated();
+
+        $message = Conversation::where('customer_id', $customer->id)->firstOrFail()->messages()->sole();
+
+        return route('messages.attachment', $message);
+    }
+
+    public function test_attachment_is_not_written_to_the_public_disk(): void
+    {
+        Storage::fake(MessageAttachment::DISK);
+        Storage::fake('public');
+
+        $this->sendAttachmentAndGetUrl($this->customer());
+
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_owner_can_download_their_own_attachment(): void
+    {
+        Storage::fake(MessageAttachment::DISK);
+        $customer = $this->customer();
+        $url = $this->sendAttachmentAndGetUrl($customer);
+
+        $this->actingAs($customer)->get($url)->assertOk();
+    }
+
+    public function test_staff_can_download_a_customer_attachment(): void
+    {
+        Storage::fake(MessageAttachment::DISK);
+        $url = $this->sendAttachmentAndGetUrl($this->customer());
+
+        $this->actingAs($this->admin())->get($url)->assertOk();
+    }
+
+    public function test_another_customer_cannot_download_someone_elses_attachment(): void
+    {
+        Storage::fake(MessageAttachment::DISK);
+        $url = $this->sendAttachmentAndGetUrl($this->customer());
+
+        $this->actingAs($this->customer())->get($url)->assertForbidden();
+    }
+
+    public function test_guest_cannot_download_an_attachment(): void
+    {
+        Storage::fake(MessageAttachment::DISK);
+        $url = $this->sendAttachmentAndGetUrl($this->customer());
+
+        $this->post('/logout');
+        $this->get($url)->assertRedirect(route('login'));
     }
 
     public function test_plain_text_messages_still_work(): void

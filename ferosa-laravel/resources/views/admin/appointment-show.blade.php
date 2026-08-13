@@ -130,6 +130,13 @@
               </div>
             @endif
           </div>
+
+          @include('admin.partials.payment-ledger', [
+            'payable' => $appointment,
+            'storeRoute' => route('admin.appointments.payments.store', $appointment),
+            'invoiceRoute' => route('appointments.invoice', $appointment),
+            'isAdmin' => auth()->user()?->isAdmin(),
+          ])
         </section>
 
         @if($history->isNotEmpty())

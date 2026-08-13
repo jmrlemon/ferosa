@@ -33,13 +33,30 @@ class MessageAttachment
     }
 
     /**
+     * The disk chat attachments live on.
+     *
+     * Customers send receipts, IDs and photos of their property through this
+     * channel, so it uses the private disk and is served through an
+     * ownership-checked route - the same treatment payment proofs get. On the
+     * public disk these were readable by anyone who knew or guessed the URL,
+     * with no login required.
+     */
+    public const DISK = 'local';
+
+    /**
+     * Where attachments used to be written. Rows created before the move still
+     * point here, so reads fall back to it.
+     */
+    public const LEGACY_DISK = 'public';
+
+    /**
      * @return array{attachment_path:string,attachment_name:string,attachment_mime:string,attachment_size:int}
      */
     public static function store(UploadedFile $file): array
     {
         // store() generates a random name, so the original filename never
         // reaches the filesystem; it is kept in the database for display only.
-        $path = $file->store('messages', 'public');
+        $path = $file->store('messages', self::DISK);
 
         return [
             'attachment_path' => $path,
@@ -52,7 +69,24 @@ class MessageAttachment
     public static function delete(?string $path): void
     {
         if (filled($path)) {
-            Storage::disk('public')->delete($path);
+            Storage::disk(self::DISK)->delete($path);
+            Storage::disk(self::LEGACY_DISK)->delete($path);
         }
+    }
+
+    /**
+     * The disk a given attachment actually lives on, or null if the file is
+     * gone. Attachments written before the move to the private disk are still
+     * on the public one.
+     */
+    public static function diskFor(string $path): ?string
+    {
+        foreach ([self::DISK, self::LEGACY_DISK] as $disk) {
+            if (Storage::disk($disk)->exists($path)) {
+                return $disk;
+            }
+        }
+
+        return null;
     }
 }

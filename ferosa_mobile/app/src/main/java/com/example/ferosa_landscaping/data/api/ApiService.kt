@@ -18,4 +18,14 @@ interface ApiService {
 
     @GET("api/ar/products/{id}/model-info")
     suspend fun getModelInfo(@Path("id") productId: Int): Response<ModelInfoDto>
+
+    // ── Native shell ────────────────────────────────────────────────────────
+    // Mirrors the `mobile` route group in routes/api.php; ApiContractTest keeps
+    // the two in step.
+
+    @GET("api/mobile/summary")
+    suspend fun getMobileSummary(): Response<MobileSummaryDto>
+
+    @GET("api/mobile/estimator-rates")
+    suspend fun getEstimatorRates(): Response<EstimatorRateCardDto>
 }

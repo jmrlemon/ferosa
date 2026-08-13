@@ -1,3 +1,14 @@
+# The parent ../.htaccess denies the whole application tree so that .env,
+# storage/ and vendor/ cannot be fetched when DocumentRoot is htdocs. This is
+# the one directory that is meant to be served, so it re-grants itself.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

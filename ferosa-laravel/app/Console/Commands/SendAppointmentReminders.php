@@ -9,13 +9,14 @@ use Illuminate\Support\Carbon;
 
 class SendAppointmentReminders extends Command
 {
-    protected $signature   = 'appointments:send-reminders';
+    protected $signature = 'appointments:send-reminders';
+
     protected $description = 'Send SMS reminders to customers with appointments tomorrow.';
 
     public function handle(): void
     {
         $tomorrowStart = Carbon::tomorrow()->startOfDay();
-        $tomorrowEnd   = Carbon::tomorrow()->endOfDay();
+        $tomorrowEnd = Carbon::tomorrow()->endOfDay();
 
         $appointments = Appointment::query()
             ->with(['user', 'serviceType'])
@@ -30,7 +31,7 @@ class SendAppointmentReminders extends Command
             }
 
             $service = $appt->serviceType->name ?? 'Service';
-            $time    = $appt->appointment_at->format('g:i A');
+            $time = $appt->appointment_at->format('g:i A');
 
             SendSmsJob::dispatch(
                 $appt->user->phone_number,

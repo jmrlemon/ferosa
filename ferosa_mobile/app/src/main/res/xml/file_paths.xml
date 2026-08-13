@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only the camera hand-off directory is exposed. A photo taken to answer an
+  <input type="file"> is written here, handed to the WebView upload, and is
+  disposable afterwards - nothing else in the app's storage is shared.
+-->
+<paths>
+    <cache-path name="captures" path="captures/" />
+</paths>

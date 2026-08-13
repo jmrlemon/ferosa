@@ -33,7 +33,7 @@ class Audit
         foreach ($only as $k) {
             $out[$k] = $model->getAttribute($k);
         }
+
         return $out;
     }
 }
-

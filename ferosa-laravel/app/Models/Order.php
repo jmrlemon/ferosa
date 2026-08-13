@@ -6,9 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
+/**
+ * Larastan reads `$casts` but not the `casts()` method this model uses, so the
+ * cast attributes below look like plain strings to static analysis. Declare the
+ * types the casts actually produce.
+ *
+ * @property array<int, array<string, mixed>> $items
+ * @property Carbon|null $delivered_at
+ * @property Carbon|null $dispatched_at
+ * @property Carbon|null $customer_confirmed_at
+ * @property Carbon|null $cancelled_at
+ * @property Carbon|null $payment_verified_at
+ * @property Carbon|null $archived_at
+ */
 class Order extends Model
 {
+    use Concerns\HasPayments;
+
     public const STATUS_TRANSITIONS = [
         'pending' => ['confirmed', 'cancelled'],
         'confirmed' => ['out_for_delivery', 'cancelled'],
@@ -109,5 +125,10 @@ class Order extends Model
     {
         return $status === $this->status
             || in_array($status, self::STATUS_TRANSITIONS[$this->status] ?? [], true);
+    }
+
+    protected function invoiceSeriesLetter(): string
+    {
+        return 'O';
     }
 }

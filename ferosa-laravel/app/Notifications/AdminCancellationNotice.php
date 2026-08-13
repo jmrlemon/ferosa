@@ -2,10 +2,14 @@
 
 namespace App\Notifications;
 
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class AdminCancellationNotice extends Notification
+class AdminCancellationNotice extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     public function __construct(
         private string $type,
         private string $message,

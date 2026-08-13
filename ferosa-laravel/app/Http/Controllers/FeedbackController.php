@@ -34,21 +34,26 @@ class FeedbackController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        // product_id and service_type_id are deliberately NOT accepted from the
+        // request. No form submits them, and taking them on trust let anyone
+        // post a 1-star review against any catalogue item - including ones they
+        // never bought - which skewed the averages on the admin dashboard.
+        // They are derived from the reviewed record instead.
         $data = $request->validate([
-            'rating'          => ['required', 'integer', 'min:1', 'max:5'],
-            'comment'         => ['nullable', 'string', 'max:1000'],
-            'product_id'      => ['nullable', 'exists:products,id'],
-            'service_type_id' => ['nullable', 'exists:service_types,id'],
-            'order_id'        => ['nullable', 'exists:orders,id'],
-            'appointment_id'  => ['nullable', 'exists:appointments,id'],
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'comment' => ['nullable', 'string', 'max:1000'],
+            'order_id' => ['nullable', 'exists:orders,id'],
+            'appointment_id' => ['nullable', 'exists:appointments,id'],
         ]);
 
-        if (empty($data['order_id']) && empty($data['appointment_id']) && empty($data['product_id']) && empty($data['service_type_id'])) {
-            return back()->withErrors(['feedback' => 'Feedback must be connected to an order, product, or service.']);
+        if (empty($data['order_id']) && empty($data['appointment_id'])) {
+            return back()->withErrors(['feedback' => 'Feedback must be connected to an order or appointment.']);
         }
 
+        $serviceTypeId = null;
+
         // If tied to an order, verify it belongs to the user and is completed
-        if (!empty($data['order_id'])) {
+        if (! empty($data['order_id'])) {
             $order = Order::where('id', $data['order_id'])
                 ->where('user_id', auth()->id())
                 ->where('status', 'completed')
@@ -61,7 +66,7 @@ class FeedbackController extends Controller
         }
 
         // If tied to an appointment, verify it belongs to the user and is completed
-        if (!empty($data['appointment_id'])) {
+        if (! empty($data['appointment_id'])) {
             $appointment = Appointment::where('id', $data['appointment_id'])
                 ->where('user_id', auth()->id())
                 ->where('status', 'completed')
@@ -70,19 +75,22 @@ class FeedbackController extends Controller
             if ($appointment->feedback()->exists()) {
                 return back()->with('status', 'You have already submitted feedback for this appointment.');
             }
+
+            // The rating belongs to the service that was actually performed.
+            $serviceTypeId = $appointment->service_type_id;
         }
 
         Feedback::create([
-            'user_id'         => auth()->id(),
-            'order_id'        => $data['order_id'] ?? null,
-            'appointment_id'  => $data['appointment_id'] ?? null,
-            'rating'          => $data['rating'],
-            'comment'         => $data['comment'] ?? null,
-            'product_id'      => $data['product_id'] ?? null,
-            'service_type_id' => $data['service_type_id'] ?? null,
+            'user_id' => auth()->id(),
+            'order_id' => $data['order_id'] ?? null,
+            'appointment_id' => $data['appointment_id'] ?? null,
+            'rating' => $data['rating'],
+            'comment' => $data['comment'] ?? null,
+            'product_id' => null,
+            'service_type_id' => $serviceTypeId,
         ]);
 
-        if (!empty($data['appointment_id'])) {
+        if (! empty($data['appointment_id'])) {
             return back()->with('status', 'Thank you for your feedback!');
         }
 

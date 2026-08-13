@@ -23,4 +23,18 @@ class ApiContractTest {
         assertEquals("api/ar/products/{id}/model-info", requireNotNull(methods.getValue("getModelInfo").getAnnotation(GET::class.java)).value)
         assertEquals("api/ar/cart/add", requireNotNull(methods.getValue("addToCart").getAnnotation(POST::class.java)).value)
     }
+
+    @Test
+    fun `native shell API paths match Laravel routes`() {
+        val methods = ApiService::class.java.declaredMethods.associateBy { it.name }
+
+        assertEquals(
+            "api/mobile/summary",
+            requireNotNull(methods.getValue("getMobileSummary").getAnnotation(GET::class.java)).value
+        )
+        assertEquals(
+            "api/mobile/estimator-rates",
+            requireNotNull(methods.getValue("getEstimatorRates").getAnnotation(GET::class.java)).value
+        )
+    }
 }

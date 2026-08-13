@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\MobileController;
 use Illuminate\Support\Facades\Route;
 
 // The Android app signs in through the embedded web experience. Reuse that
@@ -21,4 +22,12 @@ Route::middleware(['web', 'auth'])->prefix('cart')->group(function () {
     Route::put('/items/{product}', [CartController::class, 'update'])->middleware('throttle:60,1');
     Route::delete('/items/{product}', [CartController::class, 'destroy'])->middleware('throttle:60,1');
     Route::post('/sync', [CartController::class, 'sync'])->middleware('throttle:20,1');
+});
+
+// Native shell endpoints. `summary` is polled by the app's background worker as
+// well as on every resume, hence the higher throttle; the rate card changes
+// about as often as prices do, so the app caches it aggressively.
+Route::middleware(['web', 'auth'])->prefix('mobile')->group(function () {
+    Route::get('/summary', [MobileController::class, 'summary'])->middleware('throttle:120,1');
+    Route::get('/estimator-rates', [MobileController::class, 'estimatorRates'])->middleware('throttle:60,1');
 });

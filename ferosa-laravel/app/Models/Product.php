@@ -48,6 +48,16 @@ class Product extends Model
     }
 
     /**
+     * Stock history, newest first. Written only by InventoryService.
+     *
+     * @return HasMany<StockMovement, $this>
+     */
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    /**
      * Scope to filter only products that have an associated AR plant model.
      */
     public function scopeArEnabled(Builder $query): Builder

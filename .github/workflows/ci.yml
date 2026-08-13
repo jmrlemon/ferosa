@@ -54,8 +54,52 @@ jobs:
       - name: Lint PHP
         run: find app routes config database tests -name '*.php' -print0 | xargs -0 -n1 -P4 php -l > /dev/null
 
+      # Style is enforced rather than suggested, so review comments can be about
+      # behaviour instead of spacing. `composer lint:fix` applies the changes.
+      - name: Check code style
+        run: composer lint
+
+      # Existing findings are recorded in phpstan-baseline.neon; this step fails
+      # only on NEW type errors, calls to methods that do not exist, and the like.
+      - name: Static analysis
+        run: composer analyse
+
       - name: Build assets
         run: npx vite build
 
       - name: Run tests
         run: php artisan test
+
+  android:
+    name: Android app
+    runs-on: ubuntu-latest
+    # The Kotlin app is a first-class part of the product - it carries the AR
+    # feature and its own copy of the API contract - but nothing here compiled
+    # it, so a break only showed up when someone opened Android Studio.
+    defaults:
+      run:
+        working-directory: ferosa_mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # Unit tests only. The instrumented tests under app/src/androidTest need a
+      # running emulator, which is a much slower job - worth adding separately
+      # if the AR placement tests start regressing.
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug --no-daemon

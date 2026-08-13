@@ -149,6 +149,14 @@
               <p class="text-lg font-semibold">{{ optional($order->created_at)->format('M d, Y h:i A') }}</p>
             </div>
           </div>
+
+          @include('admin.partials.payment-ledger', [
+            'payable' => $order,
+            'storeRoute' => route('admin.orders.payments.store', $order),
+            'invoiceRoute' => route('orders.invoice', $order),
+            'isAdmin' => $isAdmin,
+          ])
+
           @if($order->payment_proof_path)
             <div class="border-t border-surface-100 p-5">
               <div class="flex flex-wrap items-center justify-between gap-3">

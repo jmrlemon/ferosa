@@ -11,7 +11,8 @@
 
 <aside id="admin-sidebar" aria-label="Admin navigation" class="z-20 flex w-64 flex-shrink-0 flex-col justify-between border-r border-surface-100 bg-white">
   <div class="min-h-0 overflow-y-auto">
-    <div class="sticky top-0 z-10 flex items-center gap-3 border-b border-surface-100 bg-white/95 px-4 py-4 backdrop-blur">
+    {{-- Height is locked to the workspace topbar (68px) so both bottom borders line up. --}}
+    <div class="sticky top-0 z-10 flex h-[68px] items-center gap-3 border-b border-surface-100 bg-white/95 px-4 backdrop-blur">
       <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-950 shadow-sm">
         <svg class="h-5 w-5 text-brand-100" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 4.5c-6.6.2-11.3 3-13.5 8.3M5.2 19c1.1-5.2 4.8-8.7 10.8-10.7M19.5 4.5c.4 6.8-2.8 11.3-8.1 11.8-2.3.2-4.3-.8-5.4-3.5"/></svg>
       </div>
@@ -48,6 +49,8 @@
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         Inventory
       </a>
+      {{-- Stock movements live inside each product's edit page, under Inventory.
+           A second top-level entry only split one job across two places. --}}
       <a href="{{ route('admin.projects.index') }}" class="{{ $navClass('projects') }}" @if($adminSection === 'projects') aria-current="page" @endif>
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6"/></svg>
         Project Portfolio

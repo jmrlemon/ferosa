@@ -167,9 +167,19 @@
       </div>
 
       <div class="mt-6 border-t border-surface-100 pt-5">
-        <p class="text-xs font-bold uppercase tracking-wide text-surface-400">Change password</p>
-        <p class="field-hint mb-3">Leave both fields blank to keep your current password.</p>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-xs font-bold uppercase tracking-wide text-surface-400">Change password</p>
+          {{-- Submits the sibling form below: the OTP reset flow is guest-only,
+               so we sign the customer out and deep-link them into it. --}}
+          <button type="submit" form="forgot-password-form" class="text-xs font-semibold text-brand-700 hover:underline">Forgot password?</button>
+        </div>
+        <p class="field-hint mb-3">Leave these fields blank to keep your current password.</p>
         <div class="grid gap-4 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label for="current_password" class="field-label">Current password</label>
+            <input type="password" name="current_password" id="current_password" class="field" autocomplete="current-password">
+            <p class="field-hint">Required only when you are setting a new password.</p>
+          </div>
           <div>
             <label for="password" class="field-label">New password</label>
             <input type="password" name="password" id="password" class="field" autocomplete="new-password">
@@ -185,6 +195,14 @@
         <button type="submit" data-loading-label="Saving..." class="btn btn-primary">Save changes</button>
         <button type="button" onclick="toggleEditMode()" class="btn btn-secondary">Cancel</button>
       </div>
+    </form>
+
+    {{-- Kept outside the profile form (forms cannot nest) and reached via the
+         `form="forgot-password-form"` button in the password section. --}}
+    <form id="forgot-password-form" method="POST" action="{{ route('logout') }}"
+          onsubmit="return confirm('You will be signed out so you can reset your password using your mobile number. Continue?')">
+      @csrf
+      <input type="hidden" name="view" value="forgot">
     </form>
   </div>
 

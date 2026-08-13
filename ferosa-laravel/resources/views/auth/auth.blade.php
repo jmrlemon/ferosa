@@ -574,7 +574,7 @@ html, body {
   letter-spacing: -.035em;
 }
 .form-subtitle { color: #706b61; line-height: 1.6; }
-.portal-mark {
+.auth-mark {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -586,7 +586,7 @@ html, body {
   letter-spacing: .15em;
   text-transform: uppercase;
 }
-.portal-mark-icon {
+.auth-mark-icon {
   display: inline-flex;
   width: 31px;
   height: 31px;
@@ -668,7 +668,7 @@ html, body {
   .brand { display: none; }
   .form-card { max-width: 440px; padding: 42px 22px 30px; }
   .form-title { font-size: 32px; }
-  .portal-mark { margin-bottom: 26px; }
+  .auth-mark { margin-bottom: 26px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
@@ -847,7 +847,7 @@ html, body {
   </div>
   <p class="brand-slogan">Plan. Book.<br>Grow beautifully.</p>
   <p class="brand-sub">Estimate projects, schedule landscaping services, shop garden essentials, and follow every update in one place.</p>
-  <div class="auth-proof" aria-label="Ferosa portal features">
+  <div class="auth-proof" aria-label="Ferosa system features">
     <span>Project estimates</span>
     <span>Service scheduling</span>
     <span>Order tracking</span>
@@ -857,13 +857,13 @@ html, body {
 <div class="scene">
 
   <!-- LOGIN -->
-  <div class="page {{ ($active ?? 'login') === 'signup' ? '' : 'active' }}" id="page-login">
+  <div class="page {{ in_array($active ?? 'login', ['signup', 'forgot']) ? '' : 'active' }}" id="page-login">
     <div class="form-card">
-      <div class="portal-mark" aria-label="Ferosa customer portal">
-        <span class="portal-mark-icon" aria-hidden="true">
+      <div class="auth-mark" aria-label="Ferosa Landscaping">
+        <span class="auth-mark-icon" aria-hidden="true">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 4.5c-6.6.2-11.3 3-13.5 8.3M5.2 19c1.1-5.2 4.8-8.7 10.8-10.7M19.5 4.5c.4 6.8-2.8 11.3-8.1 11.8-2.3.2-4.3-.8-5.4-3.5"/></svg>
         </span>
-        <span>Ferosa customer portal</span>
+        <span>Ferosa Landscaping</span>
       </div>
       <div class="form-header">
         <h1 class="form-title">Welcome Back</h1>
@@ -1060,7 +1060,7 @@ html, body {
   </div>
 
   <!-- FORGOT PASSWORD: Enter Phone -->
-  <div class="page" id="page-forgot">
+  <div class="page {{ ($active ?? 'login') === 'forgot' ? 'active' : '' }}" id="page-forgot">
     <div class="form-card">
       <div class="form-header">
         <h1 class="form-title">Forgot Password</h1>

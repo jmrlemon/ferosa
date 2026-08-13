@@ -8,4 +8,22 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:colorAccent">@color/ferosa_brand</item>
     </style>
+
+    <!--
+      Cold-start theme for MainActivity. Without it the launcher shows a blank
+      window until the login WebView paints, which reads as a hung app.
+      installSplashScreen() hands over to postSplashScreenTheme as soon as the
+      first frame is ready.
+
+      The launcher foreground is reused as the splash icon deliberately: its art
+      occupies the inner ~61% of its viewport, which is inside the 2/3 the
+      splash-screen spec reserves, so the same asset is correctly inset in both
+      places and there is only one mark to keep in sync.
+    -->
+    <style name="Theme.Ferosa_landscaping.Starter" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ferosa_brand</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Ferosa_landscaping</item>
+    </style>
+
 </resources>

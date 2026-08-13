@@ -100,6 +100,12 @@
           </div>
 
           <div class="flex flex-wrap items-center gap-1.5 self-start sm:self-center">
+            @if ((float) ($appt->appointment_amount ?? 0) > 0)
+              <a href="{{ route('appointments.invoice', $appt) }}" class="btn btn-secondary btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>
+                Invoice
+              </a>
+            @endif
             @if (($appt->payment_status ?? 'unpaid') === 'paid')
               <a href="{{ route('appointments.receipt', $appt) }}" class="btn btn-secondary btn-sm">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
@@ -155,6 +161,12 @@
                 <span class="text-surface-400 w-20 shrink-0">Amount</span>
                 <span class="text-surface-700 font-medium">PHP {{ number_format((float) ($appt->appointment_amount ?? $appt->serviceType->default_fee ?? 0), 2) }}</span>
               </div>
+              @if ((float) ($appt->appointment_amount ?? 0) > 0 && $appt->balanceDue() > 0 && $appt->totalPaid() > 0)
+                <div class="flex gap-2">
+                  <span class="text-surface-400 w-20 shrink-0">Balance</span>
+                  <span class="font-semibold text-orange-600">PHP {{ number_format($appt->balanceDue(), 2) }} due</span>
+                </div>
+              @endif
               @if ($appt->notes)
                 <div class="flex gap-2 pt-1 border-t border-surface-100">
                   <span class="text-surface-400 w-20 shrink-0">Notes</span>

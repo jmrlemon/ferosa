@@ -45,6 +45,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +67,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.example.ferosa_landscaping.data.api.ApiClient
+import com.example.ferosa_landscaping.data.repository.SummaryRepository
+import com.example.ferosa_landscaping.ui.estimator.BUNDLED_RATE_CARD
+import com.example.ferosa_landscaping.ui.estimator.RateCard
+import com.example.ferosa_landscaping.ui.estimator.toRateCard
+import com.example.ferosa_landscaping.ui.format.formatPeso
+import com.example.ferosa_landscaping.ui.shell.ArLaunchRequest
 import com.example.ferosa_landscaping.ui.theme.Brand50
 import com.example.ferosa_landscaping.ui.theme.Brand100
 import com.example.ferosa_landscaping.ui.theme.Brand600
@@ -79,110 +87,61 @@ import com.example.ferosa_landscaping.ui.theme.Surface600
 import com.example.ferosa_landscaping.ui.theme.Surface800
 import com.example.ferosa_landscaping.ui.theme.Surface900
 import java.text.NumberFormat
-import java.util.Locale
 import kotlin.math.roundToInt
 
-private data class NativeProjectType(
-    val key: String,
-    val label: String,
-    val description: String,
-    val rate: Int,
-)
+/*
+ * The rates, tiers and add-ons that used to be hardcoded here were a second
+ * source of truth alongside the web estimator, and the two had already drifted
+ * (the web offered a 5,000 sq m quick pick, this screen stopped at 2,000;
+ * several descriptions differed word for word). They now come from the server's
+ * config/estimator.php over /api/mobile/estimator-rates, with BUNDLED_RATE_CARD
+ * as the offline fallback.
+ *
+ * The aliases keep the existing composable signatures in this file unchanged.
+ */
+private typealias NativeProjectType = RateCard.ProjectType
+private typealias NativeTier = RateCard.Tier
+private typealias NativeAddon = RateCard.Addon
 
-private data class NativeTier(
-    val key: String,
-    val label: String,
-    val multiplier: Double,
-    val packageTitle: String,
-    val description: String,
-    val caption: String,
-    val examples: List<String>,
-    val imageAlignment: Alignment,
-)
-
-private data class NativeAddon(
-    val key: String,
-    val label: String,
-    val description: String,
-    val amount: Int,
-)
-
-private val nativeProjectTypes = listOf(
-    NativeProjectType("design", "Garden Design", "Design, plant selection, and installation.", 50),
-    NativeProjectType("maintenance", "Maintenance", "Lawn care, pruning, weeding, and cleanup.", 10),
-    NativeProjectType("hardscaping", "Hardscaping", "Patios, walkways, walls, and stonework.", 120),
-)
-
-private val nativeTiers = listOf(
-    NativeTier(
-        key = "standard",
-        label = "Standard",
-        multiplier = 1.0,
-        packageTitle = "Starter Garden",
-        description = "Budget-friendly materials with solid craftsmanship.",
-        caption = "A practical garden using common plants, lawn, and simple edging.",
-        examples = listOf("Common shrubs and groundcover", "Basic soil preparation", "Simple edging and layout"),
-        imageAlignment = Alignment.CenterStart,
-    ),
-    NativeTier(
-        key = "premium",
-        label = "Premium",
-        multiplier = 1.6,
-        packageTitle = "Enhanced Garden",
-        description = "Higher-grade plants and materials with more visual detail.",
-        caption = "Mature planting, a refined path, decorative stone, and selected lighting.",
-        examples = listOf("Mature layered planting", "Decorative stone and edging", "Selected garden lighting"),
-        imageAlignment = Alignment.Center,
-    ),
-    NativeTier(
-        key = "luxury",
-        label = "Luxury",
-        multiplier = 2.4,
-        packageTitle = "Signature Landscape",
-        description = "Top-tier finishes, specimen plants, and bespoke design.",
-        caption = "Specimen plants, custom stonework, lighting, and a signature water feature.",
-        examples = listOf("Rare or specimen plants", "Custom hardscape and irrigation", "Signature water feature"),
-        imageAlignment = Alignment.CenterEnd,
-    ),
-)
-
-private val nativeAddons = listOf(
-    NativeAddon("irrigation", "Irrigation System", "Automated sprinkler and drip lines.", 40_000),
-    NativeAddon("lighting", "Outdoor Lighting", "Path, spot, and accent lighting.", 25_000),
-    NativeAddon("water", "Water Feature", "Custom pond, fountain, or water wall.", 60_000),
-    NativeAddon("pergola", "Pergola / Gazebo", "A shaded structure for outdoor living.", 80_000),
-    NativeAddon("fence", "Decorative Fencing", "Bamboo, wood, or metal boundary fencing.", 20_000),
-    NativeAddon("soil", "Soil Preparation & Mulch", "Aeration, enriched soil, and mulch.", 15_000),
-)
+private fun peso(value: Double): String = formatPeso(value)
 
 /**
- * Locale("en","PH") is deprecated; Locale.forLanguageTag is the supported way to
- * build one. Held as a constant so the peso formatter does not rebuild it.
+ * Serves the bundled rate card immediately, then swaps in the server's copy if
+ * it can be fetched - so the estimator is usable offline and still reflects a
+ * price change made on the server without an app release.
  */
-private val PH_LOCALE: Locale = Locale.forLanguageTag("en-PH")
-
-private fun peso(value: Double): String {
-    val number = NumberFormat.getIntegerInstance(PH_LOCALE).format(value.roundToInt())
-    return "\u20B1$number"
+@Composable
+private fun rememberRateCard(): RateCard {
+    var rateCard by remember { mutableStateOf(BUNDLED_RATE_CARD) }
+    LaunchedEffect(Unit) {
+        SummaryRepository(ApiClient.service).estimatorRates()?.let {
+            rateCard = it.toRateCard()
+        }
+    }
+    return rateCard
 }
 
 @Composable
 fun NativeEstimatorScreen(
     modifier: Modifier = Modifier,
     onBook: () -> Unit,
-    onOpenAr: () -> Unit,
+    onOpenAr: (ArLaunchRequest) -> Unit,
 ) {
-    var projectKey by rememberSaveable { mutableStateOf("design") }
-    var sizeText by rememberSaveable { mutableStateOf("100") }
-    var tierKey by rememberSaveable { mutableStateOf("standard") }
+    val rateCard = rememberRateCard()
+
+    var projectKey by rememberSaveable { mutableStateOf(rateCard.defaultProjectType) }
+    var sizeText by rememberSaveable { mutableStateOf(rateCard.defaultSize.toString()) }
+    var tierKey by rememberSaveable { mutableStateOf(rateCard.defaultTier) }
     var selectedAddons by remember { mutableStateOf(emptySet<String>()) }
     var showZoom by rememberSaveable { mutableStateOf(false) }
 
-    val project = nativeProjectTypes.first { it.key == projectKey }
-    val tier = nativeTiers.first { it.key == tierKey }
+    // Falls back to the first entry when a saved key is missing from a rate card
+    // the server has since changed.
+    val project = rateCard.projectType(projectKey)
+    val tier = rateCard.tier(tierKey)
     val area = sizeText.toIntOrNull()?.coerceAtLeast(0) ?: 0
     val base = project.rate * area * tier.multiplier
-    val addonsTotal = nativeAddons.filter { it.key in selectedAddons }.sumOf { it.amount }
+    val addonsTotal = rateCard.addons.filter { it.key in selectedAddons }.sumOf { it.amount }
     val total = base + addonsTotal
 
     if (showZoom) {
@@ -235,7 +194,14 @@ fun NativeEstimatorScreen(
         }
 
         item(key = "estimate-hero") {
-            EstimateHero(total = total, project = project, tier = tier, area = area)
+            EstimateHero(
+                total = total,
+                project = project,
+                tier = tier,
+                area = area,
+                rangeLow = rateCard.rangeLow,
+                rangeHigh = rateCard.rangeHigh,
+            )
         }
 
         item(key = "project-type") {
@@ -245,7 +211,7 @@ fun NativeEstimatorScreen(
                 subtitle = "What are you planning?",
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    nativeProjectTypes.forEach { option ->
+                    rateCard.projectTypes.forEach { option ->
                         ProjectTypeOption(
                             option = option,
                             selected = option.key == projectKey,
@@ -279,7 +245,7 @@ fun NativeEstimatorScreen(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listOf(50, 100, 250, 500, 1000, 2000).forEach { quickSize ->
+                    rateCard.quickSizes.forEach { quickSize ->
                     FilterChip(
                         selected = area == quickSize,
                         onClick = { sizeText = quickSize.toString() },
@@ -306,7 +272,7 @@ fun NativeEstimatorScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    nativeTiers.forEach { option ->
+                    rateCard.tiers.forEach { option ->
                         TierOption(
                             tier = option,
                             selected = option.key == tierKey,
@@ -334,7 +300,7 @@ fun NativeEstimatorScreen(
                 subtitle = if (selectedAddons.isEmpty()) "Optional add-ons" else "${selectedAddons.size} selected",
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    nativeAddons.forEach { addon ->
+                    rateCard.addons.forEach { addon ->
                         AddonOption(
                             addon = addon,
                             selected = addon.key in selectedAddons,
@@ -356,7 +322,7 @@ fun NativeEstimatorScreen(
                 tier = tier,
                 area = area,
                 project = project,
-                selectedAddons = nativeAddons.filter { it.key in selectedAddons },
+                selectedAddons = rateCard.addons.filter { it.key in selectedAddons },
                 onZoom = { showZoom = true },
             )
         }
@@ -367,10 +333,23 @@ fun NativeEstimatorScreen(
                 tier = tier,
                 area = area,
                 base = base,
-                addons = nativeAddons.filter { it.key in selectedAddons },
+                addons = rateCard.addons.filter { it.key in selectedAddons },
                 total = total,
                 onBook = onBook,
-                onOpenAr = onOpenAr,
+                // Every AR entry point used to send a hardcoded
+                // `ferosa://ar?designId=demo`, so ArActivity fell back to its
+                // defaults and the header read "Design · 100 sq m" whatever the
+                // customer had configured. The web estimator has always passed
+                // these through; this is the native equivalent.
+                onOpenAr = {
+                    onOpenAr(
+                        ArLaunchRequest(
+                            projectType = project.key,
+                            propertySize = area,
+                            estimatedCost = total.roundToInt().toLong(),
+                        )
+                    )
+                },
             )
         }
 
@@ -391,6 +370,8 @@ private fun EstimateHero(
     project: NativeProjectType,
     tier: NativeTier,
     area: Int,
+    rangeLow: Double,
+    rangeHigh: Double,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -416,7 +397,7 @@ private fun EstimateHero(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                "Typical range ${peso(total * .8)} - ${peso(total * 1.25)}",
+                "Typical range ${peso(total * rangeLow)} - ${peso(total * rangeHigh)}",
                 color = Color.White.copy(alpha = .62f),
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -615,12 +596,10 @@ private fun PackageImage(
                 .graphicsLayer {
                     scaleX = 3f
                     scaleY = 3f
+                    // Derived from the tier's panel in the shared sprite rather
+                    // than its key, so reordering the sprite is a config change.
                     transformOrigin = TransformOrigin(
-                        pivotFractionX = when (tier.key) {
-                            "standard" -> 0f
-                            "premium" -> .5f
-                            else -> 1f
-                        },
+                        pivotFractionX = tier.imagePivotFraction,
                         pivotFractionY = .5f,
                     )
                 },

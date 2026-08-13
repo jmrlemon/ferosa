@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ferosa_landscaping.R
 
 /**
- * The same two faces the web portal uses: DM Sans for body/UI text and Fraunces
+ * The same two faces the web app uses: DM Sans for body/UI text and Fraunces
  * for display headings.
  *
  * Both ship as variable fonts and every weight points at the one file. The

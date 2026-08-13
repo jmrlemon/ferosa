@@ -1,25 +1,8 @@
 package com.example.ferosa_landscaping.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Brand500,
-    onPrimary = Surface0,
-    primaryContainer = Brand900,
-    onPrimaryContainer = Brand100,
-    secondary = Surface600,
-    onSecondary = Surface0,
-    background = Surface900,
-    onBackground = Surface100,
-    surface = Surface800,
-    onSurface = Surface100,
-    surfaceVariant = Surface700,
-    onSurfaceVariant = Surface300,
-)
 
 private val LightColorScheme = lightColorScheme(
     primary = Brand600,
@@ -38,15 +21,25 @@ private val LightColorScheme = lightColorScheme(
     outlineVariant = Surface100,
 )
 
+/**
+ * The app is deliberately light-only.
+ *
+ * Most of what the user sees is the Laravel site rendered in a WebView, and
+ * that UI is light-only Tailwind. A dark native shell wrapping white web pages
+ * looked broken, so the dark scheme that used to sit here unused - every call
+ * site passed `darkTheme = false` - has been removed rather than left as a
+ * decoration. Reinstating it means doing the web side too.
+ *
+ * [darkTheme] is kept so existing call sites (including the AR screens) compile
+ * unchanged; it currently selects nothing.
+ */
 @Composable
 fun Ferosa_landscapingTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = LightColorScheme,
         typography = Typography,
         content = content
     )

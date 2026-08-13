@@ -1,29 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Edit Inventory Item - Ferosa Landscaping</title>
+@extends('admin.layouts.workspace')
 
-  <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
-  @vite(['resources/css/app.css', 'resources/js/app.js'])
-  @include('admin.partials.premium-theme')
-</head>
-<body class="min-h-screen bg-surface-100 text-surface-900 font-sans antialiased">
-  <a href="#admin-main" class="skip-link">Skip to admin content</a>
-  <header class="h-14 bg-white border-b border-surface-200 flex items-center justify-between px-5">
-    <h1 class="text-sm font-semibold text-surface-600">Edit Inventory Item</h1>
-    <div class="flex items-center gap-2">
-      <span class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-bold text-white">Ferosa Landscaping</span>
-      <a href="{{ route('home') }}" class="inline-flex items-center gap-1.5 rounded-md border border-surface-300 px-2.5 py-1 text-sm text-surface-600 transition-colors hover:bg-surface-50">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M11.5 3a15 15 0 0 0 0 18M12.5 3a15 15 0 0 1 0 18"/></svg>
-        View Site
-      </a>
-    </div>
-  </header>
+@section('title', 'Edit '.$product->name.' - Ferosa Admin')
+@section('admin-section', 'products')
+@section('skip-label', 'Skip to product editor')
+@section('header-eyebrow', 'Inventory')
+@section('header-title', 'Edit product')
 
-  <main id="admin-main" tabindex="-1" class="p-5">
+@section('content')
     @if (session('status'))
       <div class="mb-4 rounded-lg border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700">
         {{ session('status') }}
@@ -103,9 +86,17 @@
               <label class="block text-sm font-medium text-surface-800">Price (&#8369;) *
                 <input name="price" type="number" step="0.01" min="0" value="{{ old('price', $product->price) }}" required {{ $isStaffOrAdmin ? '' : 'disabled' }} class="mt-2 h-10 w-full rounded-lg border border-surface-200 px-3 text-base font-normal outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
               </label>
-              <label class="block text-sm font-medium text-surface-800">Stock Qty *
-                <input name="stock_qty" type="number" min="0" value="{{ old('stock_qty', $product->stock_qty) }}" {{ $isStaffOrAdmin ? '' : 'disabled' }} class="mt-2 h-10 w-full rounded-lg border border-surface-200 px-3 text-base font-normal outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
-              </label>
+              {{-- Stock is not edited here. It is managed in the Stock panel
+                   below, where every change is recorded with a reason. --}}
+              <div class="block text-sm font-medium text-surface-800">Stock Qty
+                <div class="mt-2 flex h-10 items-center justify-between gap-2 rounded-lg border border-dashed border-surface-200 bg-surface-50 px-3">
+                  <span class="text-base font-bold {{ $product->stock_qty <= 5 ? 'text-amber-700' : 'text-surface-900' }}">{{ $product->stock_qty }}</span>
+                  @if($canManageStock)
+                    <a href="#stock-panel" class="text-xs font-semibold text-brand-700 hover:underline">Manage below</a>
+                  @endif
+                </div>
+                <span class="mt-1 block text-xs font-normal text-surface-400">Changed through restock, wastage or correction.</span>
+              </div>
               <label class="block text-sm font-medium text-surface-800">New Image (optional)
                 <input name="image" type="file" accept="image/*" {{ $isStaffOrAdmin ? '' : 'disabled' }} class="mt-2 h-10 w-full rounded-lg border border-surface-200 bg-white text-sm text-surface-600 file:mr-3 file:h-full file:border-0 file:bg-surface-100 file:px-3 file:text-sm file:text-surface-700">
               </label>
@@ -116,6 +107,16 @@
             </div>
           </section>
         </form>
+
+        @if($canManageStock)
+          <div id="stock-panel" class="scroll-mt-5">
+            @include('admin.partials.stock-panel', [
+              'product' => $product,
+              'showAllLink' => true,
+              'hideHistory' => true,
+            ])
+          </div>
+        @endif
 
         @include('admin.partials.ar-models', ['product' => $product])
       </div>
@@ -147,7 +148,4 @@
         <a href="{{ route('admin.dashboard', ['tab' => 'products']) }}" class="mt-2 flex w-full items-center justify-center rounded-lg border border-surface-400 py-2.5 text-base font-medium text-surface-600 transition-colors hover:bg-surface-50">Cancel</a>
       </aside>
     </div>
-  </main>
-  @include('partials.confirm-dialog')
-</body>
-</html>
+@endsection

@@ -7,13 +7,14 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ServiceType;
 use App\Models\User;
+use App\Notifications\WorkCreatedNotice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class FunctionalWorkflowTest extends TestCase
@@ -495,7 +496,7 @@ class FunctionalWorkflowTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame('completed', $order->fresh()->status);
-        Notification::assertSentTo($admin, \App\Notifications\WorkCreatedNotice::class);
+        Notification::assertSentTo($admin, WorkCreatedNotice::class);
     }
 
     public function test_pickup_orders_hide_and_skip_delivery_only_requirements(): void

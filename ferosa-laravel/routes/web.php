@@ -1,16 +1,18 @@
 <?php
 
-use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AdminAccountController;
+use App\Http\Controllers\AdminBusinessProfileController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminProjectController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\PasswordResetOtpController;
-use App\Http\Controllers\SocialAuthController;
 use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\AdminProjectController;
-use App\Http\Controllers\AdminBusinessProfileController;
-use App\Http\Controllers\AdminAccountController;
+use App\Http\Controllers\SocialAuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -18,7 +20,7 @@ Route::get('/', function () {
         return redirect()->route($user->isStaffOrAdmin() ? 'admin.dashboard' : 'home');
     }
 
-    return app(AuthController::class)->showLogin();
+    return app(AuthController::class)->showLogin(request());
 });
 
 Route::middleware('guest')->group(function () {
@@ -51,6 +53,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/checkout', [PageController::class, 'storeCheckout'])->name('checkout.store');
     Route::get('/orders/confirmation/{order}', [PageController::class, 'orderConfirmation'])->name('orders.confirmation');
     Route::get('/orders/{order}/receipt', [PageController::class, 'orderReceipt'])->name('orders.receipt');
+    Route::get('/orders/{order}/invoice', [BillingController::class, 'orderInvoice'])->name('orders.invoice');
+    Route::get('/appointments/{appointment}/invoice', [BillingController::class, 'appointmentInvoice'])->name('appointments.invoice');
     Route::get('/orders/{order}/payment-proof', [PageController::class, 'paymentProof'])->name('orders.payment-proof');
     Route::get('/orders', [PageController::class, 'orders'])->name('orders');
     Route::get('/appointments', [PageController::class, 'appointments'])->name('appointments');
@@ -71,6 +75,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/messages', [MessageController::class, 'index'])->name('messages');
     Route::post('/messages', [MessageController::class, 'store'])->name('messages.store');
     Route::get('/messages/poll', [MessageController::class, 'poll'])->name('messages.poll');
+    // Chat attachments live on the private disk; this is the only way to read
+    // one, and it checks that the caller is a party to the conversation.
+    Route::get('/messages/attachment/{message}', [MessageController::class, 'attachment'])->name('messages.attachment');
 
     Route::get('/notifications', [PageController::class, 'notifications'])->name('notifications');
     Route::post('/notifications/{id}/read', [PageController::class, 'markNotificationRead'])->name('notifications.read');
@@ -133,6 +140,17 @@ Route::middleware('auth')->group(function () {
         Route::put('/business-profile', [AdminBusinessProfileController::class, 'update'])->name('business-profile.update');
 
         Route::put('/users/{user}/role', [AdminController::class, 'updateUserRole'])->name('users.role');
+
+        // Billing: the payment ledger behind every invoice.
+        Route::post('/orders/{order}/payments', [BillingController::class, 'storeOrderPayment'])->name('orders.payments.store');
+        Route::post('/appointments/{appointment}/payments', [BillingController::class, 'storeAppointmentPayment'])->name('appointments.payments.store');
+        Route::put('/payments/{payment}/void', [BillingController::class, 'voidPayment'])->name('payments.void');
+
+        // Inventory: manual stock movements and history.
+        Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+        Route::get('/inventory/{product}', [InventoryController::class, 'show'])->name('inventory.show');
+        Route::post('/inventory/{product}/restock', [InventoryController::class, 'restock'])->name('inventory.restock');
+        Route::post('/inventory/{product}/adjust', [InventoryController::class, 'adjust'])->name('inventory.adjust');
     });
 
     // Legacy URLs (keep your original exact UI links working)

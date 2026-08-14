@@ -35,6 +35,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -115,6 +117,16 @@ class MainActivity : ComponentActivity() {
             ?.let { name -> AppScreen.entries.firstOrNull { it.name == name } }
 }
 
+/**
+ * Stores the open tab by name rather than relying on enum serialization, so a
+ * screen that is later renamed or removed restores as null and falls back to the
+ * initial value instead of throwing.
+ */
+private val AppScreenSaver = Saver<AppScreen, String>(
+    save = { it.name },
+    restore = { name -> AppScreen.entries.firstOrNull { it.name == name } },
+)
+
 @Composable
 private fun FerosaApp(
     pendingTargetScreen: MutableState<AppScreen?>,
@@ -122,9 +134,20 @@ private fun FerosaApp(
 ) {
     val context = LocalContext.current
 
-    var isLoggedIn by remember { mutableStateOf(false) }
-    var userRole by remember { mutableStateOf("user") }
-    var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
+    // Saved, not just remembered. MainActivity claims the rotation-related
+    // configuration changes so it is not recreated for those, but the system can
+    // still kill the process in the background and rebuild it on return. Without
+    // this, coming back from that lands on the login screen with the open tab
+    // lost, even though the Laravel session cookie is still valid.
+    //
+    // Restoring isLoggedIn = true optimistically is safe: if the session did
+    // expire while the process was dead, the shared WebView lands on /login and
+    // AppContent's settleVisiblePage() calls back through onLoggedOut().
+    var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+    var userRole by rememberSaveable { mutableStateOf("user") }
+    var currentScreen by rememberSaveable(stateSaver = AppScreenSaver) {
+        mutableStateOf(AppScreen.HOME)
+    }
 
     val summaryViewModel: SummaryViewModel = viewModel(
         factory = SummaryViewModel.Factory(SummaryRepository(ApiClient.service))
@@ -224,8 +247,9 @@ private data class BottomDestination(
     val badgeNoun: String = "",
 )
 
+/** `internal` rather than private so BottomNavigationTest can drive it directly. */
 @Composable
-private fun FerosaBottomNavigation(
+internal fun FerosaBottomNavigation(
     currentScreen: AppScreen,
     userRole: String,
     cartCount: Int,

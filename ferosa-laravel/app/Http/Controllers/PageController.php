@@ -615,6 +615,7 @@ class PageController extends Controller
     public function orderReceipt(Order $order): View
     {
         abort_unless((int) $order->user_id === (int) auth()->id(), 403);
+        abort_unless($order->hasFinalReceipt(), 404);
         $order->load(['user', 'orderItems']);
 
         return view('order-receipt', compact('order'));

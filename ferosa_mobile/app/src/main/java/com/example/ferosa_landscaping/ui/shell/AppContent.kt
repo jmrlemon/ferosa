@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,6 +73,7 @@ import com.example.ferosa_landscaping.ui.web.createImageCaptureUri
 import com.example.ferosa_landscaping.ui.web.downloadNeedsLegacyPermission
 import com.example.ferosa_landscaping.ui.web.enqueueBrowserDownload
 import com.example.ferosa_landscaping.ui.web.resolveFileChooserResult
+import com.example.ferosa_landscaping.ui.web.webCallbackMatchesCurrentDocument
 import com.example.ferosa_landscaping.ui.web.webDestinationMatches
 import kotlinx.coroutines.delay
 
@@ -254,6 +256,16 @@ fun AppContent(
         }
 
         val url = targetUrl
+
+        // A navigation started by the web tab the user just left must not be
+        // allowed to commit into this web tab. Native screens return above
+        // because they are opaque and intentionally let the hidden WebView warm.
+        val inFlight = inFlightUrl.value
+        if (inFlight != null && (url == null || !webDestinationMatches(inFlight, url))) {
+            webViewRef.value?.stopLoading()
+            inFlightUrl.value = null
+        }
+
         if (url != null && readyWebUrl?.let { webDestinationMatches(it, url) } == true) {
             webPageReadyFor = currentScreen
             tabHistoryBaseline =
@@ -386,15 +398,25 @@ fun AppContent(
 
                     webViewClient = object : WebViewClient() {
                         /** Reveal the current tab as soon as WebView commits drawable content. */
-                        private fun settleVisiblePage(view: WebView?, url: String?) {
-                            inFlightUrl.value = null
+                        private fun settleVisiblePage(view: WebView?, url: String?): Boolean {
+                            if (url == null ||
+                                !webCallbackMatchesCurrentDocument(url, view?.url)
+                            ) {
+                                return false
+                            }
+
+                            if (inFlightUrl.value?.let {
+                                    webCallbackMatchesCurrentDocument(url, it)
+                                } == true
+                            ) {
+                                inFlightUrl.value = null
+                            }
                             swipeRefreshRef.value?.isRefreshing = false
-                            if (url == null) return
 
                             if (url.endsWith("/login") || url.contains("/login?")) {
                                 isLoading = false
                                 onLoggedOut()
-                                return
+                                return true
                             }
 
                             // This also records pages warmed behind a native
@@ -411,6 +433,25 @@ fun AppContent(
                                 webPageReadyFor = latestScreen.value
                                 isLoading = false
                             }
+                            return true
+                        }
+
+                        private fun settleFailedPage(view: WebView?, failingUrl: String?) {
+                            if (failingUrl == null) return
+
+                            val belongsToCurrentDocument =
+                                webCallbackMatchesCurrentDocument(failingUrl, view?.url)
+                            val belongsToActiveRequest = inFlightUrl.value?.let {
+                                webCallbackMatchesCurrentDocument(failingUrl, it)
+                            } == true
+                            if (!belongsToCurrentDocument && !belongsToActiveRequest) return
+
+                            inFlightUrl.value = null
+                            swipeRefreshRef.value?.isRefreshing = false
+                            readyWebUrl = null
+                            webPageReadyFor = null
+                            loadFailed = true
+                            isLoading = false
                         }
 
                         override fun shouldOverrideUrlLoading(
@@ -450,20 +491,22 @@ fun AppContent(
                         }
 
                         override fun onPageCommitVisible(view: WebView?, url: String?) {
-                            settleVisiblePage(view, url)
-                            // The observer also patches inputs streamed into the
-                            // document after this first visible frame.
-                            view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                            if (settleVisiblePage(view, url)) {
+                                // The observer also patches inputs streamed into the
+                                // document after this first visible frame.
+                                view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                            }
                         }
 
                         override fun onPageFinished(view: WebView?, url: String?) {
                             // Backstop for WebView implementations that do not
                             // dispatch onPageCommitVisible consistently.
-                            settleVisiblePage(view, url)
-                            view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
-                            // A page the user navigated to may have changed the
-                            // cart or read their messages; keep the badges honest.
-                            onRefreshSummary()
+                            if (settleVisiblePage(view, url)) {
+                                view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                                // A page the user navigated to may have changed the
+                                // cart or read their messages; keep the badges honest.
+                                onRefreshSummary()
+                            }
                         }
 
                         override fun onPageStarted(
@@ -482,10 +525,7 @@ fun AppContent(
                             description: String?,
                             failingUrl: String?
                         ) {
-                            inFlightUrl.value = null
-                            swipeRefreshRef.value?.isRefreshing = false
-                            webPageReadyFor = latestScreen.value
-                            isLoading = false
+                            settleFailedPage(view, failingUrl)
                         }
 
                         // API 23+ variant: tells us whether the failure was the
@@ -497,11 +537,7 @@ fun AppContent(
                             error: android.webkit.WebResourceError?
                         ) {
                             if (request?.isForMainFrame != true) return
-                            inFlightUrl.value = null
-                            swipeRefreshRef.value?.isRefreshing = false
-                            loadFailed = true
-                            webPageReadyFor = latestScreen.value
-                            isLoading = false
+                            settleFailedPage(view, request.url.toString())
                         }
                     }
                 }
@@ -539,6 +575,10 @@ fun AppContent(
                     setOnChildScrollUpCallback { _, _ -> createdWebView.scrollY > 0 }
                     setOnRefreshListener {
                         loadFailed = false
+                        isLoading = true
+                        readyWebUrl = null
+                        webPageReadyFor = null
+                        inFlightUrl.value = createdWebView.url ?: latestTargetUrl.value
                         createdWebView.reload()
                     }
                     swipeRefreshRef.value = this
@@ -546,11 +586,19 @@ fun AppContent(
             },
             modifier = Modifier.fillMaxSize(),
             update = { container ->
-                // Native screens are opaque Compose overlays, so the WebView can
-                // remain visible and keep its drawing surface warm underneath.
-                // Toggling INVISIBLE here cost one blank frame when Home was
-                // removed, even if Shop had already finished loading.
-                container.visibility = if (showWebLoading) View.INVISIBLE else View.VISIBLE
+                // The WebView is never hidden with View.INVISIBLE, and that is the
+                // whole point. An invisible WebView stops compositing and keeps the
+                // last frame it drew, so hiding it during a tab load meant the new
+                // page was never rasterised while it was away. Revealing it on
+                // onPageCommitVisible then showed the PREVIOUS tab's page for a few
+                // hundred milliseconds - tapping Shop straight after Book showed the
+                // whole booking form under a highlighted Shop tab.
+                //
+                // Staying visible lets the WebView paint the new page behind the
+                // opaque loading cover below, so by the time the cover is removed
+                // there is real content underneath it. The cover is what hides the
+                // old page now; nothing here needs to.
+                //
                 // Pull-to-refresh would otherwise fire under a native screen or
                 // while the shell is already loading that tab.
                 container.isEnabled = !isNativeScreen && !showWebLoading && !loadFailed
@@ -612,9 +660,13 @@ fun AppContent(
         }
 
         // ── 2.5. Loading cover — prevents stale/unstyled content flashing ───
+        // This is now the only thing hiding the outgoing page, so it has to be
+        // there on the very first frame of the switch: a fade-in, however short,
+        // is a window where the previous tab is still legible underneath.
+        // Fading out is still worth it - by then the page below is the right one.
         AnimatedVisibility(
             visible = showWebLoading,
-            enter = fadeIn(animationSpec = tween(100)),
+            enter = fadeIn(animationSpec = snap()),
             exit = fadeOut(animationSpec = tween(200)),
             modifier = Modifier.fillMaxSize()
         ) {
@@ -651,6 +703,9 @@ fun AppContent(
                     loadFailed = false
                     isLoading = true
                     val url = latestTargetUrl.value
+                    readyWebUrl = null
+                    webPageReadyFor = null
+                    inFlightUrl.value = url
                     if (url != null) webViewRef.value?.loadUrl(url) else webViewRef.value?.reload()
                 }
             )

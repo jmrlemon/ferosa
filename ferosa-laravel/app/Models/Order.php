@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $cancelled_at
  * @property Carbon|null $payment_verified_at
  * @property Carbon|null $archived_at
+ * @property 'pending'|'confirmed'|'out_for_delivery'|'delivered'|'completed'|'cancelled' $status
  */
 class Order extends Model
 {
@@ -124,7 +125,12 @@ class Order extends Model
     public function canTransitionTo(string $status): bool
     {
         return $status === $this->status
-            || in_array($status, self::STATUS_TRANSITIONS[$this->status] ?? [], true);
+            || in_array($status, self::STATUS_TRANSITIONS[$this->status], true);
+    }
+
+    public function hasFinalReceipt(): bool
+    {
+        return $this->status === 'completed';
     }
 
     protected function invoiceSeriesLetter(): string

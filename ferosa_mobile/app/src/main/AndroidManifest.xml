@@ -41,9 +41,25 @@
 
         <!-- Main launcher activity -->
         <!-- The Starter theme draws the splash; installSplashScreen() swaps in
-             Theme.Ferosa_landscaping (its postSplashScreenTheme) on first frame. -->
+             Theme.Ferosa_landscaping (its postSplashScreenTheme) on first frame.
+
+             configChanges is load-bearing, not an optimisation. The whole shell
+             is built around ONE WebView that is never destroyed (see AppContent)
+             so the Laravel session and the rendered page survive tab switches.
+             Letting the system recreate this activity on rotation throws that
+             WebView away: the page reloads from the network and scroll position
+             is lost. Handling these configurations here means a rotation is a
+             relayout, not a restart.
+
+             Only configurations that change nothing this app reads are claimed.
+             uiMode is safe because the theme is deliberately light-only
+             (see ui/theme/Theme.kt), and there are no -land or -night resources
+             to reload. density and fontScale are deliberately NOT listed: those
+             must still recreate the activity so accessibility font scaling
+             applies. -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
             android:exported="true"
             android:hardwareAccelerated="true"
             android:launchMode="singleTop"

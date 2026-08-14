@@ -37,6 +37,7 @@ import com.example.ferosa_landscaping.ui.theme.Brand600
 import com.example.ferosa_landscaping.ui.theme.Surface50
 import com.example.ferosa_landscaping.ui.theme.Surface500
 import com.example.ferosa_landscaping.ui.theme.Surface900
+import java.net.URI
 
 /**
  * Injected on page commit/finish to fix Android WebView IME resetting the caret
@@ -183,6 +184,33 @@ internal fun webDestinationMatches(actualUrl: String, expectedUrl: String): Bool
     return expected.queryParameterNames.all { name ->
         actual.getQueryParameters(name) == expected.getQueryParameters(name)
     }
+}
+
+/**
+ * Whether a WebView callback still belongs to the document the WebView is
+ * displaying now.
+ *
+ * Android can deliver `onPageFinished` and error callbacks after a later
+ * `loadUrl()` has already started. Treating one of those callbacks as current
+ * lets the previous tab overwrite the new tab's readiness state. Requiring the
+ * same complete query keeps destinations such as the admin tabs distinct while
+ * still tolerating a trailing slash or fragment change.
+ */
+internal fun webCallbackMatchesCurrentDocument(
+    callbackUrl: String,
+    currentUrl: String?,
+): Boolean {
+    if (currentUrl == null) return false
+
+    return runCatching {
+        val callback = URI(callbackUrl)
+        val current = URI(currentUrl)
+        callback.scheme.equals(current.scheme, ignoreCase = true) &&
+            callback.host.equals(current.host, ignoreCase = true) &&
+            callback.port == current.port &&
+            callback.path.trimEnd('/') == current.path.trimEnd('/') &&
+            callback.rawQuery == current.rawQuery
+    }.getOrDefault(false)
 }
 
 /**

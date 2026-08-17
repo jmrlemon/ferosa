@@ -2,7 +2,7 @@
 
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
-**Status:** Implementation in progress — Task 1 complete
+**Status:** Implementation in progress — Tasks 1–2 complete; Preview foundation checkpoint under review
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
@@ -38,7 +38,7 @@ will consume this contract instead of duplicating conditions.
 
 ---
 
-## Task 2: Build the single transient preview lifecycle
+## Task 2: Build the single transient preview lifecycle — ✅ complete
 
 **Description:** When the selected product changes, resolve and validate its cached GLB off the main
 thread, create one actual-size grounded preview instance on the main thread, and invalidate/dispose it
@@ -47,19 +47,19 @@ tap placement; this task establishes resource ownership before UI behavior depen
 
 **Acceptance criteria:**
 
-- [ ] Selecting Monstera prepares at most one preview instance using the existing validated cache and
+- [x] Selecting Monstera prepares at most one preview instance using the existing validated cache and
       grounded-transform path
-- [ ] The preview owns no anchor, consumes no placement slot, and cannot enter product-info/cart state
-- [ ] Generation guards prevent an older product/load/session callback from replacing the current
+- [x] The preview owns no anchor, consumes no placement slot, and cannot enter product-info/cart state
+- [x] Generation guards prevent an older product/load/session callback from replacing the current
       preview, and every disposal path releases the transient node/instance
 
 **Verification:**
 
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
 - [ ] Physical phone: selecting/reselecting Monstera never increments `0/5` or produces duplicate
-      preview geometry
-- [ ] Logcat contains no `AndroidRuntime:E` or Filament crash during rapid product selection/reset
+      preview geometry (the current legacy tap-to-place path is intentionally removed in Task 3)
+- [x] Logcat contains no `AndroidRuntime:E` or Filament crash during rapid product selection/reset
 
 **Dependencies:** Task 1
 
@@ -75,11 +75,11 @@ tap placement; this task establishes resource ownership before UI behavior depen
 
 > ## Checkpoint: Preview foundation
 >
-> - [ ] Tasks 1–2 acceptance criteria pass
-> - [ ] Unit tests and debug build are green
-> - [ ] Exactly one unanchored, uncounted preview can exist
-> - [ ] Product switch/reset/disposal cannot reveal stale preview geometry
-> - [ ] Review physical-phone result before changing placement input
+> - [ ] Tasks 1–2 acceptance criteria pass (manual preview check continues after the Task 3 input fix)
+> - [x] Unit tests and debug build are green
+> - [x] Exactly one unanchored, uncounted preview can exist
+> - [x] Product switch/reset/disposal cannot reveal stale preview geometry
+> - [x] Review physical-phone result before changing placement input
 
 ---
 

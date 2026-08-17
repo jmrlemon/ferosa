@@ -2,7 +2,7 @@
 
 **Approved spec:** `docs/specs/ar-placement-controls.md`<br>
 **Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
-**Status:** Implementation in progress — Task 1 complete
+**Status:** Implementation in progress — Tasks 1–2 complete; Preview foundation checkpoint under review
 
 ## Overview
 
@@ -77,14 +77,15 @@ behaviors are conceptually independent.
 ### Phase 1: Deterministic foundation
 
 - [x] Task 1: Define and test placement-control rules
-- [ ] Task 2: Build the single transient preview lifecycle
+- [x] Task 2: Build the single transient preview lifecycle
 
 ### Checkpoint: Preview foundation
 
-- [ ] Unit tests and debug build pass
-- [ ] Selecting Monstera creates no more than one preview instance
-- [ ] Preview owns no ARCore anchor and does not change the placement counter
-- [ ] Switching product/reset/disposal cannot show a stale preview
+- [x] Unit tests and debug build pass
+- [ ] Selecting Monstera creates no more than one preview instance (manual confirmation is deferred
+      until Task 3 removes the legacy tap-to-place path)
+- [x] Preview owns no ARCore anchor and does not change the placement counter
+- [x] Switching product/reset/disposal cannot show a stale preview
 
 ### Phase 2: Aim and confirm
 

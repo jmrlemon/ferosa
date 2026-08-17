@@ -20,6 +20,20 @@ data class GroundedModelTransform(
 )
 
 /**
+ * Checks whether an asynchronous preview result still belongs to the active AR request.
+ *
+ * Product selection and SceneView replacement both invalidate older work. Keeping this comparison
+ * pure makes it hard for a completion callback to accidentally resurrect stale geometry.
+ */
+fun isPreviewRequestCurrent(
+    requestGeneration: Long,
+    currentGeneration: Long,
+    requestProductId: Int,
+    selectedProductId: Int?,
+): Boolean =
+    requestGeneration == currentGeneration && requestProductId == selectedProductId
+
+/**
  * Calculates a stable real-world transform from the model's glTF bounding box.
  *
  * SceneView 2.x `scaleToUnits` fits the model's largest axis into a cube. That makes a wide plant

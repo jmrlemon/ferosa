@@ -75,6 +75,7 @@ import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
+import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
@@ -88,6 +89,7 @@ import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
+import io.github.sceneview.ar.node.HitResultNode
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
@@ -95,6 +97,7 @@ import kotlinx.coroutines.*
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 // ─── Screenshot helper ─────────────────────────────────────────────────────────
 
@@ -153,6 +156,18 @@ private enum class ModelPlacementStage(val progressMessage: String) {
     Downloading("Downloading 3D product..."),
     Preparing("Preparing real-size preview..."),
 }
+
+private enum class PreviewStage {
+    Idle,
+    Loading,
+    Ready,
+}
+
+private data class PreviewHandle(
+    val productId: Int,
+    val hitNode: HitResultNode,
+    val modelNode: ModelNode,
+)
 
 private fun customerReadableModelError(exception: Throwable): String {
     val message = exception.message.orEmpty()
@@ -719,11 +734,29 @@ private fun ArScreen(
     val pendingModelLoads = remember {
         Collections.synchronizedSet(mutableSetOf<Job>())
     }
+    val previewJobRef = remember { AtomicReference<Job?>(null) }
+    var previewStage by remember { mutableStateOf(PreviewStage.Idle) }
+    val previewRef = remember { mutableStateOf<PreviewHandle?>(null) }
+    val previewGeneration = remember { AtomicInteger(0) }
     var arSessionMessage by remember { mutableStateOf<String?>("Starting camera...") }
     var hasArFrame by remember { mutableStateOf(false) }
 
     // Coroutine scope for model download operations
     val coroutineScope = rememberCoroutineScope()
+
+    fun disposePreview() {
+        val preview = previewRef.value ?: return
+        previewRef.value = null
+        val sv = sceneViewRef.value
+        runCatching { sv?.removeChildNode(preview.hitNode) }
+        runCatching { preview.modelNode.destroy() }
+        runCatching { preview.hitNode.destroy() }
+        runCatching { sv?.modelLoader?.destroyModel(preview.modelNode.model) }
+        if (BuildConfig.DEBUG) {
+            Log.d("FerosaAR", "Preview disposed product=${preview.productId}")
+        }
+        previewStage = PreviewStage.Idle
+    }
 
     // Screenshot toast
     var screenshotMsg by remember { mutableStateOf<String?>(null) }
@@ -789,12 +822,14 @@ private fun ArScreen(
             // scene references. This also prevents a retained ViewModel from
             // carrying nodes created by the old renderer into a recreated Activity.
             sceneGeneration.incrementAndGet()
+            previewGeneration.incrementAndGet()
             val loadsToCancel = synchronized(pendingModelLoads) {
                 pendingModelLoads.toList().also {
                     pendingModelLoads.clear()
                 }
             }
             loadsToCancel.forEach { it.cancel() }
+            disposePreview()
             val sv = sceneViewRef.value
             viewModel.placedModels.value.forEach { placed ->
                 runCatching { sv?.removeChildNode(placed.anchorNode) }
@@ -823,6 +858,142 @@ private fun ArScreen(
         trackingStates = setOf(TrackingState.TRACKING),
         planePoseInPolygon = true,
     )
+
+    fun updatePreviewTarget(sv: ARSceneView) {
+        val preview = previewRef.value ?: return
+        if (previewStage != PreviewStage.Ready || sv.width <= 0 || sv.height <= 0) return
+
+        val hit = findPlacementHit(sv, sv.width / 2f, sv.height / 2f)
+        preview.hitNode.hitResult = hit
+        preview.hitNode.isVisible = hit != null
+    }
+
+    fun preparePreview(product: ArProduct?) {
+        previewJobRef.getAndSet(null)?.cancel()
+        val requestGeneration = previewGeneration.incrementAndGet()
+        disposePreview()
+        previewStage = if (product == null) PreviewStage.Idle else PreviewStage.Loading
+
+        val sv = sceneViewRef.value ?: run {
+            previewStage = PreviewStage.Idle
+            return
+        }
+        if (product == null) return
+
+        val requestProductId = product.id
+        val previewJob = coroutineScope.launch {
+            try {
+                val modelResult = modelRepository.getModel(requestProductId)
+                val modelBuffer = withContext(Dispatchers.IO) {
+                    validateGlbFile(modelResult.file)
+                    resolveCachedModelLoaderInput(modelResult.file)
+                }
+
+                withContext(Dispatchers.Main.immediate) {
+                    if (!isPreviewRequestCurrent(
+                            requestGeneration = requestGeneration.toLong(),
+                            currentGeneration = previewGeneration.get().toLong(),
+                            requestProductId = requestProductId,
+                            selectedProductId = selectedProductRef.value?.id,
+                        ) || !isSceneCurrent(sv, sceneGeneration.get())
+                    ) {
+                        return@withContext
+                    }
+
+                    val modelNode = ModelNode(
+                        modelInstance = sv.modelLoader.createModelInstance(modelBuffer),
+                    )
+                    try {
+                        require(modelNode.renderableNodes.isNotEmpty()) {
+                            "This 3D model does not contain visible geometry."
+                        }
+
+                        val transform = calculateGroundedModelTransform(
+                            centerX = modelNode.center.x,
+                            centerY = modelNode.center.y,
+                            centerZ = modelNode.center.z,
+                            halfExtentX = modelNode.halfExtent.x,
+                            halfExtentY = modelNode.halfExtent.y,
+                            halfExtentZ = modelNode.halfExtent.z,
+                            desiredHeightMeters = product.heightCm / 100f,
+                        )
+                        modelNode.scale = Scale(
+                            x = transform.uniformScale,
+                            y = transform.uniformScale,
+                            z = transform.uniformScale,
+                        )
+                        modelNode.position = Position(
+                            x = transform.positionX,
+                            y = transform.positionY,
+                            z = transform.positionZ,
+                        )
+                        modelNode.isShadowCaster = false
+                        modelNode.isTouchable = false
+                        modelNode.isHittable = false
+
+                        val hitNode = HitResultNode(
+                            engine = sv.engine,
+                            hitTest = { _ -> null },
+                        ).apply {
+                            update = false
+                            isVisible = false
+                            isTouchable = false
+                            isHittable = false
+                            addChildNode(modelNode)
+                        }
+                        sv.addChildNode(hitNode)
+                        previewRef.value = PreviewHandle(
+                            productId = requestProductId,
+                            hitNode = hitNode,
+                            modelNode = modelNode,
+                        )
+                        previewStage = PreviewStage.Ready
+                        if (BuildConfig.DEBUG) {
+                            Log.d(
+                                "FerosaAR",
+                                "Preview ready product=$requestProductId, " +
+                                    "halfExtent=${modelNode.halfExtent}, " +
+                                    "heightMeters=${product.heightCm / 100f}, " +
+                                    "scale=${transform.uniformScale}, " +
+                                    "position=${modelNode.position}, " +
+                                    "renderables=${modelNode.renderableNodes.size}",
+                            )
+                        }
+                        updatePreviewTarget(sv)
+                    } catch (exception: Exception) {
+                        runCatching { modelNode.destroy() }
+                        runCatching { sv.modelLoader.destroyModel(modelNode.model) }
+                        throw exception
+                    }
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                withContext(Dispatchers.Main.immediate) {
+                    if (isPreviewRequestCurrent(
+                            requestGeneration = requestGeneration.toLong(),
+                            currentGeneration = previewGeneration.get().toLong(),
+                            requestProductId = requestProductId,
+                            selectedProductId = selectedProductRef.value?.id,
+                        ) && isSceneCurrent(sv, sceneGeneration.get())
+                    ) {
+                        previewStage = PreviewStage.Idle
+                        placementNotice = customerReadableModelError(exception)
+                    }
+                }
+            }
+        }
+        previewJobRef.set(previewJob)
+        pendingModelLoads += previewJob
+        previewJob.invokeOnCompletion {
+            pendingModelLoads -= previewJob
+            previewJobRef.compareAndSet(previewJob, null)
+        }
+    }
+
+    LaunchedEffect(selectedProduct?.id, sceneViewRef.value) {
+        preparePreview(selectedProduct)
+    }
 
     fun placeModel(sv: ARSceneView, x: Float, y: Float, product: ArProduct) {
         if (!canPlaceRef.value || placementStage != ModelPlacementStage.Idle) return
@@ -1180,11 +1351,18 @@ private fun ArScreen(
                         val now = SystemClock.elapsedRealtime()
                         if (sv.width > 0 && sv.height > 0 && now - lastSurfaceProbeAt >= 150L) {
                             lastSurfaceProbeAt = now
-                            isPlacementSurfaceReady = findPlacementHit(
+                            val centerHit = findPlacementHit(
                                 sv,
                                 sv.width / 2f,
                                 sv.height / 2f,
-                            ) != null
+                            )
+                            isPlacementSurfaceReady = centerHit != null
+                            previewRef.value
+                                ?.takeIf { previewStage == PreviewStage.Ready }
+                                ?.let { preview ->
+                                    preview.hitNode.hitResult = centerHit
+                                    preview.hitNode.isVisible = centerHit != null
+                                }
                             if (isPlacementSurfaceReady &&
                                 placementNotice?.startsWith("No ground found") == true
                             ) {

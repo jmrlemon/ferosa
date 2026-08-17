@@ -4,6 +4,7 @@ import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
+import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
@@ -45,6 +46,14 @@ class ArModelPlacementTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun preview_request_is_current_only_for_the_active_generation_and_product() {
+        assertTrue(isPreviewRequestCurrent(3L, 3L, 11, 11))
+        assertFalse(isPreviewRequestCurrent(2L, 3L, 11, 11))
+        assertFalse(isPreviewRequestCurrent(3L, 3L, 11, 12))
+        assertFalse(isPreviewRequestCurrent(3L, 3L, 11, null))
     }
 
     @Test

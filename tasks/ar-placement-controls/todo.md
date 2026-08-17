@@ -2,7 +2,7 @@
 
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
-**Status:** Implementation in progress — Tasks 1–2 complete; Preview foundation checkpoint under review
+**Status:** Implementation in progress — Preview foundation checkpoint complete; Task 3 in progress
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
@@ -73,13 +73,20 @@ tap placement; this task establishes resource ownership before UI behavior depen
 
 ---
 
-> ## Checkpoint: Preview foundation
+> ## Checkpoint: Preview foundation — ✅ reviewed
 >
-> - [ ] Tasks 1–2 acceptance criteria pass (manual preview check continues after the Task 3 input fix)
+> - [x] Tasks 1–2 code acceptance criteria pass
 > - [x] Unit tests and debug build are green
 > - [x] Exactly one unanchored, uncounted preview can exist
 > - [x] Product switch/reset/disposal cannot reveal stale preview geometry
 > - [x] Review physical-phone result before changing placement input
+> - [ ] Preview-only phone interaction evidence (deferred until Task 3 removes legacy tap placement)
+
+> **Code review (2026-08-18):** Tests were reviewed first, followed by correctness, readability,
+> architecture, security, and performance. One required correctness finding was fixed: a Filament
+> `ModelInstance` could outlive a failed `ModelNode` construction. The guarded cleanup is in
+> commit `f0d91db`. Focused tests, the full JVM suite, `lintDebug`, and `assembleDebug` passed after
+> the fix. No optional findings remain open for this checkpoint.
 
 ---
 

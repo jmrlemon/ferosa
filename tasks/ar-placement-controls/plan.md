@@ -1,7 +1,7 @@
 # Implementation Plan: AR Placement Preview and Object Controls
 
-**Approved spec:** `docs/specs/ar-placement-controls.md`  
-**Detailed checklist:** `tasks/ar-placement-controls/todo.md`  
+**Approved spec:** `docs/specs/ar-placement-controls.md`<br>
+**Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
 **Status:** Awaiting human review before implementation
 
 ## Overview
@@ -165,4 +165,3 @@ Every implementation task must satisfy all applicable items:
 
 None. Any request for arbitrary rotation, mirror flip, resizing, Undo, or persisted scenes reopens the
 approved spec before it enters this plan.
-

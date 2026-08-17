@@ -1,9 +1,9 @@
 # Spec: AR Placement Preview and Object Controls
 
-**Status:** Approved on 2026-08-18 — planning gate open; implementation still requires plan approval  
-**Scope:** Android AR visualizer only  
-**Plan:** `tasks/ar-placement-controls/plan.md`  
-**Task list:** `tasks/ar-placement-controls/todo.md`  
+**Status:** Approved on 2026-08-18 — planning gate open; implementation still requires plan approval<br>
+**Scope:** Android AR visualizer only<br>
+**Plan:** `tasks/ar-placement-controls/plan.md`<br>
+**Task list:** `tasks/ar-placement-controls/todo.md`
 **Relationship to existing work:** This is a new interaction extension. The completed
 `docs/specs/ar-visualizer-rendering.md` remains the rendering and asset-pipeline contract; this
 document restates every rendering invariant that the new interaction must preserve.

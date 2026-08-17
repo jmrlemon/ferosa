@@ -1,7 +1,7 @@
 # Task List: AR Placement Preview and Object Controls
 
-**Spec:** `docs/specs/ar-placement-controls.md`  
-**Plan:** `tasks/ar-placement-controls/plan.md`  
+**Spec:** `docs/specs/ar-placement-controls.md`<br>
+**Plan:** `tasks/ar-placement-controls/plan.md`<br>
 **Status:** Awaiting human approval before implementation
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
@@ -240,4 +240,3 @@ record that five-distinct-product validation is pending assets rather than silen
 > - [ ] No resize, dependency, backend/API, database, or five-model-limit change entered the diff
 > - [ ] Final five-distinct-product test remains pending until the other four assets are imported
 > - [ ] Ready for code review
-

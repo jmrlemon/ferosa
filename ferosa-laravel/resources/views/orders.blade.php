@@ -6,8 +6,15 @@
 <main class="customer-page max-w-4xl">
   <x-page-head
     kicker="Purchases"
-    title="Orders &amp; delivery"
+    {{-- Literal "&": the component prints the title with {{ }}, so an HTML
+         entity here would be escaped a second time and render as "&amp;". --}}
+    title="Orders & delivery"
     sub="See what needs attention now and follow every update from the Ferosa team.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9Z"/><path d="m3 7.5 9 4.5m0 0 9-4.5M12 12v9"/>
+      </svg>
+    </x-slot:icon>
     <a href="{{ route('shop') }}" class="btn btn-secondary btn-sm">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9Z"/></svg>
       Continue shopping

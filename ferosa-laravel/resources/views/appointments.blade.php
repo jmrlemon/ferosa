@@ -8,6 +8,11 @@
     kicker="Your bookings"
     title="Appointments"
     sub="Track every scheduled visit, follow its progress, and manage changes in one place.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18m-9.5 5.5 1.5 1.5 3-3"/>
+      </svg>
+    </x-slot:icon>
     <a href="{{ route('schedule') }}" class="btn btn-primary btn-sm">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/></svg>
       Book a service

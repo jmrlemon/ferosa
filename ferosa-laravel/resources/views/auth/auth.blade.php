@@ -25,18 +25,26 @@
   --green-deep: #123426;
   --paper: #f8f7f3;
   --ink: #183127;
+  /* Viewport height frozen at page load, updated only on a real width change
+     or rotation. The Android shell uses adjustResize, so the soft keyboard
+     genuinely shrinks the WebView - and every svh/vh-based min-height would
+     otherwise recompute mid-typing and shove the card upward. */
+  --app-vh: 100svh;
 }
 
 html, body {
-  height: 100%;
+  /* min-height, not height: with adjustResize a fixed 100% makes body shorter
+     than its own content the moment the keyboard opens. */
+  min-height: 100%;
   font-family: 'DM Sans', sans-serif;
   overflow-x: hidden;
   /* Allow vertical scroll so keyboard doesn't cover inputs */
   overflow-y: auto;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* Ensures focused input scrolls above keyboard with breathing room */
-  scroll-padding-bottom: 120px;
+  /* No scroll-padding-bottom here: it makes the browser's own focus scroll
+     overshoot by that much, which is exactly the jump the keyboard-pinning
+     script below has to undo. Keyboard clearance is handled in JS instead. */
 }
 
 /* ── Fullscreen background ── */
@@ -125,7 +133,7 @@ html, body {
 .scene {
   position: relative;
   z-index: 5;
-  min-height: 100vh;
+  min-height: var(--app-vh);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,7 +147,7 @@ html, body {
   .scene {
     align-items: flex-start;
     padding: 24px 16px 100px;
-    min-height: 100svh;
+    min-height: var(--app-vh);
   }
   .form-card {
     padding: 32px 24px 28px;
@@ -499,15 +507,22 @@ html, body {
 .scene {
   align-items: stretch;
   justify-content: flex-end;
-  min-height: 100svh;
+  min-height: var(--app-vh);
   padding: clamp(18px, 2.2vw, 34px);
 }
 .page.active {
   position: relative;
   width: min(43vw, 520px);
-  max-height: calc(100svh - clamp(36px, 4.4vw, 68px));
+  max-height: calc(var(--app-vh) - clamp(36px, 4.4vw, 68px));
   overflow-y: auto;
+  /* Two declarations, deliberately. Plain `center` would centre the short
+     login form nicely but leave the tall signup form overflowing in both
+     directions, with the top half unreachable by scrolling. `safe center`
+     centres only while the card fits and falls back to start alignment once
+     it doesn't. Browsers without safe alignment drop the second declaration
+     and keep the top-anchored first one. */
   align-items: flex-start;
+  align-items: safe center;
   justify-content: center;
   border: 1px solid rgba(255,255,255,.82);
   border-radius: 28px;
@@ -522,12 +537,14 @@ html, body {
   position: absolute;
   inset: 0 0 auto;
   height: 4px;
-  background: linear-gradient(90deg, #236746, #82bd98 62%, #b76542);
+  background: #fff;
   z-index: 2;
 }
 .form-card {
   max-width: 420px;
-  margin: auto;
+  /* Horizontal auto margins only: a vertical `auto` would win over the
+     `align-items: safe center` above and reinstate unsafe centring. */
+  margin: 0 auto;
   padding: 42px 32px 34px;
   border: 0;
   border-radius: 0;
@@ -652,16 +669,25 @@ html, body {
 
 @media (max-width: 900px) {
   .scene { padding: 16px; }
-  .page.active { width: min(52vw, 500px); max-height: calc(100svh - 32px); }
+  .page.active { width: min(52vw, 500px); max-height: calc(var(--app-vh) - 32px); }
 }
 @media (max-width: 700px) {
   .scene-bg { background-position: 69% center; }
   .scene-overlay { background: rgba(8,29,21,.22); }
-  .scene { display: block; padding: 14px; }
+  /* The card floats: it hugs its own content and centres in the scene rather
+     than stretching to a full-height panel, so the garden sits around it on
+     all four sides. `safe center` again - the signup form is taller than the
+     screen, and it has to fall back to top alignment when it overflows. */
+  .scene {
+    display: flex;
+    align-items: safe center;
+    justify-content: center;
+    padding: 22px 14px;
+  }
   .page.active {
     width: 100%;
     max-height: none;
-    min-height: calc(100svh - 28px);
+    min-height: 0;
     border-radius: 24px;
     background: rgba(248,247,243,.94);
   }
@@ -681,6 +707,35 @@ html, body {
         window.location.reload();
       }
     });
+
+    // ── Keyboard-stable viewport height ──────────────────────────────────
+    // The Android shell declares adjustResize, so opening the soft keyboard
+    // really does shrink the WebView window. Left alone, every 100svh-based
+    // min-height recomputes and the card visibly jumps upward mid-typing.
+    // Pin --app-vh to the keyboard-less height: adopt a width change (a real
+    // rotation or split-screen resize) and a height *increase* (keyboard
+    // dismissed), but ignore a height-only shrink.
+    (function () {
+      var el = document.documentElement;
+      var lockedWidth = window.innerWidth;
+      var lockedHeight = window.innerHeight;
+
+      function apply(height) {
+        el.style.setProperty('--app-vh', height + 'px');
+      }
+
+      apply(lockedHeight);
+
+      window.addEventListener('resize', function () {
+        var width = window.innerWidth;
+        var height = window.innerHeight;
+        if (width !== lockedWidth || height > lockedHeight) {
+          lockedWidth = width;
+          lockedHeight = height;
+          apply(height);
+        }
+      });
+    })();
   </script>
 </head>
 <body>
@@ -1229,25 +1284,104 @@ function selectAcct(btn) {
 
 // ── Android WebView: fix backward/RTL typing ──────────────────────────────
 // On focus, move cursor to end of any existing value (prevents IME inserting at pos 0)
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('input').forEach(input => {
-    input.addEventListener('focus', function () {
-      // Force LTR direction at the DOM level
-      this.setAttribute('dir', 'ltr');
-      // Move cursor to end
-      const len = this.value.length;
-      try {
-        this.setSelectionRange(len, len);
-      } catch (e) { /* password fields may throw */ }
-      // Scroll the focused field into view above the keyboard
-      // Delay slightly to let the keyboard animation finish first
-      const el = this;
-      setTimeout(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 320);
-    });
-  });
+document.addEventListener('focusin', event => {
+  const el = event.target;
+  if (!el || el.tagName !== 'INPUT') return;
+  // Force LTR direction at the DOM level
+  el.setAttribute('dir', 'ltr');
+  // Move cursor to end
+  const len = el.value.length;
+  try {
+    el.setSelectionRange(len, len);
+  } catch (e) { /* password/checkbox inputs may throw */ }
 });
+
+// ── Android WebView: hold the page still while the keyboard is up ─────────
+// Chromium on Android runs its own "scroll the focused editable into view"
+// pass, and it re-runs on every caret update - i.e. on every keystroke. It
+// aims to centre the caret in the space left above the keyboard, so on a tall
+// form like signup the page creeps upward as you type and the heading walks
+// off the top of the screen. No CSS can prevent that; the only fix is to
+// decide the scroll position ourselves once and put it back whenever
+// something else moves it.
+//
+// The field is still guaranteed to sit above the keyboard, and a real finger
+// drag still scrolls freely - only unrequested programmatic scrolling is
+// undone.
+(function () {
+  // Touch input only. On a desktop pointer there is no keyboard inset to
+  // fight, and pinning would swallow legitimate wheel and scrollbar scrolling.
+  if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+
+  const CLEARANCE = 16;
+  let pinnedY = null;
+  let userDragging = false;
+  let releaseTimer = null;
+  let settleTimer = null;
+
+  function viewportHeight() {
+    return (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  }
+
+  function isTextField(el) {
+    return el && el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'button';
+  }
+
+  // Smallest scroll offset that clears the field of the keyboard. Returns the
+  // current offset unchanged when the field is already comfortably in view.
+  function restingOffsetFor(el) {
+    const box = el.getBoundingClientRect();
+    const viewH = viewportHeight();
+    if (box.bottom > viewH - CLEARANCE) {
+      return window.scrollY + (box.bottom - viewH + CLEARANCE);
+    }
+    if (box.top < CLEARANCE) {
+      return Math.max(0, window.scrollY + box.top - CLEARANCE);
+    }
+    return window.scrollY;
+  }
+
+  document.addEventListener('focusin', event => {
+    const el = event.target;
+    if (!isTextField(el)) return;
+    // Hold the pre-keyboard position until the keyboard has finished
+    // animating, then settle on a final offset and defend it.
+    pinnedY = window.scrollY;
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      if (document.activeElement !== el) return;
+      pinnedY = restingOffsetFor(el);
+      window.scrollTo(0, pinnedY);
+    }, 300);
+  });
+
+  document.addEventListener('focusout', event => {
+    if (!isTextField(event.target)) return;
+    clearTimeout(settleTimer);
+    pinnedY = null;
+  });
+
+  window.addEventListener('scroll', () => {
+    if (pinnedY === null || userDragging) return;
+    if (Math.abs(window.scrollY - pinnedY) > 1) window.scrollTo(0, pinnedY);
+  }, { passive: true });
+
+  // A tap is not a scroll: only an actual drag hands control back to the user,
+  // otherwise tapping a field would count as consent to the jump it triggers.
+  window.addEventListener('touchmove', () => {
+    userDragging = true;
+    clearTimeout(releaseTimer);
+  }, { passive: true });
+
+  window.addEventListener('touchend', () => {
+    if (!userDragging) return;
+    clearTimeout(releaseTimer);
+    releaseTimer = setTimeout(() => {
+      userDragging = false;
+      if (pinnedY !== null) pinnedY = window.scrollY;
+    }, 260);
+  }, { passive: true });
+})();
 
 document.addEventListener('mousemove', e => {
   const bg = document.getElementById('sceneBg');

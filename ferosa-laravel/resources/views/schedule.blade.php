@@ -30,7 +30,13 @@
   <x-page-head
     kicker="Book a visit"
     title="Schedule a service"
-    sub="Choose your service first, then pick an available date and time. We confirm within one business day." />
+    sub="Choose your service first, then pick an available date and time. We confirm within one business day.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
+      </svg>
+    </x-slot:icon>
+  </x-page-head>
 
   <section class="mb-6 overflow-hidden rounded-2xl border border-brand-100 bg-white reveal reveal-1" aria-label="Booking progress">
     <div class="grid grid-cols-2 sm:grid-cols-4">

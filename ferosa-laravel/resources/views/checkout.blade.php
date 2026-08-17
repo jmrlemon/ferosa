@@ -49,7 +49,13 @@
   <x-page-head
     kicker="Almost there"
     title="Checkout"
-    sub="Review your items, tell us where to deliver, and choose how you would like to pay." />
+    sub="Review your items, tell us where to deliver, and choose how you would like to pay.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+      </svg>
+    </x-slot:icon>
+  </x-page-head>
 
   @if($errors->any())
     <x-alert type="error" class="mb-6 reveal">

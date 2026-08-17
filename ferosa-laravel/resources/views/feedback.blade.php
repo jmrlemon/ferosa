@@ -9,7 +9,13 @@
   <x-page-head
     kicker="Your experience"
     title="Feedback"
-    sub="Rate completed orders and services — your notes help the Ferosa team improve every visit." />
+    sub="Rate completed orders and services — your notes help the Ferosa team improve every visit.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3 2.9 5.9 6.1.9-4.5 4.3 1.1 6.1L12 17.3 6.4 20.2l1.1-6.1L3 9.8l6.1-.9L12 3Z"/>
+      </svg>
+    </x-slot:icon>
+  </x-page-head>
 
   @if (session('status'))
     <x-alert type="success" class="reveal">{{ session('status') }}</x-alert>

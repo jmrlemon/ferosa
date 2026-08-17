@@ -193,6 +193,24 @@
       line-height: 1.6;
       color: #706b61;
     }
+    .page-head-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      min-width: 0;
+    }
+    .page-head-icon {
+      width: 3rem;
+      height: 3rem;
+      flex-shrink: 0;
+      border-radius: 14px;
+      background: #eef7f1;
+      color: #236746;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     /* Button system */
     :where(.btn) {
@@ -487,15 +505,31 @@
 
     /* Every customer page opens with the page-head component - a kicker
        line, a display-serif title, and a lead paragraph sized for a desktop
-       hero. On a phone that is ~450px of chrome before anything useful is
-       on screen. In-app, drop the marketing copy and shrink the title: this
-       one change reclaims that space on every page that uses the
-       component (shop, checkout, orders, appointments, account,
-       notifications, feedback, schedule). */
+       hero. On a phone that was ~450px of chrome before anything useful was
+       on screen, so the kicker and lead used to be hidden outright in-app.
+       They are back, at phone sizing: 10px kicker, tighter title, and a lead
+       clamped to two lines. That costs ~90px rather than ~450px, which buys
+       back the header identity the native estimator screen has - kicker,
+       title, lead, icon tile - across every page using the component (shop,
+       checkout, orders, appointments, account, notifications, feedback,
+       schedule) without giving the fold away again. */
     body.in-app .page-head { margin-bottom: 1rem; }
-    body.in-app .page-kicker,
-    body.in-app .page-sub { display: none; }
-    body.in-app .page-title { margin-top: 0; font-size: 1.375rem; }
+    body.in-app .page-kicker { font-size: 10px; letter-spacing: .12em; }
+    body.in-app .page-kicker::before { width: 14px; }
+    body.in-app .page-title { margin-top: .3rem; font-size: 1.375rem; }
+    body.in-app .page-sub {
+      margin-top: .3rem;
+      font-size: .8125rem;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    body.in-app .page-head-icon { width: 2.75rem; height: 2.75rem; border-radius: 12px; }
+    /* Below `sm` the action row (badges, buttons) stacks under the title, and
+       the desktop 1rem gap reads as a gap between two unrelated blocks. */
+    body.in-app .page-head-row { gap: .625rem; }
     /* Search/sort/filter toolbars stack to one column below `sm` already;
        this just tightens the padding so the stack costs less height. */
     body.in-app :where(.toolbar) { padding: .75rem; border-radius: .85rem; }

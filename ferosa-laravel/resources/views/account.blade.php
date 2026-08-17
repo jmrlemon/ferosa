@@ -48,7 +48,13 @@
   <x-page-head
     kicker="Your account"
     title="Personal details"
-    sub="Keep your contact information current so we can reach you about deliveries and scheduled visits." />
+    sub="Keep your contact information current so we can reach you about deliveries and scheduled visits.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    </x-slot:icon>
+  </x-page-head>
 
   @if (session('status'))
     <x-alert type="success" class="reveal">{{ session('status') }}</x-alert>

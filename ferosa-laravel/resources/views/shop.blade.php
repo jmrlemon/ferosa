@@ -6,31 +6,18 @@
   .product-card:hover { transform: translateY(-2px); border-color: #cbded1; box-shadow: 0 14px 36px rgba(18,52,38,.07); }
   .product-card img { transition: transform .45s cubic-bezier(.22,1,.36,1); }
   .product-card:hover img { transform: scale(1.035); }
-  /* In-app the grid is two columns, so the round floating cart button sat on
-     top of the right-hand card's Add button. The WebView is already inset
-     above the native nav bar (the shell passes Scaffold's innerPadding), so
-     bottom:0 here is directly above that nav - stretch the button into a
-     full-width bar, which cannot cover a card at all. `.customer-page`
-     already reserves 7rem of bottom padding, so nothing is hidden behind it.
+  /* The round button is the wanted look in-app too, not the full-width bar it
+     used to become. Only the offset needs adjusting: the web layout's
+     `bottom-20` exists to clear the *web* bottom nav, which is hidden in-app,
+     and the WebView is already inset above the native nav bar (the shell
+     passes Scaffold's innerPadding) - so keeping 5rem would strand the button
+     in dead space. Sit it just above that inset instead.
      Display is deliberately not set: the button carries Tailwind's `flex`
      and the script toggles `hidden` on it to show/hide by cart count. */
   body.in-app #floating-cart {
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: auto;
-    height: auto;
-    gap: .55rem;
-    border-radius: 0;
-    padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
-    box-shadow: 0 -8px 24px rgba(18,52,38,.1);
+    bottom: calc(1rem + env(safe-area-inset-bottom));
   }
   .floating-cart-label { display: none; }
-  body.in-app .floating-cart-label {
-    display: inline;
-    font-size: .8125rem;
-    font-weight: 700;
-  }
 
   /* In-app: the grid was 1 column below `sm`, which on a phone means one
      product per screenful. Two columns plus a square image and a shorter
@@ -69,13 +56,26 @@
   body.in-app #category-chips::-webkit-scrollbar { display: none; }
   body.in-app #category-chips .chip { flex: 0 0 auto; }
 
-  /* The search/sort/max-price card is another ~700px of the first screen.
-     The category chips above already cover the common case, so collapse the
-     rest behind the Filters button and let it be opened on demand. It stays
-     open automatically when a filter is actually applied, so the customer
-     can always see and clear what is narrowing their results. */
+  /* The search/sort/max-price card is another ~700px of the first screen, and
+     behind a Filters button it was a tap away from being found at all. In-app
+     it is dropped entirely in favour of the always-visible search pill below,
+     the way a marketplace app does it; the category chips cover the rest of
+     the common case. Sort and max price stay web-only. */
   body.in-app #filter-form { display: none; }
-  body.in-app #filter-form.is-open { display: block; }
+
+  /* Search pill - in-app only, sits directly under the page head. */
+  .shop-search-bar { display: none; }
+  body.in-app .shop-search-bar { display: block; margin-bottom: .75rem; }
+  /* Icon offset and text inset are set here rather than inherited: the layout
+     supplies them through `:where(...)` rules, whose zero specificity makes
+     them too easy to lose, and the pill's larger radius needs the text pushed
+     further in regardless. */
+  body.in-app .shop-search-bar .field-icon > svg { left: 1rem; }
+  body.in-app .shop-search-bar .field {
+    min-height: 44px;
+    border-radius: 999px;
+    padding-left: 2.75rem;
+  }
   /* The bottom bar already says "View cart"; drop the header duplicate. */
   body.in-app .shop-header-cart { display: none; }
 </style>
@@ -96,6 +96,11 @@
     kicker="From the nursery"
     title="Plants and garden essentials"
     sub="Everything Ferosa uses on site — healthy stock, honest pricing, and delivery across Orani, Bataan.">
+    <x-slot:icon>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>
+      </svg>
+    </x-slot:icon>
     <span class="badge badge-neutral" id="product-count-label">
       {{ $products->count() }} item{{ $products->count() !== 1 ? 's' : '' }}
     </span>
@@ -103,14 +108,27 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
       View cart
     </a>
-    {{-- In-app the filter form is collapsed behind this; `app-only` is the
-         layout's existing show-in-app-only helper. --}}
-    <button type="button" id="filter-toggle" class="app-only btn btn-secondary btn-sm"
-            aria-controls="filter-form" aria-expanded="false">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M3 6h18M7 12h10m-6 6h2"/></svg>
-      Filters{{ $activeFilters ? " ($activeFilters)" : '' }}
-    </button>
   </x-page-head>
+
+  {{-- In-app search. Replaces the Filters button: the filter card it used to
+       open is hidden in-app, so this carries the other filter state forward as
+       hidden inputs rather than silently clearing it on submit. --}}
+  <form method="GET" action="{{ route('shop') }}" class="shop-search-bar reveal reveal-1" role="search">
+    <input type="hidden" name="category" value="{{ $category }}">
+    <input type="hidden" name="sort" value="{{ $sort }}">
+    @if (filled($maxPrice))
+      <input type="hidden" name="max_price" value="{{ $maxPrice }}">
+    @endif
+    <label for="shop-search-app" class="sr-only">Search products</label>
+    <div class="field-icon">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="search" id="shop-search-app" name="q" value="{{ $q }}"
+             placeholder="Search plants, soil, tools…"
+             enterkeyhint="search" autocomplete="off" class="field">
+    </div>
+  </form>
 
   {{-- Category quick filters --}}
   <div id="category-chips" class="mb-4 flex flex-wrap items-center gap-2 reveal reveal-1">
@@ -270,6 +288,19 @@
         </article>
       @endforeach
     </div>
+
+    {{-- Shown by the live filter when typing hides every card. Distinct from
+         the server-rendered empty state above, which only exists when the
+         query returned nothing in the first place. --}}
+    <div id="live-empty" class="customer-empty hidden">
+      <div class="customer-empty-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </div>
+      <h2 class="text-base font-bold text-surface-900 mb-1">No products found</h2>
+      <p class="text-surface-500 text-sm">Nothing here matches &ldquo;<span id="live-empty-term"></span>&rdquo;.</p>
+    </div>
   @endif
 </main>
 
@@ -299,20 +330,38 @@
   const cartBadge   = document.getElementById('floating-cart-count');
   const toastCont   = document.getElementById('shop-toast-container');
 
-  // In-app the filter form is collapsed by the is-open rule in the styles
-  // block. Start it open when a filter is already narrowing the results so
-  // the customer can see and clear it, rather than wondering why the list is
-  // short. The button itself only exists in-app.
-  const filterToggle = document.getElementById('filter-toggle');
-  const filterForm   = document.getElementById('filter-form');
-  if (filterToggle && filterForm) {
-    if ({{ $activeFilters }} > 0) {
-      filterForm.classList.add('is-open');
-      filterToggle.setAttribute('aria-expanded', 'true');
+  // Live search: the whole catalogue is already rendered, so typing narrows it
+  // in place - no round trip, no waiting for a submit. Pressing enter still
+  // submits the form, which runs the same search server-side (and that one
+  // also looks at the description, so it can return more than this does).
+  const productGrid = document.getElementById('product-grid');
+  if (productGrid) {
+    const productCards = Array.from(productGrid.querySelectorAll('.product-card'));
+    const countLabel   = document.getElementById('product-count-label');
+    const liveEmpty    = document.getElementById('live-empty');
+    const liveTerm     = document.getElementById('live-empty-term');
+
+    function applyLiveFilter(rawTerm) {
+      const term = rawTerm.trim().toLowerCase();
+      let visible = 0;
+
+      productCards.forEach(card => {
+        const haystack = (card.dataset.name + ' ' + card.dataset.category).toLowerCase();
+        const match = term === '' || haystack.includes(term);
+        card.classList.toggle('hidden', !match);
+        if (match) visible++;
+      });
+
+      if (countLabel) countLabel.textContent = visible + ' item' + (visible === 1 ? '' : 's');
+      if (liveTerm) liveTerm.textContent = rawTerm.trim();
+      if (liveEmpty) liveEmpty.classList.toggle('hidden', visible > 0);
     }
-    filterToggle.addEventListener('click', () => {
-      const open = filterForm.classList.toggle('is-open');
-      filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+    document.querySelectorAll('input[name="q"]').forEach(input => {
+      input.addEventListener('input', () => applyLiveFilter(input.value));
+      // `search` fires when the field's native clear (x) is used, which does
+      // not raise an input event in every engine.
+      input.addEventListener('search', () => applyLiveFilter(input.value));
     });
   }
 

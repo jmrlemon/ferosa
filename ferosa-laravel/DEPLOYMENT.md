@@ -23,7 +23,13 @@
 
 ## Android builds
 
-Do not edit `Constants.kt` for each server. Supply the server at build time:
+Do not edit `Constants.kt` for each server. For a local physical Android device, put the machine-specific URL in the ignored `ferosa_mobile/local.properties` file:
+
+```properties
+FEROSA_SERVER_URL=http://YOUR_COMPUTER_LAN_IP/ferosa/ferosa-laravel/public
+```
+
+For CI and release builds, pass the server explicitly at build time:
 
 ```powershell
 .\gradlew.bat assembleRelease -PFEROSA_SERVER_URL=https://your-ferosa-domain.example

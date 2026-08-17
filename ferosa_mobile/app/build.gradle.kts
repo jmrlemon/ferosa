@@ -1,11 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.isFile) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
 val ferosaServerUrl = providers.gradleProperty("FEROSA_SERVER_URL")
     .orElse(providers.environmentVariable("FEROSA_SERVER_URL"))
-    .orElse("http://10.0.2.2/ferosa/ferosa-laravel/public")
+    .orElse(localProperties.getProperty("FEROSA_SERVER_URL") ?: "http://10.0.2.2/ferosa/ferosa-laravel/public")
 
 /**
  * A release build sets `usesCleartextTraffic=false`, so an APK built against the

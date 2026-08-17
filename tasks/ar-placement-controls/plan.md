@@ -2,7 +2,7 @@
 
 **Approved spec:** `docs/specs/ar-placement-controls.md`<br>
 **Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
-**Status:** Implementation in progress — Preview foundation checkpoint complete; Task 3 in progress
+**Status:** Implementation in progress — Core interaction checkpoint reviewed; Task 5 in progress
 
 ## Overview
 
@@ -93,16 +93,27 @@ Task 3 removes the legacy tap-to-place path.
 
 ### Phase 2: Aim and confirm
 
-- [ ] Task 3: Drive the preview from the crosshair and place only from the button
-- [ ] Task 4: Add Turn 180° to preview and selected-object controls
+- [x] Task 3: Drive the preview from the crosshair and place only from the button
+- [x] Task 4: Add Turn 180° to preview and selected-object controls
 
-### Checkpoint: Core interaction
+### Checkpoint: Core interaction — ✅ reviewed
 
-- [ ] Valid target shows one grounded actual-size preview and enables Place
-- [ ] Invalid/stale target hides preview and disables Place within the specified 500 ms
-- [ ] Empty-surface taps never place; one Place press commits exactly one model
-- [ ] Preview/placed half-turn preserves position, grounding, and actual size
-- [ ] Physical phone behavior reviewed before lifecycle hardening
+- [x] Valid target shows one grounded actual-size preview and enables Place
+- [ ] Invalid/stale target hides preview and disables Place within the specified 500 ms (final
+      timing evidence remains in Task 6's device script)
+- [x] Empty-surface taps never place; one Place press commits exactly one model
+- [x] Preview/placed half-turn preserves position, grounding, and actual size by reusing the same
+      grounded transform and mutating yaw only
+- [x] Physical phone behavior reviewed before lifecycle hardening
+
+Checkpoint review (2026-08-18): tests were reviewed first, then correctness, readability,
+architecture, security, and performance. No required findings remained: the preview and committed
+Turn 180° paths use the pure normalized-yaw helper, copy the preview yaw into the committed node,
+and mutate only the selected placed node. The SurfaceView bounds bridge prevents camera taps from
+falling through to placement while retaining accessible Compose controls. Focused/full JVM tests,
+`lintDebug`, and `assembleDebug` passed; the connected ARCore phone showed the preview controls,
+`0/5` aiming state, a single `1/5` commit, and `yawDegrees=180.0` in filtered logcat. Preview
+cancellation/reset hardening and invalid-target timing remain explicitly assigned to Task 5/6.
 
 ### Phase 3: Existing controls and closeout
 

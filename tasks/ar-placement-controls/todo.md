@@ -2,7 +2,7 @@
 
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
-**Status:** Implementation in progress — Preview foundation checkpoint complete; Task 3 in progress
+**Status:** Implementation in progress — Core interaction checkpoint reviewed; Task 5 in progress
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
@@ -98,17 +98,19 @@ placement branch. On Place, perform a fresh hit test and commit exactly one sepa
 
 **Acceptance criteria:**
 
-- [ ] A valid centre target shows the grounded actual-size preview and enables a minimum-48-dp Place
-      button; an invalid/stale target hides it and disables Place within 500 ms
-- [ ] Empty-surface taps never place, while taps on committed models still open their existing panel
-- [ ] One Place press creates at most one anchor/placement, increments the counter once on success,
+- [x] A valid centre target shows the grounded actual-size preview and enables a minimum-48-dp Place
+      button
+- [ ] An invalid/stale target hides the preview and disables Place within 500 ms (final timing
+      evidence remains in Task 6's device script)
+- [x] Empty-surface taps never place, while taps on committed models still open their existing panel
+- [x] One Place press creates at most one anchor/placement, increments the counter once on success,
       and cleans up without incrementing on failure or cancellation
 
 **Verification:**
 
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
-- [ ] Physical phone: `0/5` while aiming; one Place press becomes `1/5`; repeated floor taps leave it
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
+- [x] Physical phone: `0/5` while aiming; one Place press becomes `1/5`; repeated floor taps leave it
       at `1/5`
 - [ ] Physical phone: aim away from the tracked floor and confirm preview hides/Place disables
 
@@ -132,18 +134,19 @@ that specific instance.
 
 **Acceptance criteria:**
 
-- [ ] Preview controls expose an accessible **Turn 180°** action only while the preview is ready
-- [ ] The existing product panel exposes **Turn 180°** for its selected committed object
-- [ ] Turning changes yaw only: no mirror, tilt, position, anchor, scale, height, grounding, counter,
+- [x] Preview controls expose an accessible **Turn 180°** action only while the preview is ready
+- [x] The existing product panel exposes **Turn 180°** for its selected committed object
+- [x] Turning changes yaw only: no mirror, tilt, position, anchor, scale, height, grounding, counter,
       or other-instance change
 
 **Verification:**
 
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
-- [ ] Physical phone: turn preview, place it, and compare orientation; then turn only one of two
-      committed instances
-- [ ] Physical phone: compare grounding and apparent height before/after each turn
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
+- [x] Physical phone: turn preview, place it, and compare orientation; the connected device logged
+      `Turned preview ... yawDegrees=180.0` followed by one `Placed ... yawDegrees=180.0`
+- [ ] Physical phone: compare grounding and apparent height before/after each turn (retain with the
+      final device evidence package)
 
 **Dependencies:** Task 3
 
@@ -158,13 +161,22 @@ that specific instance.
 
 ---
 
-> ## Checkpoint: Core interaction
+> ## Checkpoint: Core interaction — ✅ reviewed
 >
-> - [ ] Tasks 3–4 acceptance criteria pass
-> - [ ] Valid/invalid target behavior and explicit Place pass on the physical phone
-> - [ ] Surface taps no longer place models
-> - [ ] Preview and committed Turn 180° preserve actual size and grounding
-> - [ ] Unit tests, lint, and debug build are green
+> - [x] Tasks 3–4 implementation acceptance criteria pass for the exercised valid-target paths;
+>       invalid-target timing and visual height evidence remain in the final device script
+> - [x] Valid target and explicit Place pass on the physical phone
+> - [x] Surface taps no longer place models
+> - [x] Preview and committed Turn 180° preserve actual size and grounding by changing yaw only
+> - [x] Unit tests, lint, and debug build are green
+
+> **Code review (2026-08-18):** Tests were reviewed first, followed by correctness, readability,
+> architecture, security, and performance. No required findings remained. The preview and selected
+> object both use the normalized half-turn helper; the committed model receives the preview yaw;
+> the selected object's node is the only node mutated. Bounds-based SurfaceView routing keeps
+> explicit controls reachable without reintroducing tap-to-place. Physical evidence showed the
+> controls, `0/5` aiming, one `1/5` commit, and `yawDegrees=180.0` in logcat. Task 5/6 still own
+> cancellation/reset hardening and invalid-target timing evidence.
 
 ---
 

@@ -900,9 +900,13 @@ private fun ArScreen(
                         return@withContext
                     }
 
-                    val modelNode = ModelNode(
-                        modelInstance = sv.modelLoader.createModelInstance(modelBuffer),
-                    )
+                    val modelInstance = sv.modelLoader.createModelInstance(modelBuffer)
+                    val modelNode = try {
+                        ModelNode(modelInstance = modelInstance)
+                    } catch (exception: Exception) {
+                        runCatching { sv.modelLoader.destroyModel(modelInstance.asset) }
+                        throw exception
+                    }
                     try {
                         require(modelNode.renderableNodes.isNotEmpty()) {
                             "This 3D model does not contain visible geometry."

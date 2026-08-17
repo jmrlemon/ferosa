@@ -1,5 +1,37 @@
 @extends('layouts.customer')
 
+@section('styles')
+<style>
+  #checkout-mobile-bar { display: none; }
+  body.in-app #checkout-btn { display: none; }
+  /* A phone is too narrow for icon + name + stepper + subtotal on one line;
+     the product name was collapsing to "De...". Let the row wrap so the
+     stepper and subtotal drop underneath the full name. */
+  body.in-app .cart-line { flex-wrap: wrap; gap: .6rem; }
+  body.in-app .cart-line-info { flex-basis: 0; min-width: 8rem; }
+  body.in-app .cart-line-controls {
+    width: 100%;
+    justify-content: space-between;
+    padding-left: 4rem;
+  }
+  body.in-app #checkout-mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: #fff;
+    border-top: 1px solid #eae7df;
+    padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px rgba(18,52,38,.08);
+  }
+</style>
+@endsection
+
 @section('content')
 @php
   $gcashName = $gcashSettings['name'] ?? null;
@@ -242,6 +274,23 @@
         </div>
       </div>
     </div>
+
+    {{-- In-app only: the summary card above falls to the very bottom of a
+         single-column phone layout, so "Place order" ends up below the
+         delivery form, the payment section and an alert - the customer has
+         to scroll past all of it to buy. This mirrors that same button in a
+         bar pinned to the bottom of the screen. It lives inside the form so
+         it picks up the existing global submit-loading spinner for free. --}}
+    <div id="checkout-mobile-bar">
+      <div class="min-w-0">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-surface-400">Total</p>
+        <p id="mobile-summary-total" class="font-display text-lg font-bold text-surface-900 truncate">&#8369;0.00</p>
+      </div>
+      <button type="submit" id="mobile-checkout-btn" data-loading-label="Placing order..." class="btn btn-primary btn-lg flex-shrink-0">
+        Place order
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </button>
+    </div>
   </form>
 </main>
 
@@ -375,6 +424,7 @@
     const list = document.getElementById('cart-list');
     const emptyMsg = document.getElementById('empty-cart-msg');
     const checkoutBtn = document.getElementById('checkout-btn');
+    const mobileCheckoutBtn = document.getElementById('mobile-checkout-btn');
     const cartDataInput = document.getElementById('cart-data-input');
     list.innerHTML = '';
 
@@ -382,9 +432,12 @@
       emptyMsg.classList.remove('hidden');
       checkoutBtn.disabled = true;
       checkoutBtn.classList.add('opacity-40', 'pointer-events-none');
+      mobileCheckoutBtn.disabled = true;
+      mobileCheckoutBtn.classList.add('opacity-40', 'pointer-events-none');
       document.getElementById('summary-items').textContent = '0';
       document.getElementById('summary-subtotal').textContent = '\u20B10.00';
       document.getElementById('summary-total').textContent = '\u20B10.00';
+      document.getElementById('mobile-summary-total').textContent = '\u20B10.00';
       cartDataInput.value = '';
       return;
     }
@@ -392,6 +445,8 @@
     emptyMsg.classList.add('hidden');
     checkoutBtn.disabled = false;
     checkoutBtn.classList.remove('opacity-40', 'pointer-events-none');
+    mobileCheckoutBtn.disabled = false;
+    mobileCheckoutBtn.classList.remove('opacity-40', 'pointer-events-none');
 
     let totalItems = 0, totalPrice = 0;
 
@@ -401,16 +456,16 @@
       totalPrice += subtotal;
 
       const li = document.createElement('li');
-      li.className = 'py-4 flex gap-4 items-center';
+      li.className = 'cart-line py-4 flex gap-4 items-center';
       li.innerHTML = `
-        <div class="w-12 h-12 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+        <div class="cart-line-icon w-12 h-12 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1f7a1f" stroke-width="1.5"><path d="M12 2a9 9 0 0 1 9 9c0 6-9 13-9 13S3 17 3 11a9 9 0 0 1 9-9z"/><circle cx="12" cy="11" r="3"/></svg>
         </div>
-        <div class="flex-1 min-w-0">
+        <div class="cart-line-info flex-1 min-w-0">
           <h3 class="text-sm font-medium text-surface-900 truncate">${item.name}</h3>
           <p class="text-xs text-surface-400">\u20B1${item.price.toLocaleString()} each</p>
         </div>
-        <div class="flex items-center gap-3 shrink-0">
+        <div class="cart-line-controls flex items-center gap-3 shrink-0">
           <div class="flex items-center gap-2 border border-surface-200 rounded-lg px-1.5 py-0.5">
             <button type="button" onclick="updateQty(${item.id}, -1)" class="w-5 h-5 flex items-center justify-center text-surface-400 hover:text-surface-700 transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -429,6 +484,7 @@
     document.getElementById('summary-items').textContent = totalItems;
     document.getElementById('summary-subtotal').textContent = '\u20B1' + totalPrice.toLocaleString();
     document.getElementById('summary-total').textContent = '\u20B1' + totalPrice.toLocaleString();
+    document.getElementById('mobile-summary-total').textContent = '\u20B1' + totalPrice.toLocaleString();
     cartDataInput.value = JSON.stringify(cart);
   }
 

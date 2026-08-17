@@ -5,9 +5,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -17,6 +19,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -538,6 +541,27 @@ fun AppContent(
                         ) {
                             if (request?.isForMainFrame != true) return
                             settleFailedPage(view, request.url.toString())
+                        }
+
+                        // Without this override, Android terminates the whole app
+                        // the moment the WebView's renderer process dies for any
+                        // reason (commonly an out-of-memory kill - e.g. decoding a
+                        // large photo). The Java WebView object itself survives a
+                        // renderer crash; loading a new page into it respawns the
+                        // renderer, so this reuses the existing offline/retry
+                        // screen instead of losing the app and the login session.
+                        @RequiresApi(Build.VERSION_CODES.O)
+                        override fun onRenderProcessGone(
+                            view: WebView?,
+                            detail: RenderProcessGoneDetail?
+                        ): Boolean {
+                            swipeRefreshRef.value?.isRefreshing = false
+                            inFlightUrl.value = null
+                            readyWebUrl = null
+                            webPageReadyFor = null
+                            loadFailed = true
+                            isLoading = false
+                            return true
                         }
                     }
                 }

@@ -15,7 +15,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -484,6 +484,23 @@
     body.in-app a {
       -webkit-tap-highlight-color: transparent;
     }
+
+    /* Every customer page opens with the page-head component - a kicker
+       line, a display-serif title, and a lead paragraph sized for a desktop
+       hero. On a phone that is ~450px of chrome before anything useful is
+       on screen. In-app, drop the marketing copy and shrink the title: this
+       one change reclaims that space on every page that uses the
+       component (shop, checkout, orders, appointments, account,
+       notifications, feedback, schedule). */
+    body.in-app .page-head { margin-bottom: 1rem; }
+    body.in-app .page-kicker,
+    body.in-app .page-sub { display: none; }
+    body.in-app .page-title { margin-top: 0; font-size: 1.375rem; }
+    /* Search/sort/filter toolbars stack to one column below `sm` already;
+       this just tightens the padding so the stack costs less height. */
+    body.in-app :where(.toolbar) { padding: .75rem; border-radius: .85rem; }
+    body.in-app :where(.field) { padding: .5rem .7rem; font-size: .8125rem; }
+    body.in-app :where(.field-label) { margin-bottom: .25rem; }
   </style>
 
   @yield('styles')

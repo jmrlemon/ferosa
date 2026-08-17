@@ -7,6 +7,29 @@
   .detail-photo { min-height: 360px; }
   .proof-step { position: relative; }
   .proof-step:not(:last-child)::after { content: ''; position: absolute; left: 17px; top: 38px; bottom: -14px; width: 1px; background: #dce9e0; }
+
+  /* In-app: quantity + Add to cart is a normal row ~360px down the page,
+     below the photo. Pinning it to the bottom means it's reachable the
+     instant the page opens, without scrolling past the photo first. */
+  .product-buy-price { display: none; }
+  body.in-app #product-buy-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: auto 88px 1fr;
+    align-items: end;
+    gap: .6rem;
+    margin-top: 0;
+    background: #fff;
+    border-top: 1px solid #eae7df;
+    padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px rgba(18,52,38,.08);
+  }
+  body.in-app .product-buy-price { display: block; }
+  body.in-app #product-buy-bar .field { height: 44px; }
 </style>
 @endsection
 
@@ -51,7 +74,11 @@
       @endif
 
       @if($product->inStock())
-        <div class="mt-7 grid items-end gap-3 sm:grid-cols-[120px_1fr]">
+        <div id="product-buy-bar" class="mt-7 grid items-end gap-3 sm:grid-cols-[120px_1fr]">
+          <div class="product-buy-price">
+            <p class="text-[10px] font-bold uppercase tracking-wide text-surface-400">Price</p>
+            <p class="font-display text-lg font-bold text-brand-800 whitespace-nowrap">&#8369;{{ number_format((float) $product->price, 2) }}</p>
+          </div>
           <div>
             <label for="product-quantity" class="field-label">Quantity</label>
             <input id="product-quantity" type="number" min="1" max="{{ $product->stock_qty }}" value="1" class="field h-[50px] text-base">

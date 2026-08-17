@@ -6,8 +6,78 @@
   .product-card:hover { transform: translateY(-2px); border-color: #cbded1; box-shadow: 0 14px 36px rgba(18,52,38,.07); }
   .product-card img { transition: transform .45s cubic-bezier(.22,1,.36,1); }
   .product-card:hover img { transform: scale(1.035); }
-  /* In-app: floating cart should sit above native nav bar (~80px) not web nav (~80px) */
-  body.in-app #floating-cart { bottom: 90px; }
+  /* In-app the grid is two columns, so the round floating cart button sat on
+     top of the right-hand card's Add button. The WebView is already inset
+     above the native nav bar (the shell passes Scaffold's innerPadding), so
+     bottom:0 here is directly above that nav - stretch the button into a
+     full-width bar, which cannot cover a card at all. `.customer-page`
+     already reserves 7rem of bottom padding, so nothing is hidden behind it.
+     Display is deliberately not set: the button carries Tailwind's `flex`
+     and the script toggles `hidden` on it to show/hide by cart count. */
+  body.in-app #floating-cart {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: auto;
+    gap: .55rem;
+    border-radius: 0;
+    padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 24px rgba(18,52,38,.1);
+  }
+  .floating-cart-label { display: none; }
+  body.in-app .floating-cart-label {
+    display: inline;
+    font-size: .8125rem;
+    font-weight: 700;
+  }
+
+  /* In-app: the grid was 1 column below `sm`, which on a phone means one
+     product per screenful. Two columns plus a square image and a shorter
+     card roughly quadruples how many products fit above the fold. */
+  body.in-app #product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+  }
+  body.in-app .product-image { aspect-ratio: 1 / 1; }
+  body.in-app .product-body { padding: .7rem .8rem .8rem; }
+  body.in-app .product-card h3 { font-size: .8125rem; margin-bottom: .25rem; }
+  body.in-app .product-card .font-display.text-xl { font-size: 1rem; }
+  body.in-app .product-desc,
+  body.in-app .product-detail-link { display: none; }
+  body.in-app .product-card .btn-sm { min-height: 32px; padding: .4rem .65rem; font-size: .6875rem; }
+  /* At two columns a card is ~160px wide, which is not enough for the price
+     and the Add button to sit side by side - the button was overflowing and
+     being clipped by the card's overflow-hidden. Stack them instead. */
+  body.in-app .product-buy-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .5rem;
+    padding-top: .6rem;
+  }
+  body.in-app .product-buy-row .btn { width: 100%; }
+
+  /* Category chips wrapped to two rows, eating another ~60px. A horizontal
+     scroll row keeps them to one. */
+  body.in-app #category-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: .2rem;
+    scrollbar-width: none;
+  }
+  body.in-app #category-chips::-webkit-scrollbar { display: none; }
+  body.in-app #category-chips .chip { flex: 0 0 auto; }
+
+  /* The search/sort/max-price card is another ~700px of the first screen.
+     The category chips above already cover the common case, so collapse the
+     rest behind the Filters button and let it be opened on demand. It stays
+     open automatically when a filter is actually applied, so the customer
+     can always see and clear what is narrowing their results. */
+  body.in-app #filter-form { display: none; }
+  body.in-app #filter-form.is-open { display: block; }
+  /* The bottom bar already says "View cart"; drop the header duplicate. */
+  body.in-app .shop-header-cart { display: none; }
 </style>
 @endsection
 
@@ -29,14 +99,21 @@
     <span class="badge badge-neutral" id="product-count-label">
       {{ $products->count() }} item{{ $products->count() !== 1 ? 's' : '' }}
     </span>
-    <a href="{{ route('checkout') }}" class="btn btn-secondary btn-sm">
+    <a href="{{ route('checkout') }}" class="shop-header-cart btn btn-secondary btn-sm">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
       View cart
     </a>
+    {{-- In-app the filter form is collapsed behind this; `app-only` is the
+         layout's existing show-in-app-only helper. --}}
+    <button type="button" id="filter-toggle" class="app-only btn btn-secondary btn-sm"
+            aria-controls="filter-form" aria-expanded="false">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" d="M3 6h18M7 12h10m-6 6h2"/></svg>
+      Filters{{ $activeFilters ? " ($activeFilters)" : '' }}
+    </button>
   </x-page-head>
 
   {{-- Category quick filters --}}
-  <div class="mb-4 flex flex-wrap items-center gap-2 reveal reveal-1">
+  <div id="category-chips" class="mb-4 flex flex-wrap items-center gap-2 reveal reveal-1">
     <a href="{{ route('shop', array_filter(['q' => $q, 'sort' => $sort, 'max_price' => $maxPrice])) }}"
        class="chip {{ $category === 'all' ? 'chip-active' : '' }}">All</a>
     @foreach ($categories as $cat)
@@ -98,7 +175,7 @@
       <a href="{{ route('shop') }}" class="btn btn-primary btn-sm">Reset filters</a>
     </div>
   @else
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 reveal reveal-2">
+    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 reveal reveal-2">
       @foreach ($products as $product)
         @php
           $catBg = match(strtolower($product->category)) {
@@ -118,7 +195,7 @@
              data-stock="{{ $product->stock_qty }}">
 
           {{-- Image / placeholder --}}
-          <a href="{{ route('products.show', $product) }}" class="aspect-[4/3] {{ $catBg }} relative flex items-center justify-center overflow-hidden" aria-label="View {{ $product->name }} details">
+          <a href="{{ route('products.show', $product) }}" class="product-image aspect-[4/3] {{ $catBg }} relative flex items-center justify-center overflow-hidden" aria-label="View {{ $product->name }} details">
             @if ($product->image_url)
               {{-- Product images are remote URLs, so the whole grid used to be
                    fetched at once on page load. Lazy loading keeps the shop
@@ -159,16 +236,16 @@
           </a>
 
           {{-- Info --}}
-          <div class="p-5 flex-1 flex flex-col">
+          <div class="product-body p-5 flex-1 flex flex-col">
             <h3 class="font-bold text-surface-900 text-base leading-snug mb-1.5"><a href="{{ route('products.show', $product) }}" class="hover:text-brand-700 transition-colors">{{ $product->name }}</a></h3>
             @if ($product->description)
-              <p class="text-[13px] text-surface-500 leading-5 mb-3 line-clamp-2">{{ $product->description }}</p>
+              <p class="product-desc text-[13px] text-surface-500 leading-5 mb-3 line-clamp-2">{{ $product->description }}</p>
             @endif
-            <a href="{{ route('products.show', $product) }}" class="mb-3 inline-flex items-center gap-1 text-[11px] font-bold text-brand-700 hover:text-brand-900 transition-colors">
+            <a href="{{ route('products.show', $product) }}" class="product-detail-link mb-3 inline-flex items-center gap-1 text-[11px] font-bold text-brand-700 hover:text-brand-900 transition-colors">
               View details &amp; guidance
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg>
             </a>
-            <div class="mt-auto pt-4 flex items-end justify-between gap-3 border-t border-surface-100">
+            <div class="product-buy-row mt-auto pt-4 flex items-end justify-between gap-3 border-t border-surface-100">
               <div>
                 <p class="font-display text-xl font-bold leading-none text-surface-900">&#8369;{{ number_format((float) $product->price, 2) }}</p>
                 @if($inStock)
@@ -208,6 +285,7 @@
     <span id="floating-cart-count"
           class="absolute -top-2 -right-2 bg-brand-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">0</span>
   </div>
+  <span class="floating-cart-label">View cart</span>
 </a>
 
 <div id="shop-toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none" aria-live="polite" aria-atomic="true"></div>
@@ -220,6 +298,23 @@
   const cartIcon    = document.getElementById('floating-cart');
   const cartBadge   = document.getElementById('floating-cart-count');
   const toastCont   = document.getElementById('shop-toast-container');
+
+  // In-app the filter form is collapsed by the is-open rule in the styles
+  // block. Start it open when a filter is already narrowing the results so
+  // the customer can see and clear it, rather than wondering why the list is
+  // short. The button itself only exists in-app.
+  const filterToggle = document.getElementById('filter-toggle');
+  const filterForm   = document.getElementById('filter-form');
+  if (filterToggle && filterForm) {
+    if ({{ $activeFilters }} > 0) {
+      filterForm.classList.add('is-open');
+      filterToggle.setAttribute('aria-expanded', 'true');
+    }
+    filterToggle.addEventListener('click', () => {
+      const open = filterForm.classList.toggle('is-open');
+      filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
 
   function getCart() {
     try { return JSON.parse(localStorage.getItem('ferosa_cart')) || []; } catch { return []; }

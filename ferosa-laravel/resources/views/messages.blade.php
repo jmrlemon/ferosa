@@ -46,24 +46,33 @@
     min-height: 100dvh;
   }
 
-  /* In the Android WebView: pin compose to bottom, let messages scroll naturally */
-  body.in-app .customer-page { padding-bottom: 0 !important; }
+  /* In the Android WebView the composer is a normal flex child at the bottom
+     of #chat-shell, not a fixed-position bar. Fixed positioning tracks the CSS
+     *layout* viewport, which Chromium keeps constant while only the *visual*
+     viewport shrinks under the on-screen keyboard - so the composer stayed put
+     and the keyboard covered it.
+
+     For that to work the whole chain has to be locked to the viewport height,
+     otherwise a long thread grows #chat-shell past the screen (min-height
+     alone only sets a floor) and pushes the composer below the fold. Pinning
+     every ancestor to 100dvh leaves #msg-list as the only scrolling element,
+     which is also what makes "scroll to newest" behave. The layout sets these
+     to auto/visible for ordinary pages, so they are overridden here only. */
+  body.in-app {
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  body.in-app #app-content-wrapper {
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  body.in-app #main-content {
+    height: 100% !important;
+    overflow: hidden !important;
+  }
   body.in-app #chat-shell {
-    min-height: auto;
-    height: auto;
-  }
-  body.in-app #msg-list {
-    padding-bottom: 80px;
-  }
-  body.in-app #compose-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 40;
-    background: #fff;
-    border-top: 1px solid #f5f5f5;
-    padding-bottom: 0;
+    height: 100%;
+    min-height: 0;
   }
 </style>
 @endsection
@@ -189,7 +198,12 @@
       </button>
     </div>
 
-    <form id="msg-form" method="POST" action="{{ route('messages.store') }}" enctype="multipart/form-data" class="flex items-end gap-2.5">
+    {{-- data-no-loading opts out of the layout's global submit spinner. That
+         handler runs on capture and rewrites the button's innerHTML, but this
+         form sends over XHR and only re-enables the button afterwards - so the
+         send arrow was replaced by a spinner that never came back. Progress is
+         already reported on the message bubble itself ("Sending 40%"). --}}
+    <form id="msg-form" method="POST" action="{{ route('messages.store') }}" enctype="multipart/form-data" data-no-loading="true" class="flex items-end gap-2.5">
       @csrf
       <input type="file" id="msg-attachment" name="attachment" class="hidden"
              accept="{{ \App\Support\MessageAttachment::accept() }}">

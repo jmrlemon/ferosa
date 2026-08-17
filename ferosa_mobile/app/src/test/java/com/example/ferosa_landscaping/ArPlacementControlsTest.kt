@@ -2,6 +2,7 @@ package com.example.ferosa_landscaping
 
 import com.example.ferosa_landscaping.ui.ar.PlacementControlState
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
+import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -64,6 +65,18 @@ class ArPlacementControlsTest {
         assertEquals(0f, turn180Degrees(180f), 0.0001f)
         assertEquals(179f, turn180Degrees(359f), 0.0001f)
         assertEquals(0f, turn180Degrees(-180f), 0.0001f)
+    }
+
+    @Test
+    fun crosshair_coordinates_are_the_view_center_including_fractional_pixels() {
+        assertEquals(634f to 1378f, crosshairCoordinates(width = 1268, height = 2756))
+        assertEquals(2.5f to 3.5f, crosshairCoordinates(width = 5, height = 7))
+    }
+
+    @Test
+    fun crosshair_coordinates_reject_non_positive_view_dimensions() {
+        assertFalse(runCatching { crosshairCoordinates(width = 0, height = 7) }.isSuccess)
+        assertFalse(runCatching { crosshairCoordinates(width = 5, height = 0) }.isSuccess)
     }
 
     private fun readyState() = PlacementControlState(

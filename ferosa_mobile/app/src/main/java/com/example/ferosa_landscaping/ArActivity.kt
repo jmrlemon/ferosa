@@ -48,6 +48,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,10 +74,13 @@ import com.example.ferosa_landscaping.ui.ar.ArError
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.ArViewModel
 import com.example.ferosa_landscaping.ui.ar.PlacedModel
+import com.example.ferosa_landscaping.ui.ar.PlacementControlState
 import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
+import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
+import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
@@ -811,6 +818,8 @@ private fun ArScreen(
 
     val placedModelsRef = remember { mutableStateOf<List<PlacedModel>>(emptyList()) }
     placedModelsRef.value = placedModels
+    val placeButtonBoundsRef = remember { mutableStateOf<Rect?>(null) }
+    val coachButtonBoundsRef = remember { mutableStateOf<Rect?>(null) }
 
     // SceneView follows the Activity lifecycle. ArActivity owns the single
     // explicit destroy path so the renderer is not torn down concurrently.
@@ -859,11 +868,33 @@ private fun ArScreen(
         planePoseInPolygon = true,
     )
 
+    fun placementControlState(): PlacementControlState {
+        val preview = previewRef.value
+        return PlacementControlState(
+            hasSelectedProduct = selectedProductRef.value != null,
+            isPreviewReady = previewStage == PreviewStage.Ready && preview != null,
+            hasFreshTarget = isPlacementSurfaceReady && preview?.hitNode?.hitResult != null,
+            isBusy = placementStage != ModelPlacementStage.Idle,
+            isMoving = repositioningRef.value != null,
+            placedCount = placedModelsRef.value.size,
+            maxPlacedModels = ArViewModel.MAX_PLACED_MODELS,
+        )
+    }
+
+    fun hidePreviewTarget() {
+        isPlacementSurfaceReady = false
+        previewRef.value?.let { preview ->
+            preview.hitNode.hitResult = null
+            preview.hitNode.isVisible = false
+        }
+    }
+
     fun updatePreviewTarget(sv: ARSceneView) {
         val preview = previewRef.value ?: return
         if (previewStage != PreviewStage.Ready || sv.width <= 0 || sv.height <= 0) return
 
-        val hit = findPlacementHit(sv, sv.width / 2f, sv.height / 2f)
+        val (x, y) = crosshairCoordinates(sv.width, sv.height)
+        val hit = findPlacementHit(sv, x, y)
         preview.hitNode.hitResult = hit
         preview.hitNode.isVisible = hit != null
     }
@@ -999,13 +1030,27 @@ private fun ArScreen(
         preparePreview(selectedProduct)
     }
 
-    fun placeModel(sv: ARSceneView, x: Float, y: Float, product: ArProduct) {
-        if (!canPlaceRef.value || placementStage != ModelPlacementStage.Idle) return
+    fun restorePreviewIfCurrent(sv: ARSceneView, productId: Int) {
+        val preview = previewRef.value ?: return
+        if (preview.productId != productId || selectedProductRef.value?.id != productId) return
+        if (!isSceneCurrent(sv, sceneGeneration.get())) return
+        previewStage = PreviewStage.Ready
+        updatePreviewTarget(sv)
+    }
+
+    fun disposePreviewIfCurrent(productId: Int) {
+        if (previewRef.value?.productId == productId) {
+            disposePreview()
+        }
+    }
+
+    fun placeModel(sv: ARSceneView, x: Float, y: Float, product: ArProduct): Boolean {
+        if (!canPlaceRef.value || placementStage != ModelPlacementStage.Idle) return false
         val hit = findPlacementHit(sv, x, y)
         if (hit == null) {
             isPlacementSurfaceReady = false
             placementNotice = "No ground found here. Move your phone slowly and aim at a textured floor or lawn."
-            return
+            return false
         }
 
         val anchor = hit.createAnchor()
@@ -1037,64 +1082,91 @@ private fun ArScreen(
                     }
 
                     placementStage = ModelPlacementStage.Preparing
+                    var anchorNode: AnchorNode? = null
+                    var modelNode: ModelNode? = null
+                    var committed = false
                     try {
                         val instance = sv.modelLoader.createModelInstance(modelBuffer)
                         if (!isSceneCurrent(sv, placementGeneration)) {
+                            runCatching { sv.modelLoader.destroyModel(instance.asset) }
                             detachPlacementAnchor()
                             return@withContext
                         }
 
                         placementStage = ModelPlacementStage.Idle
-                        val anchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
-                        val modelNode = ModelNode(modelInstance = instance)
-                        require(modelNode.renderableNodes.isNotEmpty()) {
+                        val builtModelNode = try {
+                            ModelNode(modelInstance = instance)
+                        } catch (exception: Exception) {
+                            runCatching { sv.modelLoader.destroyModel(instance.asset) }
+                            throw exception
+                        }
+                        modelNode = builtModelNode
+                        require(builtModelNode.renderableNodes.isNotEmpty()) {
                             "This 3D model does not contain visible geometry."
                         }
 
                         val transform = calculateGroundedModelTransform(
-                            centerX = modelNode.center.x,
-                            centerY = modelNode.center.y,
-                            centerZ = modelNode.center.z,
-                            halfExtentX = modelNode.halfExtent.x,
-                            halfExtentY = modelNode.halfExtent.y,
-                            halfExtentZ = modelNode.halfExtent.z,
+                            centerX = builtModelNode.center.x,
+                            centerY = builtModelNode.center.y,
+                            centerZ = builtModelNode.center.z,
+                            halfExtentX = builtModelNode.halfExtent.x,
+                            halfExtentY = builtModelNode.halfExtent.y,
+                            halfExtentZ = builtModelNode.halfExtent.z,
                             desiredHeightMeters = product.heightCm / 100f,
                         )
-                        modelNode.scale = Scale(
+                        builtModelNode.scale = Scale(
                             x = transform.uniformScale,
                             y = transform.uniformScale,
                             z = transform.uniformScale,
                         )
-                        modelNode.position = Position(
+                        builtModelNode.position = Position(
                             x = transform.positionX,
                             y = transform.positionY,
                             z = transform.positionZ,
                         )
-                        modelNode.isShadowCaster = true
+                        builtModelNode.isShadowCaster = true
 
-                        if (BuildConfig.DEBUG) {
-                            Log.d(
-                                "FerosaAR",
-                                "Placed product=${product.id}, center=${modelNode.center}, " +
-                                    "halfExtent=${modelNode.halfExtent}, " +
-                                    "heightMeters=${product.heightCm / 100f}, " +
-                                    "scale=${transform.uniformScale}, " +
-                                    "position=${modelNode.position}, " +
-                                    "renderables=${modelNode.renderableNodes.size}"
-                            )
-                        }
-
-                        anchorNode.addChildNode(modelNode)
-                        if (viewModel.placeModel(anchorNode, product)) {
-                            sv.addChildNode(anchorNode)
+                        val builtAnchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
+                        anchorNode = builtAnchorNode
+                        builtAnchorNode.addChildNode(builtModelNode)
+                        sv.addChildNode(builtAnchorNode)
+                        if (viewModel.placeModel(builtAnchorNode, product)) {
+                            committed = true
+                            disposePreviewIfCurrent(product.id)
                         } else {
                             // The limit may have been reached while the model loaded. A rejected
                             // node must never become visible or untracked.
+                            runCatching { sv.removeChildNode(builtAnchorNode) }
+                            runCatching { builtAnchorNode.removeChildNode(builtModelNode) }
+                            runCatching { builtModelNode.destroy() }
+                            runCatching { sv.modelLoader.destroyModel(builtModelNode.model) }
                             detachPlacementAnchor()
+                            restorePreviewIfCurrent(sv, product.id)
+                        }
+
+                        if (committed && BuildConfig.DEBUG) {
+                            Log.d(
+                                "FerosaAR",
+                                "Placed product=${product.id}, center=${builtModelNode.center}, " +
+                                    "halfExtent=${builtModelNode.halfExtent}, " +
+                                    "heightMeters=${product.heightCm / 100f}, " +
+                                    "scale=${transform.uniformScale}, " +
+                                    "position=${builtModelNode.position}, " +
+                                    "renderables=${builtModelNode.renderableNodes.size}"
+                            )
                         }
                     } catch (exception: Exception) {
+                        if (!committed) {
+                            modelNode?.let { node ->
+                                runCatching { anchorNode?.removeChildNode(node) }
+                                runCatching { node.destroy() }
+                                runCatching { sv.modelLoader.destroyModel(node.model) }
+                            }
+                            runCatching { anchorNode?.let(sv::removeChildNode) }
+                        }
                         detachPlacementAnchor()
                         placementStage = ModelPlacementStage.Idle
+                        restorePreviewIfCurrent(sv, product.id)
                         viewModel.setModelLoadError(customerReadableModelError(exception))
                         if (BuildConfig.DEBUG) {
                             Log.w(
@@ -1113,6 +1185,7 @@ private fun ArScreen(
                     detachPlacementAnchor()
                     if (isSceneCurrent(sv, placementGeneration)) {
                         placementStage = ModelPlacementStage.Idle
+                        restorePreviewIfCurrent(sv, product.id)
                         viewModel.setModelLoadError(customerReadableModelError(e))
                         if (BuildConfig.DEBUG) {
                             Log.w(
@@ -1133,6 +1206,40 @@ private fun ArScreen(
             if (cause != null && anchorDetached.compareAndSet(false, true)) {
                 Handler(Looper.getMainLooper()).post { anchor.detach() }
             }
+        }
+        return true
+    }
+
+    fun placePreviewAtCrosshair() {
+        if (placementStage != ModelPlacementStage.Idle || previewStage == PreviewStage.Loading) {
+            return
+        }
+        val state = placementControlState()
+        if (!canConfirmPlacement(state)) {
+            placementNotice = when {
+                state.isMoving -> "Finish moving the selected item before placing another."
+                !state.isPreviewReady -> "Preparing the selected 3D preview."
+                !state.hasFreshTarget -> "Aim at a tracked horizontal surface and wait for the preview."
+                state.placedCount >= state.maxPlacedModels -> "Maximum ${state.maxPlacedModels} items placed."
+                else -> "Select an in-stock AR item to place."
+            }
+            return
+        }
+
+        val sv = sceneViewRef.value
+        val product = selectedProductRef.value
+        if (sv == null || product == null) {
+            placementNotice = "The AR camera is not ready yet."
+            return
+        }
+
+        val (x, y) = crosshairCoordinates(sv.width, sv.height)
+        previewRef.value?.let { preview ->
+            preview.hitNode.isVisible = false
+        }
+        previewStage = PreviewStage.Loading
+        if (!placeModel(sv, x, y, product)) {
+            restorePreviewIfCurrent(sv, product.id)
         }
     }
 
@@ -1228,6 +1335,26 @@ private fun ArScreen(
 
     // Combined loading state
     val isLoading = isViewModelLoading || placementStage != ModelPlacementStage.Idle
+    val coachVisible = showPlacementCoach &&
+        arSessionMessage == null &&
+        !modelPlaced.value &&
+        !isLoading &&
+        products.isNotEmpty()
+    val placeButtonVisible = !showPlacementCoach &&
+        arSessionMessage == null &&
+        !modelPlaced.value &&
+        !isLoading &&
+        products.isNotEmpty()
+    LaunchedEffect(placeButtonVisible) {
+        if (!placeButtonVisible) {
+            placeButtonBoundsRef.value = null
+        }
+    }
+    LaunchedEffect(coachVisible) {
+        if (!coachVisible) {
+            coachButtonBoundsRef.value = null
+        }
+    }
     val noticeMessage = when {
         error != null -> error?.message
         screenshotMsg != null -> screenshotMsg
@@ -1320,19 +1447,19 @@ private fun ArScreen(
                     }
                     sv.onSessionCreated = {
                         arSessionMessage = "Starting camera..."
-                        isPlacementSurfaceReady = false
+                        hidePreviewTarget()
                     }
                     sv.onSessionResumed = {
                         arSessionMessage = null
                     }
                     sv.onSessionFailed = { exception ->
-                        isPlacementSurfaceReady = false
+                        hidePreviewTarget()
                         arSessionMessage = exception.message
                             ?: "AR camera could not start. Close other apps using the camera, then try again."
                     }
                     sv.onTrackingFailureChanged = { reason ->
                         if (reason != null) {
-                            isPlacementSurfaceReady = false
+                            hidePreviewTarget()
                         }
                         arSessionMessage = when (reason?.name) {
                             null, "NONE" -> null
@@ -1355,11 +1482,8 @@ private fun ArScreen(
                         val now = SystemClock.elapsedRealtime()
                         if (sv.width > 0 && sv.height > 0 && now - lastSurfaceProbeAt >= 150L) {
                             lastSurfaceProbeAt = now
-                            val centerHit = findPlacementHit(
-                                sv,
-                                sv.width / 2f,
-                                sv.height / 2f,
-                            )
+                            val (x, y) = crosshairCoordinates(sv.width, sv.height)
+                            val centerHit = findPlacementHit(sv, x, y)
                             isPlacementSurfaceReady = centerHit != null
                             previewRef.value
                                 ?.takeIf { previewStage == PreviewStage.Ready }
@@ -1426,10 +1550,9 @@ private fun ArScreen(
                                     return true
                                 }
 
-                                // 2) Tap on surface with model loaded and canPlace → place model
-                                val product = selectedProductRef.value ?: return false
-                                if (!canPlaceRef.value) return false
-                                placeModel(sv, e.x, e.y, product)
+                                // 2) Surface taps only aim the crosshair. Placement is committed
+                                // by the explicit Place button so an accidental camera tap cannot
+                                // create an anchor away from the rendered preview.
                                 return true
                             }
 
@@ -1446,6 +1569,27 @@ private fun ArScreen(
                     )
 
                     sv.setOnTouchListener { touchedView, event ->
+                        // SurfaceView receives raw touches even when Compose draws the Place
+                        // button above it. Route only the button's published layout bounds to the
+                        // same guarded action; all other surface taps remain non-placing.
+                        val coachButtonTouch = coachButtonBoundsRef.value
+                            ?.contains(Offset(event.x, event.y)) == true
+                        if (coachButtonTouch) {
+                            if (event.action == MotionEvent.ACTION_UP) {
+                                showPlacementCoach = false
+                            }
+                            return@setOnTouchListener true
+                        }
+
+                        val placeButtonTouch = placeButtonBoundsRef.value
+                            ?.contains(Offset(event.x, event.y)) == true
+                        if (placeButtonTouch) {
+                            if (event.action == MotionEvent.ACTION_UP) {
+                                placePreviewAtCrosshair()
+                            }
+                            return@setOnTouchListener true
+                        }
+
                         // Handle repositioning drag and drop
                         val currentRepositioning = repositioningRef.value
                         if (currentRepositioning != null) {
@@ -1789,7 +1933,7 @@ private fun ArScreen(
 
         // ── Instruction overlay (before first placement) ────────────────
         AnimatedVisibility(
-            visible  = showPlacementCoach && arSessionMessage == null && !modelPlaced.value && !isLoading && products.isNotEmpty(),
+            visible  = coachVisible,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(horizontal = 24.dp, vertical = 150.dp),
@@ -1827,7 +1971,7 @@ private fun ArScreen(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Choose an element below, then tap a detected surface.",
+                    "Choose an element below, aim at a detected surface, then press Place.",
                     color     = Color(0xAAFFFFFF),
                     style     = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
@@ -1844,7 +1988,10 @@ private fun ArScreen(
                     onClick = { showPlacementCoach = false },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp),
+                        .heightIn(min = 48.dp)
+                        .onGloballyPositioned { coordinates ->
+                            coachButtonBoundsRef.value = coordinates.boundsInRoot()
+                        },
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.White,
@@ -1866,6 +2013,10 @@ private fun ArScreen(
             PlacementReticle(
                 productName = selectedProduct?.name,
                 isSurfaceReady = isPlacementSurfaceReady,
+                isPreviewReady = previewStage == PreviewStage.Ready,
+                canPlace = canConfirmPlacement(placementControlState()),
+                onPlace = { placePreviewAtCrosshair() },
+                onPlaceBoundsChanged = { bounds -> placeButtonBoundsRef.value = bounds },
             )
         }
 
@@ -2058,11 +2209,17 @@ private fun InfoChip(label: String, value: String, modifier: Modifier = Modifier
 private fun PlacementReticle(
     productName: String?,
     isSurfaceReady: Boolean,
+    isPreviewReady: Boolean,
+    canPlace: Boolean,
+    onPlace: () -> Unit,
+    onPlaceBoundsChanged: (Rect?) -> Unit,
 ) {
     val reticleColor = if (isSurfaceReady) Color(0xFF4ADE80) else Color(0xFFF5B942)
     val instruction = when {
         productName == null -> "Select an element to place"
-        isSurfaceReady -> "Surface ready · Tap to place $productName"
+        !isPreviewReady -> "Preparing a real-size preview of $productName"
+        isSurfaceReady && canPlace -> "Aim ready · Place $productName at the crosshair"
+        isSurfaceReady -> "Placement limit reached"
         else -> "Move slowly and aim at the ground"
     }
 
@@ -2092,6 +2249,26 @@ private fun PlacementReticle(
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
         )
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onPlace,
+            enabled = canPlace,
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .widthIn(min = 160.dp)
+                .onGloballyPositioned { coordinates ->
+                    onPlaceBoundsChanged(coordinates.boundsInRoot())
+                },
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Brand500,
+                contentColor = Color.White,
+                disabledContainerColor = Color(0x66000000),
+                disabledContentColor = Color(0x99FFFFFF),
+            ),
+        ) {
+            Text("Place", fontWeight = FontWeight.Bold)
+        }
     }
 }
 

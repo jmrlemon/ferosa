@@ -26,6 +26,12 @@ fun canConfirmPlacement(state: PlacementControlState): Boolean =
         state.maxPlacedModels > 0 &&
         state.placedCount < state.maxPlacedModels
 
+/** Returns the exact centre point used by the rendered AR crosshair for a valid view size. */
+fun crosshairCoordinates(width: Int, height: Int): Pair<Float, Float> {
+    require(width > 0 && height > 0) { "AR view dimensions must be positive" }
+    return width / 2f to height / 2f
+}
+
 /** Returns the next upright half-turn while keeping yaw in the canonical [0, 360) range. */
 fun turn180Degrees(currentYawDegrees: Float): Float {
     require(currentYawDegrees.isFinite()) { "Yaw must be finite" }

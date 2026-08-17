@@ -2,12 +2,12 @@
 
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
-**Status:** Awaiting human approval before implementation
+**Status:** Implementation in progress — Task 1 complete
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
 
-## Task 1: Define and test placement-control rules
+## Task 1: Define and test placement-control rules — ✅ complete
 
 **Description:** Create a renderer-independent contract for preview readiness, target freshness,
 busy/move state, placement count, and the 180-degree yaw transition. Compose callbacks and buttons
@@ -15,17 +15,17 @@ will consume this contract instead of duplicating conditions.
 
 **Acceptance criteria:**
 
-- [ ] A pure rule enables Place only with a selected product, ready preview, fresh valid target, idle
+- [x] A pure rule enables Place only with a selected product, ready preview, fresh valid target, idle
       transaction, no active move, and fewer than five committed models
-- [ ] A pure half-turn helper normalizes yaw into `[0, 360)` without accepting scale or position as
+- [x] A pure half-turn helper normalizes yaw into `[0, 360)` without accepting scale or position as
       mutable inputs
-- [ ] Unit tests cover every disabled reason, the valid state, fifth-versus-sixth placement, and
+- [x] Unit tests cover every disabled reason, the valid state, fifth-versus-sixth placement, and
       repeated half-turns
 
 **Verification:**
 
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
-- [ ] Temporarily negating one eligibility condition makes a focused test fail
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] Temporarily negating one eligibility condition makes a focused test fail
 
 **Dependencies:** None
 

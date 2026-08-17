@@ -2,7 +2,7 @@
 
 **Approved spec:** `docs/specs/ar-placement-controls.md`<br>
 **Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
-**Status:** Awaiting human review before implementation
+**Status:** Implementation in progress — Task 1 complete
 
 ## Overview
 
@@ -76,7 +76,7 @@ behaviors are conceptually independent.
 
 ### Phase 1: Deterministic foundation
 
-- [ ] Task 1: Define and test placement-control rules
+- [x] Task 1: Define and test placement-control rules
 - [ ] Task 2: Build the single transient preview lifecycle
 
 ### Checkpoint: Preview foundation

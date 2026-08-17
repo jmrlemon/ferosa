@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.OpenWith
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,6 +64,7 @@ fun ProductInfoPanel(
     onAddToCart: (ArProduct) -> Unit,
     onCartActionConsumed: () -> Unit,
     onMove: (PlacedModel) -> Unit,
+    onTurn: (PlacedModel) -> Unit,
     onDelete: (PlacedModel) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -321,6 +323,24 @@ fun ProductInfoPanel(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+                        Spacer(Modifier.height(10.dp))
+
+                        OutlinedButton(
+                            onClick = { onTurn(model) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = !isAddingToCart && !showSuccess,
+                        ) {
+                            Icon(
+                                Icons.Filled.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(7.dp))
+                            Text("Turn 180°", fontWeight = FontWeight.Medium)
                         }
                         Spacer(Modifier.height(10.dp))
 

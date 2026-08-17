@@ -85,6 +85,7 @@ import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
+import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
 import com.example.ferosa_landscaping.util.ArAvailability
@@ -98,6 +99,7 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.ar.node.HitResultNode
 import io.github.sceneview.math.Position
+import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
 import kotlinx.coroutines.*
@@ -743,6 +745,7 @@ private fun ArScreen(
     }
     val previewJobRef = remember { AtomicReference<Job?>(null) }
     var previewStage by remember { mutableStateOf(PreviewStage.Idle) }
+    var previewYawDegrees by remember { mutableStateOf(0f) }
     val previewRef = remember { mutableStateOf<PreviewHandle?>(null) }
     val previewGeneration = remember { AtomicInteger(0) }
     var arSessionMessage by remember { mutableStateOf<String?>("Starting camera...") }
@@ -819,6 +822,7 @@ private fun ArScreen(
     val placedModelsRef = remember { mutableStateOf<List<PlacedModel>>(emptyList()) }
     placedModelsRef.value = placedModels
     val placeButtonBoundsRef = remember { mutableStateOf<Rect?>(null) }
+    val turnPreviewButtonBoundsRef = remember { mutableStateOf<Rect?>(null) }
     val coachButtonBoundsRef = remember { mutableStateOf<Rect?>(null) }
 
     // SceneView follows the Activity lifecycle. ArActivity owns the single
@@ -902,6 +906,7 @@ private fun ArScreen(
     fun preparePreview(product: ArProduct?) {
         previewJobRef.getAndSet(null)?.cancel()
         val requestGeneration = previewGeneration.incrementAndGet()
+        previewYawDegrees = 0f
         disposePreview()
         previewStage = if (product == null) PreviewStage.Idle else PreviewStage.Loading
 
@@ -962,6 +967,7 @@ private fun ArScreen(
                             y = transform.positionY,
                             z = transform.positionZ,
                         )
+                        modelNode.rotation = Rotation(y = previewYawDegrees)
                         modelNode.isShadowCaster = false
                         modelNode.isTouchable = false
                         modelNode.isHittable = false
@@ -1044,7 +1050,23 @@ private fun ArScreen(
         }
     }
 
-    fun placeModel(sv: ARSceneView, x: Float, y: Float, product: ArProduct): Boolean {
+    fun turnPreview180() {
+        val preview = previewRef.value ?: return
+        if (previewStage != PreviewStage.Ready) return
+        previewYawDegrees = turn180Degrees(previewYawDegrees)
+        preview.modelNode.rotation = Rotation(y = previewYawDegrees)
+        if (BuildConfig.DEBUG) {
+            Log.d("FerosaAR", "Turned preview product=${preview.productId}, yawDegrees=$previewYawDegrees")
+        }
+    }
+
+    fun placeModel(
+        sv: ARSceneView,
+        x: Float,
+        y: Float,
+        product: ArProduct,
+        yawDegrees: Float,
+    ): Boolean {
         if (!canPlaceRef.value || placementStage != ModelPlacementStage.Idle) return false
         val hit = findPlacementHit(sv, x, y)
         if (hit == null) {
@@ -1124,6 +1146,7 @@ private fun ArScreen(
                             y = transform.positionY,
                             z = transform.positionZ,
                         )
+                        builtModelNode.rotation = Rotation(y = yawDegrees)
                         builtModelNode.isShadowCaster = true
 
                         val builtAnchorNode = AnchorNode(engine = sv.engine, anchor = anchor)
@@ -1152,6 +1175,7 @@ private fun ArScreen(
                                     "heightMeters=${product.heightCm / 100f}, " +
                                     "scale=${transform.uniformScale}, " +
                                     "position=${builtModelNode.position}, " +
+                                    "yawDegrees=$yawDegrees, " +
                                     "renderables=${builtModelNode.renderableNodes.size}"
                             )
                         }
@@ -1238,7 +1262,7 @@ private fun ArScreen(
             preview.hitNode.isVisible = false
         }
         previewStage = PreviewStage.Loading
-        if (!placeModel(sv, x, y, product)) {
+        if (!placeModel(sv, x, y, product, previewYawDegrees)) {
             restorePreviewIfCurrent(sv, product.id)
         }
     }
@@ -1274,6 +1298,14 @@ private fun ArScreen(
         viewModel.deleteModel(placed)
         if (placedModels.size <= 1) {
             modelPlaced.value = false
+        }
+    }
+
+    fun turnPlacedModel180(placed: PlacedModel) {
+        val nextYaw = turn180Degrees(placed.modelNode.rotation.y)
+        placed.modelNode.rotation = Rotation(y = nextYaw)
+        if (BuildConfig.DEBUG) {
+            Log.d("FerosaAR", "Turned placed product=${placed.product.id}, yawDegrees=$nextYaw")
         }
     }
 
@@ -1345,9 +1377,15 @@ private fun ArScreen(
         !modelPlaced.value &&
         !isLoading &&
         products.isNotEmpty()
+    val turnPreviewButtonVisible = placeButtonVisible && previewStage == PreviewStage.Ready
     LaunchedEffect(placeButtonVisible) {
         if (!placeButtonVisible) {
             placeButtonBoundsRef.value = null
+        }
+    }
+    LaunchedEffect(turnPreviewButtonVisible) {
+        if (!turnPreviewButtonVisible) {
+            turnPreviewButtonBoundsRef.value = null
         }
     }
     LaunchedEffect(coachVisible) {
@@ -1577,6 +1615,15 @@ private fun ArScreen(
                         if (coachButtonTouch) {
                             if (event.action == MotionEvent.ACTION_UP) {
                                 showPlacementCoach = false
+                            }
+                            return@setOnTouchListener true
+                        }
+
+                        val turnPreviewButtonTouch = turnPreviewButtonBoundsRef.value
+                            ?.contains(Offset(event.x, event.y)) == true
+                        if (turnPreviewButtonTouch) {
+                            if (event.action == MotionEvent.ACTION_UP) {
+                                turnPreview180()
                             }
                             return@setOnTouchListener true
                         }
@@ -2017,6 +2064,8 @@ private fun ArScreen(
                 canPlace = canConfirmPlacement(placementControlState()),
                 onPlace = { placePreviewAtCrosshair() },
                 onPlaceBoundsChanged = { bounds -> placeButtonBoundsRef.value = bounds },
+                onTurnPreview = { turnPreview180() },
+                onTurnBoundsChanged = { bounds -> turnPreviewButtonBoundsRef.value = bounds },
             )
         }
 
@@ -2181,6 +2230,7 @@ private fun ArScreen(
             onAddToCart = { product -> viewModel.addToCart(product) },
             onCartActionConsumed = { viewModel.clearCartAction() },
             onMove = { placed -> startMoveMode(placed) },
+            onTurn = { placed -> turnPlacedModel180(placed) },
             onDelete = { placed -> deletePlacedModel(placed) },
             onDismiss = { viewModel.dismissProductInfo() }
         )
@@ -2213,6 +2263,8 @@ private fun PlacementReticle(
     canPlace: Boolean,
     onPlace: () -> Unit,
     onPlaceBoundsChanged: (Rect?) -> Unit,
+    onTurnPreview: () -> Unit,
+    onTurnBoundsChanged: (Rect?) -> Unit,
 ) {
     val reticleColor = if (isSurfaceReady) Color(0xFF4ADE80) else Color(0xFFF5B942)
     val instruction = when {
@@ -2268,6 +2320,26 @@ private fun PlacementReticle(
             ),
         ) {
             Text("Place", fontWeight = FontWeight.Bold)
+        }
+        if (isPreviewReady) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onTurnPreview,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .widthIn(min = 160.dp)
+                    .onGloballyPositioned { coordinates ->
+                        onTurnBoundsChanged(coordinates.boundsInRoot())
+                    },
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Color.White.copy(alpha = 0.72f),
+                ),
+            ) {
+                Text("Turn 180°", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

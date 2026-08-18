@@ -1,9 +1,11 @@
 package com.example.ferosa_landscaping
 
+import androidx.compose.ui.unit.dp
 import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.PlacementControlState
 import com.example.ferosa_landscaping.ui.ar.PlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
+import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelMaxHeight
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
@@ -174,6 +176,16 @@ class ArPlacementControlsTest {
 
         assertTrue(bounds != null)
         assertTrue(containsScreenHitBounds(bounds!!, x = 170f, y = 320f, paddingPx = 0f))
+    }
+
+    @Test
+    fun product_info_panel_is_capped_below_the_dialog_viewport() {
+        assertEquals(720f, productInfoPanelMaxHeight(800.dp).value, 0.0001f)
+    }
+
+    @Test
+    fun product_info_panel_uses_a_safe_fallback_for_an_unbounded_viewport() {
+        assertEquals(640f, productInfoPanelMaxHeight((-1f).dp).value, 0.0001f)
     }
 
     private fun readyState() = PlacementControlState(

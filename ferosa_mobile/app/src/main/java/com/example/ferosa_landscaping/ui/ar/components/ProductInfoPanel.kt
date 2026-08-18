@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -45,6 +46,17 @@ import com.example.ferosa_landscaping.ui.theme.*
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
 import java.util.Locale
+
+internal const val PRODUCT_INFO_PANEL_HEIGHT_FRACTION = 0.9f
+private val DEFAULT_PRODUCT_INFO_PANEL_HEIGHT = 640.dp
+
+/** Keeps the details sheet inside the dialog viewport so its content can scroll safely. */
+internal fun productInfoPanelMaxHeight(availableHeight: Dp): Dp {
+    if (!availableHeight.value.isFinite() || availableHeight.value <= 0f) {
+        return DEFAULT_PRODUCT_INFO_PANEL_HEIGHT
+    }
+    return availableHeight * PRODUCT_INFO_PANEL_HEIGHT_FRACTION
+}
 
 /**
  * Modal overlay panel displaying product information and "Add to Cart" action.
@@ -106,12 +118,14 @@ fun ProductInfoPanel(
                 titleFocusRequester.requestFocus()
             }
 
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.46f))
                     .semantics { dialog() }
             ) {
+                val panelMaxHeight = productInfoPanelMaxHeight(maxHeight)
+
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(
                         modifier = Modifier
@@ -133,6 +147,7 @@ fun ProductInfoPanel(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
                             .fillMaxWidth()
+                            .height(panelMaxHeight)
                             .widthIn(max = 560.dp)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         shape = RoundedCornerShape(28.dp),

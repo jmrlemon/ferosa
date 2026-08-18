@@ -225,12 +225,12 @@ class ArPlacementControlsTest {
 
     @Test
     fun product_info_panel_keeps_a_safe_bottom_gap_when_navigation_insets_are_missing() {
-        assertEquals(24f, productInfoPanelBottomContentPadding(0.dp).value, 0.0001f)
+        assertEquals(32f, productInfoPanelBottomContentPadding(0.dp).value, 0.0001f)
     }
 
     @Test
     fun product_info_panel_adds_a_small_gap_after_a_reported_navigation_inset() {
-        assertEquals(32f, productInfoPanelBottomContentPadding(24.dp).value, 0.0001f)
+        assertEquals(36f, productInfoPanelBottomContentPadding(24.dp).value, 0.0001f)
     }
 
     private fun readyState() = PlacementControlState(

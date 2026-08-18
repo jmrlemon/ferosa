@@ -51,8 +51,8 @@ import java.util.Locale
 
 internal const val PRODUCT_INFO_PANEL_HEIGHT_FRACTION = 0.9f
 private val DEFAULT_PRODUCT_INFO_PANEL_HEIGHT = 640.dp
-private val PRODUCT_INFO_PANEL_MIN_BOTTOM_CONTENT_PADDING = 24.dp
-private val PRODUCT_INFO_PANEL_EXTRA_BOTTOM_GAP = 8.dp
+private val PRODUCT_INFO_PANEL_MIN_BOTTOM_CONTENT_PADDING = 32.dp
+private val PRODUCT_INFO_PANEL_EXTRA_BOTTOM_GAP = 12.dp
 
 /**
  * Resolves the viewport available to the product sheet.

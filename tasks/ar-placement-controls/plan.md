@@ -2,8 +2,9 @@
 
 **Approved spec:** `docs/specs/ar-placement-controls.md`<br>
 **Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
-**Status:** Implementation complete — automated gates and implementation review passed; physical
-device closeout awaits reconnecting the ARCore phone
+**Status:** Implementation complete — automated gates and implementation reviews passed; the
+surface-target stability follow-up is included; physical device closeout awaits reconnecting the
+ARCore phone
 
 ## Overview
 
@@ -187,7 +188,7 @@ Every implementation task must satisfy all applicable items:
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Preview pose jitters as hit results vary | High | Retain the existing throttled probe; update only from tracked valid hits and add smoothing only if device evidence requires it. |
+| Preview pose jitters as hit results vary | High | Use the throttled probe with two-sample confirmation and a bounded 350 ms miss grace; placement still re-tests the exact reticle coordinate before creating an anchor. |
 | Stored target becomes stale before Place | High | Re-hit-test the exact reticle coordinate on button press; never anchor solely from cached readiness. |
 | Preview and committed model briefly overlap | Medium | Make commit state explicit and disable controls; hide or replace the preview during the transaction. |
 | Product switches while a model is loading | High | Use product/scene generation tokens and dispose stale completion results. |

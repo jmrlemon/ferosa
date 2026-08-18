@@ -2,8 +2,9 @@
 
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
-**Status:** Implementation complete — automated gates and implementation review passed; physical
-device closeout awaits reconnecting the ARCore phone
+**Status:** Implementation complete — automated gates and implementation reviews passed; the
+surface-target stability follow-up is included; physical device closeout awaits reconnecting the
+ARCore phone
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
@@ -279,3 +280,32 @@ record that five-distinct-product validation is pending assets rather than silen
 > `0/5`, preview Turn 180°, one `1/5` commit, and the next preview controls, but its wireless ADB
 > endpoint now refuses connections, so the complete physical sequence remains an explicit handoff
 > item rather than a claimed pass. Five distinct products also remain pending four assets.
+
+---
+
+## Follow-up: Stabilize intermittent surface tracking — ✅ implemented and reviewed
+
+**Problem:** The 150 ms centre probe directly set the preview hit to `null` whenever one ARCore
+raycast missed. During plane discovery, the hit-test also required the pose to be inside the
+currently growing plane polygon. Those two choices made a valid preview blink while ARCore updated
+the detected surface.
+
+**Change:** Horizontal plane hits now allow the tracked pose while the plane polygon expands. A pure
+renderer-independent target tracker requires two consecutive valid samples, retains a confirmed
+target for at most 350 ms after a transient miss, and resets on expiry/session or preview cleanup.
+The Place action continues to run a fresh hit test, so the retained target is visual smoothing only
+and cannot create a stale anchor.
+
+**Verification:**
+
+- [x] Unit tests cover confirmation, one-miss grace, expiry, and misses before confirmation
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
+- [ ] Physical-device before/after evidence remains pending because the wireless ADB endpoint is
+      unavailable
+
+**Code review (2026-08-18):** Tests were reviewed first, followed by correctness, readability,
+architecture, security, and performance. No required findings remained. The review specifically
+checked stale-hit expiry, session/reset cleanup, fresh placement revalidation, hot-path allocation,
+and that no new dependency or external-data surface was introduced.

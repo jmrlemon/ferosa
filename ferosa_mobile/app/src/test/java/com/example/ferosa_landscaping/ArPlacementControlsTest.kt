@@ -1,9 +1,12 @@
 package com.example.ferosa_landscaping
 
 import com.example.ferosa_landscaping.ui.ar.PlacementControlState
+import com.example.ferosa_landscaping.ui.ar.PlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
+import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
+import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,6 +80,41 @@ class ArPlacementControlsTest {
     fun crosshair_coordinates_reject_non_positive_view_dimensions() {
         assertFalse(runCatching { crosshairCoordinates(width = 0, height = 7) }.isSuccess)
         assertFalse(runCatching { crosshairCoordinates(width = 5, height = 0) }.isSuccess)
+    }
+
+    @Test
+    fun target_requires_two_valid_samples_before_it_is_confirmed() {
+        var state = PlacementTargetStability()
+
+        state = updatePlacementTargetStability(state, hasValidHit = true, nowMillis = 0L)
+        assertFalse(isPlacementTargetStable(state, nowMillis = 0L))
+
+        state = updatePlacementTargetStability(state, hasValidHit = true, nowMillis = 150L)
+        assertTrue(isPlacementTargetStable(state, nowMillis = 150L))
+    }
+
+    @Test
+    fun target_survives_one_probe_miss_but_expires_after_the_grace_period() {
+        var state = PlacementTargetStability()
+        state = updatePlacementTargetStability(state, hasValidHit = true, nowMillis = 0L)
+        state = updatePlacementTargetStability(state, hasValidHit = true, nowMillis = 150L)
+
+        state = updatePlacementTargetStability(state, hasValidHit = false, nowMillis = 300L)
+        assertTrue(isPlacementTargetStable(state, nowMillis = 300L))
+
+        state = updatePlacementTargetStability(state, hasValidHit = false, nowMillis = 501L)
+        assertFalse(isPlacementTargetStable(state, nowMillis = 501L))
+        assertEquals(0, state.consecutiveValidHits)
+    }
+
+    @Test
+    fun miss_before_confirmation_does_not_create_a_stable_target() {
+        var state = PlacementTargetStability()
+        state = updatePlacementTargetStability(state, hasValidHit = true, nowMillis = 0L)
+        state = updatePlacementTargetStability(state, hasValidHit = false, nowMillis = 150L)
+
+        assertFalse(isPlacementTargetStable(state, nowMillis = 150L))
+        assertEquals(0, state.consecutiveValidHits)
     }
 
     private fun readyState() = PlacementControlState(

@@ -75,6 +75,7 @@ import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.ArViewModel
 import com.example.ferosa_landscaping.ui.ar.PlacedModel
 import com.example.ferosa_landscaping.ui.ar.PlacementControlState
+import com.example.ferosa_landscaping.ui.ar.PlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.AR_EMPTY_CATALOG_TITLE
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
 import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
@@ -82,16 +83,19 @@ import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
+import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
+import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
 import com.example.ferosa_landscaping.util.ArAvailability
 import com.example.ferosa_landscaping.util.ArCompatibilityChecker
 import com.example.ferosa_landscaping.util.ConnectivityMonitor
 import com.google.ar.core.Config
+import com.google.ar.core.HitResult
 import com.google.ar.core.Plane
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
@@ -760,6 +764,12 @@ private fun ArScreen(
     var previewStage by remember { mutableStateOf(PreviewStage.Idle) }
     var previewYawDegrees by remember { mutableStateOf(0f) }
     val previewRef = remember { mutableStateOf<PreviewHandle?>(null) }
+    val placementTargetStabilityRef = remember {
+        AtomicReference(PlacementTargetStability())
+    }
+    val retainedPlacementHitRef = remember {
+        AtomicReference<HitResult?>(null)
+    }
     val previewGeneration = remember { AtomicInteger(0) }
     var arSessionMessage by remember { mutableStateOf<String?>("Starting camera...") }
     var hasArFrame by remember { mutableStateOf(false) }
@@ -767,7 +777,18 @@ private fun ArScreen(
     // Coroutine scope for model download operations
     val coroutineScope = rememberCoroutineScope()
 
+    fun resetPlacementTarget() {
+        placementTargetStabilityRef.set(PlacementTargetStability())
+        retainedPlacementHitRef.set(null)
+        isPlacementSurfaceReady = false
+        previewRef.value?.let { preview ->
+            preview.hitNode.hitResult = null
+            preview.hitNode.isVisible = false
+        }
+    }
+
     fun disposePreview() {
+        resetPlacementTarget()
         val preview = previewRef.value ?: return
         previewRef.value = null
         val sv = sceneViewRef.value
@@ -894,8 +915,37 @@ private fun ArScreen(
         depthPoint = true,
         instantPlacementPoint = false,
         trackingStates = setOf(TrackingState.TRACKING),
-        planePoseInPolygon = true,
+        // The polygon is still expanding when ARCore first recognizes a surface. Requiring the
+        // exact pose to be inside that polygon makes a valid horizontal plane flicker in and out.
+        planePoseInPolygon = false,
     )
+
+    fun applyPlacementTarget(hit: HitResult?, nowMillis: Long) {
+        val nextStability = updatePlacementTargetStability(
+            state = placementTargetStabilityRef.get(),
+            hasValidHit = hit != null,
+            nowMillis = nowMillis,
+        )
+        placementTargetStabilityRef.set(nextStability)
+
+        if (hit != null) {
+            retainedPlacementHitRef.set(hit)
+        }
+
+        val targetIsStable = isPlacementTargetStable(nextStability, nowMillis)
+        val visualHit = if (targetIsStable) retainedPlacementHitRef.get() else null
+        if (visualHit == null) {
+            retainedPlacementHitRef.set(null)
+        }
+
+        isPlacementSurfaceReady = targetIsStable && visualHit != null
+        previewRef.value
+            ?.takeIf { previewStage == PreviewStage.Ready }
+            ?.let { preview ->
+                preview.hitNode.hitResult = visualHit
+                preview.hitNode.isVisible = visualHit != null
+            }
+    }
 
     fun placementControlState(): PlacementControlState {
         val preview = previewRef.value
@@ -911,21 +961,15 @@ private fun ArScreen(
     }
 
     fun hidePreviewTarget() {
-        isPlacementSurfaceReady = false
-        previewRef.value?.let { preview ->
-            preview.hitNode.hitResult = null
-            preview.hitNode.isVisible = false
-        }
+        resetPlacementTarget()
     }
 
     fun updatePreviewTarget(sv: ARSceneView) {
-        val preview = previewRef.value ?: return
         if (previewStage != PreviewStage.Ready || sv.width <= 0 || sv.height <= 0) return
 
         val (x, y) = crosshairCoordinates(sv.width, sv.height)
         val hit = findPlacementHit(sv, x, y)
-        preview.hitNode.hitResult = hit
-        preview.hitNode.isVisible = hit != null
+        applyPlacementTarget(hit, SystemClock.elapsedRealtime())
     }
 
     fun preparePreview(product: ArProduct?) {
@@ -1072,7 +1116,6 @@ private fun ArScreen(
             previewGeneration.incrementAndGet()
             previewJobRef.getAndSet(null)?.cancel()
             disposePreview()
-            isPlacementSurfaceReady = false
         }
     }
 
@@ -1081,7 +1124,6 @@ private fun ArScreen(
             previewGeneration.incrementAndGet()
             previewJobRef.getAndSet(null)?.cancel()
             disposePreview()
-            isPlacementSurfaceReady = false
         } else {
             preparePreviewIfNeeded()
         }
@@ -1121,7 +1163,7 @@ private fun ArScreen(
         if (!canPlaceRef.value || placementStage != ModelPlacementStage.Idle) return false
         val hit = findPlacementHit(sv, x, y)
         if (hit == null) {
-            isPlacementSurfaceReady = false
+            resetPlacementTarget()
             placementNotice = "No ground found here. Move your phone slowly and aim at a textured floor or lawn."
             return false
         }
@@ -1353,7 +1395,6 @@ private fun ArScreen(
         }
         loadsToCancel.forEach { it.cancel() }
         disposePreview()
-        isPlacementSurfaceReady = false
         placementStage = ModelPlacementStage.Idle
         placementNotice = null
         val currentPlacements = viewModel.placedModels.value
@@ -1596,13 +1637,7 @@ private fun ArScreen(
                             lastSurfaceProbeAt = now
                             val (x, y) = crosshairCoordinates(sv.width, sv.height)
                             val centerHit = findPlacementHit(sv, x, y)
-                            isPlacementSurfaceReady = centerHit != null
-                            previewRef.value
-                                ?.takeIf { previewStage == PreviewStage.Ready }
-                                ?.let { preview ->
-                                    preview.hitNode.hitResult = centerHit
-                                    preview.hitNode.isVisible = centerHit != null
-                                }
+                            applyPlacementTarget(centerHit, now)
                             if (isPlacementSurfaceReady &&
                                 placementNotice?.startsWith("No ground found") == true
                             ) {

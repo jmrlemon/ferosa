@@ -161,3 +161,10 @@ fun turn180Degrees(currentYawDegrees: Float): Float {
     val normalizedYaw = (currentYawDegrees % 360f + 360f) % 360f
     return (normalizedYaw + 180f) % 360f
 }
+
+/**
+ * Computes the next placed-model yaw, preferring the value tracked by the placement screen over
+ * a quaternion-to-Euler readback from the renderer.
+ */
+fun nextPlacedModelYaw(rememberedYawDegrees: Float?, nodeYawDegrees: Float): Float =
+    turn180Degrees(rememberedYawDegrees ?: nodeYawDegrees)

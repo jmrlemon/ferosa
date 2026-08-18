@@ -88,6 +88,7 @@ import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
+import com.example.ferosa_landscaping.ui.ar.nextPlacedModelYaw
 import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_MISS_GRACE_MILLIS
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.screenHitBoundsFromPoints
@@ -788,6 +789,10 @@ private fun ArScreen(
     val previewJobRef = remember { AtomicReference<Job?>(null) }
     var previewStage by remember { mutableStateOf(PreviewStage.Idle) }
     var previewYawDegrees by remember { mutableStateOf(0f) }
+    // Keep a stable local yaw for each placed node. Reading Euler angles back from a quaternion
+    // can choose an equivalent representation after ARCore updates an anchor, which made a
+    // repeated panel turn appear to do nothing on some devices.
+    val placedYawDegrees = remember { mutableStateMapOf<String, Float>() }
     val previewRef = remember { mutableStateOf<PreviewHandle?>(null) }
     val placementTargetStabilityRef = remember {
         AtomicReference(PlacementTargetStability())
@@ -1286,6 +1291,9 @@ private fun ArScreen(
                         sv.addChildNode(builtAnchorNode)
                         if (viewModel.placeModel(builtAnchorNode, product)) {
                             committed = true
+                            viewModel.placedModels.value
+                                .firstOrNull { it.modelNode === builtModelNode }
+                                ?.let { placedYawDegrees[it.id] = yawDegrees }
                             disposePreviewIfCurrent(product.id)
                             preparePreviewIfNeeded()
                         } else {
@@ -1442,20 +1450,28 @@ private fun ArScreen(
             }
         }
         viewModel.clearSceneState()
+        placedYawDegrees.clear()
         preparePreviewIfNeeded()
     }
 
     fun deletePlacedModel(placed: PlacedModel) {
         detachPlacedAnchors(sceneViewRef.value, placed)
+        placedYawDegrees.remove(placed.id)
         viewModel.deleteModel(placed)
         preparePreviewIfNeeded()
     }
 
     fun turnPlacedModel180(placed: PlacedModel) {
-        val nextYaw = turn180Degrees(placed.modelNode.rotation.y)
+        val currentYaw = placedYawDegrees[placed.id] ?: placed.modelNode.rotation.y
+        val nextYaw = nextPlacedModelYaw(placedYawDegrees[placed.id], currentYaw)
+        placedYawDegrees[placed.id] = nextYaw
         placed.modelNode.rotation = Rotation(y = nextYaw)
         if (BuildConfig.DEBUG) {
-            Log.d("FerosaAR", "Turned placed product=${placed.product.id}, yawDegrees=$nextYaw")
+            Log.d(
+                "FerosaAR",
+                "Turned placed product=${placed.product.id}, " +
+                    "previousYawDegrees=$currentYaw, yawDegrees=$nextYaw",
+            )
         }
     }
 

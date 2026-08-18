@@ -345,7 +345,12 @@ fun ProductInfoPanel(
                         Spacer(Modifier.height(10.dp))
 
                         OutlinedButton(
-                            onClick = { onTurn(model) },
+                            onClick = {
+                                onTurn(model)
+                                // Close the sheet so the user can immediately see the rotated
+                                // model in the camera view, matching Move and Remove behavior.
+                                onDismiss()
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 48.dp),
@@ -354,7 +359,7 @@ fun ProductInfoPanel(
                         ) {
                             Icon(
                                 Icons.Filled.Refresh,
-                                contentDescription = null,
+                                contentDescription = "Turn ${model.product.name} 180 degrees",
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(7.dp))

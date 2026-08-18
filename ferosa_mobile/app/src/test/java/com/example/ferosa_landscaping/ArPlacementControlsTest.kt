@@ -11,6 +11,7 @@ import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
 import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
+import com.example.ferosa_landscaping.ui.ar.nextPlacedModelYaw
 import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.containsScreenHitBounds
 import com.example.ferosa_landscaping.ui.ar.screenHitBoundsFromPoints
@@ -75,6 +76,12 @@ class ArPlacementControlsTest {
         assertEquals(0f, turn180Degrees(180f), 0.0001f)
         assertEquals(179f, turn180Degrees(359f), 0.0001f)
         assertEquals(0f, turn180Degrees(-180f), 0.0001f)
+    }
+
+    @Test
+    fun placed_model_turn_uses_remembered_yaw_before_reading_node_euler_angles() {
+        assertEquals(180f, nextPlacedModelYaw(rememberedYawDegrees = null, nodeYawDegrees = 0f), 0.0001f)
+        assertEquals(0f, nextPlacedModelYaw(rememberedYawDegrees = 180f, nodeYawDegrees = 0f), 0.0001f)
     }
 
     @Test

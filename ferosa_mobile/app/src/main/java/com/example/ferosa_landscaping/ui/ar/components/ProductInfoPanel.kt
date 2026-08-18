@@ -132,6 +132,7 @@ fun ProductInfoPanel(
                 dismissOnBackPress = true,
                 dismissOnClickOutside = true,
                 usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
             ),
         ) {
             BackHandler(onBack = onDismiss)

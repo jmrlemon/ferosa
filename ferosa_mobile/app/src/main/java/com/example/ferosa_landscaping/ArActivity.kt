@@ -768,6 +768,17 @@ private fun ArScreen(
         previewStage = PreviewStage.Idle
     }
 
+    fun detachPlacedAnchors(sv: ARSceneView?, placed: PlacedModel) {
+        runCatching { sv?.removeChildNode(placed.anchorNode) }
+        runCatching { placed.anchorNode.anchor.detach() }
+        placed.originalAnchor
+            ?.takeUnless { it === placed.anchorNode }
+            ?.let { originalAnchor ->
+                runCatching { sv?.removeChildNode(originalAnchor) }
+                runCatching { originalAnchor.anchor.detach() }
+            }
+    }
+
     // Screenshot toast
     var screenshotMsg by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(screenshotMsg) {
@@ -847,8 +858,7 @@ private fun ArScreen(
             disposePreview()
             val sv = sceneViewRef.value
             viewModel.placedModels.value.forEach { placed ->
-                runCatching { sv?.removeChildNode(placed.anchorNode) }
-                runCatching { placed.anchorNode.anchor.detach() }
+                detachPlacedAnchors(sv, placed)
             }
             sceneViewRef.value = null
             viewModel.clearSceneState()
@@ -1336,8 +1346,7 @@ private fun ArScreen(
         val currentPlacements = viewModel.placedModels.value
         sceneViewRef.value?.let { sv ->
             for (placed in currentPlacements) {
-                runCatching { sv.removeChildNode(placed.anchorNode) }
-                runCatching { placed.anchorNode.anchor.detach() }
+                detachPlacedAnchors(sv, placed)
             }
         }
         viewModel.clearSceneState()
@@ -1345,10 +1354,7 @@ private fun ArScreen(
     }
 
     fun deletePlacedModel(placed: PlacedModel) {
-        sceneViewRef.value?.let { sv ->
-            runCatching { sv.removeChildNode(placed.anchorNode) }
-            runCatching { placed.anchorNode.anchor.detach() }
-        }
+        detachPlacedAnchors(sceneViewRef.value, placed)
         viewModel.deleteModel(placed)
         preparePreviewIfNeeded()
     }
@@ -1370,14 +1376,16 @@ private fun ArScreen(
         val originalAnchor = moving.originalAnchor
         val sceneView = sceneViewRef.value
 
-        if (sceneView != null && originalAnchor != null && moving.anchorNode !== originalAnchor) {
-            moving.anchorNode.removeChildNode(moving.modelNode)
-            sceneView.removeChildNode(moving.anchorNode)
-            moving.anchorNode.anchor.detach()
-            originalAnchor.addChildNode(moving.modelNode)
+        try {
+            if (sceneView != null && originalAnchor != null && moving.anchorNode !== originalAnchor) {
+                runCatching { moving.anchorNode.removeChildNode(moving.modelNode) }
+                runCatching { sceneView.removeChildNode(moving.anchorNode) }
+                runCatching { moving.anchorNode.anchor.detach() }
+                runCatching { originalAnchor.addChildNode(moving.modelNode) }
+            }
+        } finally {
+            viewModel.cancelRepositioning()
         }
-
-        viewModel.cancelRepositioning()
     }
 
     fun captureScreenshotNow() {
@@ -1769,10 +1777,12 @@ private fun ArScreen(
                                         // No valid surface → cancel and snap back to original position
                                         val originalAnchorNode = currentRepositioning.originalAnchor
                                         if (originalAnchorNode != null && currentRepositioning.anchorNode !== originalAnchorNode) {
-                                            currentRepositioning.anchorNode.removeChildNode(currentRepositioning.modelNode)
-                                            sv.removeChildNode(currentRepositioning.anchorNode)
-                                            currentRepositioning.anchorNode.anchor.detach()
-                                            originalAnchorNode.addChildNode(currentRepositioning.modelNode)
+                                            runCatching {
+                                                currentRepositioning.anchorNode.removeChildNode(currentRepositioning.modelNode)
+                                            }
+                                            runCatching { sv.removeChildNode(currentRepositioning.anchorNode) }
+                                            runCatching { currentRepositioning.anchorNode.anchor.detach() }
+                                            runCatching { originalAnchorNode.addChildNode(currentRepositioning.modelNode) }
                                         }
                                         viewModel.cancelRepositioning()
                                     }

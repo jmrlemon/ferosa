@@ -29,6 +29,26 @@ data class PlacementTargetStability(
     val lastValidAtMillis: Long = Long.MIN_VALUE,
 )
 
+/**
+ * Accepts only a horizontal-plane hit that is inside both ARCore's polygon and its extents.
+ *
+ * ARCore can return a geometrically nearby hit outside the tracked polygon when the plane is
+ * still being refined. That fallback is useful for generic raycasts, but it can make an AR object
+ * appear to hover beside the physical surface. Placement uses the stricter rule.
+ */
+fun isPlacementPlanePoseValid(
+    isPoseInPolygon: Boolean,
+    isPoseInExtents: Boolean,
+): Boolean = isPoseInPolygon && isPoseInExtents
+
+/**
+ * Toggles the catalog preview without changing already-committed models in the scene.
+ */
+fun toggleSelectedProduct(
+    current: ArProduct?,
+    tapped: ArProduct,
+): ArProduct? = if (current?.id == tapped.id) null else tapped
+
 const val PLACEMENT_TARGET_CONFIRMATION_HITS = 2
 const val PLACEMENT_TARGET_MISS_GRACE_MILLIS = 350L
 

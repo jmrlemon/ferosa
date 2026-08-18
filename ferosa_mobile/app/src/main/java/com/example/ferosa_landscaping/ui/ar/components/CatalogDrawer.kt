@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -234,6 +236,13 @@ private fun CatalogItem(
                 onClick = onSelect,
                 role = Role.RadioButton
             )
+            .semantics {
+                contentDescription = if (selected) {
+                    "${product.name}. Selected. Tap again to clear the AR preview."
+                } else {
+                    "Select ${product.name} for the AR preview."
+                }
+            }
             .padding(8.dp)
     ) {
         ProductThumbnail(

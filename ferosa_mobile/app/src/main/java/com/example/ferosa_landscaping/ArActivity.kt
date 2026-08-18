@@ -84,12 +84,14 @@ import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
+import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_MISS_GRACE_MILLIS
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
+import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
 import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
@@ -802,6 +804,7 @@ private fun ArScreen(
         placementTargetStabilityRef.set(PlacementTargetStability())
         retainedPlacementHitRef.set(null)
         isPlacementSurfaceReady = false
+        sceneViewRef.value?.planeRenderer?.isVisible = true
         previewRef.value?.let { preview ->
             preview.hitNode.hitResult = null
             preview.hitNode.isVisible = false
@@ -938,11 +941,18 @@ private fun ArScreen(
         depthPoint = false,
         instantPlacementPoint = false,
         trackingStates = setOf(TrackingState.TRACKING),
-        // Allow a plane while its polygon is still being refined, but reject rays outside the
-        // plane's rectangular extents so the preview does not jump to a nearby unrelated surface.
+        // Keep the generic hit-test filtering permissive, then apply the placement-specific
+        // polygon + extents rule in the predicate. This avoids the SceneView fallback that can
+        // return a nearby plane pose outside the actually tracked surface.
         planePoseInPolygon = false,
-        predicate = { hit ->
-            (hit.trackable as? Plane)?.isPoseInExtents(hit.hitPose) == true
+        predicate = placementPredicate@{ hit ->
+            val plane = hit.trackable as? Plane ?: return@placementPredicate false
+            runCatching {
+                isPlacementPlanePoseValid(
+                    isPoseInPolygon = plane.isPoseInPolygon(hit.hitPose),
+                    isPoseInExtents = plane.isPoseInExtents(hit.hitPose),
+                )
+            }.getOrDefault(false)
         },
     )
 
@@ -965,6 +975,10 @@ private fun ArScreen(
         }
 
         isPlacementSurfaceReady = targetIsStable && visualHit != null
+        // The plane texture is a discovery aid, not a placement surface. Once a target has been
+        // confirmed, hide it so a coarse ARCore mesh cannot visually suggest that the model is
+        // floating above the real surface. A miss restores the guide in resetPlacementTarget().
+        sceneViewRef.value?.planeRenderer?.isVisible = !isPlacementSurfaceReady
         previewRef.value
             ?.takeIf { previewStage == PreviewStage.Ready }
             ?.let { preview ->
@@ -2264,7 +2278,14 @@ private fun ArScreen(
                     selectedId     = selectedProduct?.id,
                     isOffline      = isOffline,
                     isModelLoading = placementStage != ModelPlacementStage.Idle,
-                    onSelect       = { viewModel.selectProduct(it) }
+                    onSelect       = { product ->
+                        val nextProduct = toggleSelectedProduct(
+                            current = selectedProduct,
+                            tapped = product,
+                        )
+                        if (nextProduct == null) viewModel.clearSelectedProduct()
+                        else viewModel.selectProduct(nextProduct)
+                    }
                 )
             }
 

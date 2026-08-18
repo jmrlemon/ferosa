@@ -193,6 +193,14 @@ class ArViewModel(
     }
 
     /**
+     * Clears the catalog selection so the AR preview is removed without touching committed models.
+     */
+    fun clearSelectedProduct() {
+        _selectedProduct.value = null
+        _error.value = null
+    }
+
+    /**
      * Places a model in the AR scene at the given anchor position.
      * Enforces the placement limit of [MAX_PLACED_MODELS].
      *

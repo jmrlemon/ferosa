@@ -1,10 +1,13 @@
 package com.example.ferosa_landscaping
 
+import com.example.ferosa_landscaping.ui.ar.ArProduct
 import com.example.ferosa_landscaping.ui.ar.PlacementControlState
 import com.example.ferosa_landscaping.ui.ar.PlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
+import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
+import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
 import org.junit.Assert.assertEquals
@@ -117,6 +120,29 @@ class ArPlacementControlsTest {
         assertEquals(0, state.consecutiveValidHits)
     }
 
+    @Test
+    fun placement_surface_requires_a_pose_inside_the_plane_polygon_and_extents() {
+        assertTrue(isPlacementPlanePoseValid(isPoseInPolygon = true, isPoseInExtents = true))
+        assertFalse(isPlacementPlanePoseValid(isPoseInPolygon = false, isPoseInExtents = true))
+        assertFalse(isPlacementPlanePoseValid(isPoseInPolygon = true, isPoseInExtents = false))
+    }
+
+    @Test
+    fun tapping_the_selected_product_toggles_the_preview_off() {
+        val product = sampleProduct(7)
+
+        assertEquals(null, toggleSelectedProduct(current = product, tapped = product))
+        assertEquals(product, toggleSelectedProduct(current = null, tapped = product))
+    }
+
+    @Test
+    fun tapping_a_different_product_switches_the_preview_selection() {
+        val first = sampleProduct(7)
+        val second = sampleProduct(8)
+
+        assertEquals(second, toggleSelectedProduct(current = first, tapped = second))
+    }
+
     private fun readyState() = PlacementControlState(
         hasSelectedProduct = true,
         isPreviewReady = true,
@@ -125,5 +151,17 @@ class ArPlacementControlsTest {
         isMoving = false,
         placedCount = 0,
         maxPlacedModels = 5,
+    )
+
+    private fun sampleProduct(id: Int) = ArProduct(
+        id = id,
+        name = "Plant $id",
+        price = 10.0,
+        thumbnailUrl = "",
+        modelUrl = "https://example.test/model-$id.glb",
+        heightCm = 50f,
+        category = "Plants",
+        description = "",
+        inStock = true,
     )
 }

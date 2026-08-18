@@ -316,6 +316,13 @@ class ArActivity : ComponentActivity() {
             try {
                 placed.anchorNode.anchor.detach()
             } catch (_: Exception) { /* already detached */ }
+            placed.originalAnchor
+                ?.takeUnless { it === placed.anchorNode }
+                ?.let { originalAnchor ->
+                    try {
+                        originalAnchor.anchor.detach()
+                    } catch (_: Exception) { /* already detached */ }
+                }
         }
         viewModel?.clearSceneState()
 
@@ -331,6 +338,12 @@ class ArActivity : ComponentActivity() {
      * Force-releases all resources without waiting for graceful shutdown.
      */
     private fun forceReleaseAllResources() {
+        arViewModel?.placedModels?.value?.forEach { placed ->
+            runCatching { placed.anchorNode.anchor.detach() }
+            placed.originalAnchor
+                ?.takeUnless { it === placed.anchorNode }
+                ?.let { originalAnchor -> runCatching { originalAnchor.anchor.detach() } }
+        }
         arViewModel?.clearSceneState()
         try {
             sceneViewInstance?.destroy()

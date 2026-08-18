@@ -2,7 +2,7 @@
 
 **Approved spec:** `docs/specs/ar-placement-controls.md`<br>
 **Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
-**Status:** Implementation in progress — Core interaction checkpoint reviewed; Task 5 in progress
+**Status:** Implementation in progress — Tasks 1–5 reviewed; Task 6 device/regression closeout in progress
 
 ## Overview
 
@@ -117,7 +117,7 @@ cancellation/reset hardening and invalid-target timing remain explicitly assigne
 
 ### Phase 3: Existing controls and closeout
 
-- [ ] Task 5: Coordinate preview with selection, Move, Remove, limit, and lifecycle
+- [x] Task 5: Coordinate preview with selection, Move, Remove, limit, and lifecycle
 - [ ] Task 6: Extend the device script and clear the full regression gate
 
 ### Checkpoint: Complete
@@ -128,6 +128,16 @@ cancellation/reset hardening and invalid-target timing remain explicitly assigne
 - [ ] Unit tests, lint, and debug build pass
 - [ ] The updated physical-device script passes with the current Monstera
 - [ ] Final five-distinct-product sign-off remains explicitly deferred until four more assets exist
+
+Task 5 review (2026-08-18): tests were reviewed first, followed by correctness, readability,
+architecture, security, and performance. Three required correctness findings were fixed during the
+review: the old one-model visibility gate hid Place after the first commit, duplicate/queued Place
+events lacked an async in-flight latch, and reset/remove/disposal could leave a Move operation's
+temporary original anchor attached. The fixes are in `0c283af` and `1fb8880`; synchronous placement
+start failures also restore the preview and release the latch. Full JVM tests, `lintDebug`, and
+`assembleDebug` pass. The device showed the corrected `1/5` state with the next preview controls
+visible; the remaining five-slot/remove/background sequence is assigned to Task 6 because the
+connected phone disconnected during the final run.
 
 ## Verification Commands
 

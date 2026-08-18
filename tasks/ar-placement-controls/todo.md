@@ -188,22 +188,31 @@ background/foreground, and failure cleanup around the new transient preview.
 
 **Acceptance criteria:**
 
-- [ ] Moving or inspecting a committed model cannot simultaneously commit the preview; cancelling a
+- [x] Moving or inspecting a committed model cannot simultaneously commit the preview; cancelling a
       move restores original anchor, position, yaw, and actual-size scale
-- [ ] Remove deletes only the selected instance, detaches its anchor, decrements once, closes the
+- [x] Remove deletes only the selected instance, detaches its anchor, decrements once, closes the
       panel, and immediately frees a slot without touching cache, catalog, or cart
-- [ ] At `5/5`, preview placement is unavailable; after one removal it returns on a valid target, and
+- [x] At `5/5`, preview placement is unavailable; after one removal it returns on a valid target, and
       all lifecycle/reset/failure paths leave no duplicate preview or orphan anchor
 
 **Verification:**
 
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
 - [ ] Physical phone: place two, move/cancel one, remove the other, and verify the correct object and
       counters throughout
 - [ ] Physical phone: reach `5/5`, remove one, then successfully place one at the newly freed slot
 - [ ] Physical phone: background/foreground and reset during preview preparation without a crash or
       duplicate
+
+**Task 5 code review (2026-08-18):** Tests were reviewed first, followed by correctness,
+readability, architecture, security, and performance. Required findings fixed in `0c283af` and
+`1fb888`: Place remains available after the first commit, an atomic latch blocks duplicate queued
+Place requests until the async job completes, and reset/remove/disposal detach both current and
+temporary original Move anchors. Synchronous placement-start failures now release the latch and
+restore the preview. Full JVM tests, lint, and the debug build are green. One connected-device run
+showed `1/5` with the next preview controls; the phone disconnected before the final five-slot and
+background/foreground sequence, which remains open for Task 6 evidence.
 
 **Dependencies:** Task 4
 

@@ -1,134 +1,157 @@
-# AR rendering manual device test
+# AR placement-controls manual device test
 
-This script is the release gate for the Android AR renderer. Run it on a physical ARCore phone; an
-emulator is not evidence for model loading, real-world scale, plane anchoring, or session
-configuration. The temporary `AR Test Object` product should be present for the rendering cases and
-must be restored after the empty-catalog case.
+This is the repeatable physical-device script for the approved AR placement-controls feature. Run
+it on a physical ARCore phone; an emulator is not evidence for camera tracking, real-world scale,
+plane anchoring, or renderer stability. The current development fixture is **Monstera Deliciosa**
+(product `11`, configured height `100 cm`). Five distinct AR products remain a separate release gate
+until four more validated assets are imported.
 
 ## Required setup
 
-- A physical Android phone with Google Play Services for AR installed and the camera permission
-  granted.
-- The phone and the Ferosa development machine on the same Wi-Fi network.
-- The validated `AR Test Object` product visible in the authenticated catalog, with its lantern model
-  at `height_cm = 57`.
-- Android platform tools (`adb`), the repository, and the debug build available on the machine.
-- One terminal reserved for the logcat command below. Do not filter out `FerosaAR`, `Filament`,
-  `ARCore`, `sceneview`, or `AndroidRuntime` while testing.
+- A physical Android phone with Google Play Services for AR installed and camera permission granted.
+- The phone and development machine on the same Wi-Fi network when using the online catalog.
+- The authenticated catalog contains the in-stock Monstera Deliciosa with a validated `.glb` and
+  configured height `100 cm`.
+- Android platform tools (`adb`), the repository, and a debug APK.
+- One terminal reserved for unfiltered-enough logcat. Do not hide `FerosaAR`, `Filament`, `ARCore`,
+  `sceneview`, or `AndroidRuntime` while testing.
 
-Start from the repository root in PowerShell:
+From the repository root in PowerShell:
 
 ```powershell
-ipconfig | Select-String "IPv4"
-Select-String -LiteralPath .\ferosa_mobile\gradle.properties -Pattern 'FEROSA_SERVER_URL'
-
 Set-Location .\ferosa_mobile
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
-cmd.exe /d /c gradlew.bat :app:installDebug
-adb devices
+.\gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+.\gradlew.bat :app:installDebug
+adb devices -l
 adb logcat -c
 adb logcat -v threadtime FerosaAR:V Filament:V ARCore:V sceneview:V AndroidRuntime:E '*:S'
 ```
 
-The IPv4 address used by the phone must match the host portion of `FEROSA_SERVER_URL` (currently
-`192.168.254.102`). If it differs, update the local Gradle property and rebuild before continuing.
+Record the date, phone model, Android/ARCore versions, APK version, host IP, and catalog/network
+mode. If the catalog returns `401`/`302` or no AR product, fix authentication/LAN setup before
+calling any renderer result a failure.
 
-## Numbered test
+## Placement-control sequence
 
-1. **Confirm the network and authenticated catalog.** With the logcat terminal running, open Ferosa,
-   sign in if needed, and launch AR from the project flow. The catalog drawer must list `AR Test
-   Object` with its product photo and price. A valid run has no `AndroidRuntime:E` line and no
-   `401`/`302` catalog failure; a catalog or auth failure is not a renderer result. Record the
-   `FEROSA_SERVER_URL` comparison from setup.
+Run each step in one AR Activity session unless the step explicitly asks for a lifecycle restart.
+Save screenshots and the relevant filtered logcat lines under a local evidence folder (for example,
+`docs/evidence/ar-placement-controls/<date>/`).
 
-2. **Verify the empty catalog state.** In the admin product edit page, temporarily remove the AR
-   model from `AR Test Object`, then relaunch AR while the catalog has zero AR-enabled products. The
-   screen must show **“No AR products available yet”**, explain that products need a 3D model, and
-   offer **“Back to App”**. Tap the camera area once: no `FerosaAR` placement/download/load line
-   should appear, and there must be no `AndroidRuntime:E` line. Re-upload the lantern through the
-   admin form with height `57` before step 3.
+1. **Aim without placing.** Launch AR with Monstera selected. Wait for a horizontal surface. The
+   centre crosshair and a grounded, actual-size Monstera preview must appear while the header remains
+   `0/5`. The drawer must show `Place` and, once the preview is ready, `Turn 180°`. Tapping the
+   camera/floor outside those controls must not change the counter or create a `Placed product=`
+   line.
 
-3. **Place one warm-cache model.** Return to AR, select `AR Test Object`, and wait for a tracked
-   horizontal plane. Tap the plane once and wait at most 10 seconds. The visual result must be
-   visible, upright, and free of an error notice. The confirming logcat line is:
+2. **Turn the transient preview.** Tap `Turn 180°` once. The preview may face the opposite yaw, but
+   it must remain at the same position, grounded base, scale, and apparent `100 cm` height. A debug
+   run records `Turned preview product=11, yawDegrees=180.0`; tapping again returns to `0.0`.
 
-   ```text
-   FerosaAR: Placed product=<id>, ... halfExtent=..., ... renderables=<n>
-   ```
-
-   `renderables` must be greater than zero and the `halfExtent` values must be finite and non-zero.
-   A failed load must instead produce the customer-readable notice and a `FerosaAR` model-load
-   failure line; it must not produce an `AndroidRuntime:E` crash.
-
-4. **Check real-world height and grounding.** Put a metre rule or another known-length object in
-   the camera view beside the placed lantern. Its rendered height must be within ±10% of 57 cm, and
-   the lowest point of the model must sit on the detected plane with no visible float or sink. Keep
-   the step-3 `FerosaAR` line as evidence; `heightMeters=0.57`, `scale=...`, and `position=...` are
-   the fields that explain the result.
-
-5. **Place five different models in one session.** Reset the scene, then place five distinct
-   AR-enabled products/models without restarting the Activity. Do not count reusing one product as
-   the five-model checkpoint; if fewer than five distinct models are available, provision temporary
-   test products with validated models before signing this gate off. Each successful placement must
-   add one `FerosaAR: Placed product=` line with `renderables>0`. There must be five lines, no
-   renderer crash, and no later placement silently disappearing. This step is mandatory: one
-   successful placement does not prove that the SceneView model-loader scope survived its first load.
-
-6. **Verify the requested session configuration.** On the first session creation and after returning
-   from the background, capture the `FerosaAR` line containing:
+3. **Confirm exactly one placement.** With a fresh tracked target at the crosshair, tap `Place` once.
+   The counter must become `1/5`; one committed model must remain anchored at the crosshair, and a
+   new preview must be prepared for the next slot. The confirming line is:
 
    ```text
-   Session config applied ... planeFindingMode=HORIZONTAL ...
-   lightEstimationMode=ENVIRONMENTAL_HDR ... depthMode=... depthOcclusion=...
+   FerosaAR: Placed product=11, ... heightMeters=1.0, ... yawDegrees=..., renderables=1
    ```
 
-   The live values must match the values requested by the app. The camera must still find horizontal
-   planes and placed models must receive scene lighting rather than appearing flat-shaded.
+   Repeated taps on the floor, and a second tap while the first placement is loading, must not create
+   an extra anchor. A rejected/cancelled load must restore the preview and leave the counter
+   unchanged.
 
-7. **Drag and reposition a placed model.** Long-press a placed model, drag it to a second tracked
-   plane location, and release. It must remain grounded at the new anchor; cancelling a drag over an
-   invalid surface must return it to the original anchor. Keep the step-5 placement lines and confirm
-   there is no `AndroidRuntime:E` line or leaked-anchor symptom.
+4. **Place a second model and verify the old one is independent.** Aim at another tracked location
+   and press `Place` once. The header must become `2/5`, and both models must remain visible. Turning
+   the current preview must not rotate either committed model. If only one model is available, use
+   the same Monstera twice for this interaction check; do not count that reuse toward the final
+   five-distinct-product gate.
 
-8. **Background and foreground the session.** Press Home or switch apps for at least five seconds,
-   return to Ferosa, and place another model without restarting the Activity. The confirming evidence
-   is another successful `FerosaAR: Placed product=` line after the lifecycle round-trip, with no
-   `ARCore` session failure and no `AndroidRuntime:E` line.
+5. **Open the selected-object panel and turn one object.** Tap a committed model. Its product panel
+   must expose `Turn 180°`, `Move`, `Remove`, and the existing cart action. Tap `Turn 180°`; only
+   that selected instance may rotate. The log records `Turned placed product=11, yawDegrees=...`.
+   Position, grounding, scale, height, anchor, counter, and the other instance must be unchanged.
 
-9. **Airplane mode with a warm cache.** Place or load the lantern once, enable airplane mode, return
-   to AR, and place it again. The catalog should identify cached/offline content, the model should
-   render, and the confirming line remains `FerosaAR: Placed product=...` with `renderables>0`. No
-   network exception should be the only result.
+6. **Move and cancel.** Long-press one committed model, drag it to a second tracked surface, and
+   release. It must remain grounded at the new anchor. Repeat, release over an invalid surface, or
+   cancel the move; the model must snap back to its original anchor and yaw. No preview placement is
+   allowed while Move is active, and there must be no `AndroidRuntime:E` or orphan-anchor symptom.
 
-10. **Airplane mode with a cold cache.** Clear the app's model cache or use a fresh app install,
-    enable airplane mode, and attempt the same placement. The app must report that the model is
-    unavailable offline in the notice area, detach the temporary anchor, and return to an idle state.
-    Confirm there is a `FerosaAR` model-load/download failure line or equivalent readable diagnostic,
-    and no `AndroidRuntime:E` line. Restore network access and re-download the model before step 11.
+7. **Remove and free a slot.** Open the panel for one selected model and press `Remove`. Only that
+   instance disappears, its anchor is detached, the panel closes, and the counter decrements once
+   (for example `2/5` → `1/5`). The next valid preview/Place control must become available without
+   restarting AR, and the catalog/cache/cart state must remain intact.
 
-11. **Corrupt-GLB failure path.** Keep the validated lantern upload in the admin form; the server
-    validator must reject malformed uploads before they can reach a customer. After the valid model
-    is cached on the debug phone, use Android Studio Device File Explorer or `adb shell run-as
-    com.example.ferosa_landscaping` to replace that cached `.glb` with a truncated/invalid copy. Open
-    AR and tap a tracked plane. The anchor must be detached, the notice must tell the user the 3D
-    model could not be opened/prepared, and the Activity must remain usable. Confirm the `FerosaAR`
-    model-load failure line and the absence of `AndroidRuntime:E`; do not bypass the admin upload
-    validator or attach the corrupt file to a real catalog product. Restore the validated lantern
-    cache/upload with `height_cm = 57` after the test.
+8. **Verify the five-slot limit.** Place the current fixture until the header reaches `5/5` in one
+   session. `Place` and the preview must be unavailable at the limit, with a clear maximum-items
+   notice. Remove one selected model; the counter must become `4/5`, a new preview must prepare, and
+   one more valid `Place` must return it to `5/5`. For this development run, repeated Monstera
+   placements prove slot/lifecycle behavior only; five *distinct* products are still pending assets.
 
-12. **Record the result and clean up.** Save the date, device model/Android version, host IP, APK
-    version, and the relevant `FerosaAR` lines. Leave the temporary product clearly named and active
-    only while rendering work is in progress; before launch, delete it and its uploaded model as
-    described in the spec. Do not delete the lantern before the rendering checkpoint is signed off.
+9. **Reset and re-prepare.** Use the design preview `Reset` action. All committed models and anchors
+   must disappear, the counter must return to `0/5`, and exactly one Monstera preview must prepare
+   again. Reset during preview download or placement preparation must leave no visible duplicate,
+   orphan anchor, or stuck loading state.
+
+10. **Background/foreground.** Press Home or switch apps for at least five seconds, return to Ferosa,
+    and wait for tracking. The current preview/placements must not duplicate; place one more model
+    successfully. Capture a new `Session config applied ...` line and a post-resume `Placed product=`
+    line. Any `AndroidRuntime:E`, native Filament crash, or AR session failure fails this step.
+
+## Existing regression checks
+
+11. **Real-world scale and grounding.** Put a metre rule or another known-length object beside the
+    rendered Monstera. Its height must be within ±10% of the configured `100 cm`; the pot/base must
+    sit on the detected plane with no visible float or sink. Retain the `Preview ready` and `Placed`
+    lines containing `heightMeters=1.0`, `scale=...`, and `position=...`.
+
+12. **Screenshot and product panel.** Save an AR screenshot using the camera button. Confirm the
+    saved image contains the camera view and placed model, and that the selected product panel still
+    exposes Add to cart, Turn 180°, Move, and Remove.
+
+13. **Offline warm-cache.** Place or prepare Monstera once, enable airplane mode, return to AR, and
+    place it again from cached/offline catalog data. It must render and log `Placed product=...` with
+    `renderables>0`; a network exception alone is not an acceptable result.
+
+14. **Offline cold-cache/failure cleanup.** On a disposable debug install, clear the model cache,
+    enable airplane mode, and attempt placement. The UI must show a readable unavailable-offline
+    notice, detach any temporary anchor, restore an idle/usable state, and emit no
+    `AndroidRuntime:E`. Restore network/cache before continuing.
+
+15. **Corrupt model failure.** On a disposable debug install, replace the cached Monstera `.glb` with
+    a truncated/invalid copy, then attempt placement. The app must show the customer-readable model
+    error, detach the temporary anchor, remain usable for another attempt, and log a model-load
+    failure without `AndroidRuntime:E`. Restore the validated cache/upload afterward.
+
+16. **Catalog/empty state.** If the catalog has no cached AR-enabled product, the screen must show
+    `No AR products available yet`, explain that products need a 3D model, and offer `Back to App`.
+    Tapping the camera area in this state must not start a placement or download.
+
+## Evidence and pass/fail record
+
+Retain, at minimum:
+
+- device metadata and APK/version/date;
+- screenshots for `0/5` preview, turned preview, committed `1/5`, selected-object panel, `5/5`,
+  removal/free-slot, and reset;
+- filtered logcat containing `Preview ready`, `Turned preview`, `Placed product`, `Turned placed`,
+  `Session config applied`, and any failure cleanup; and
+- a pass/fail table with notes for each numbered step.
+
+The current Monstera run can sign off the interaction and lifecycle controls. Do not mark the
+five-distinct-product criterion complete until four additional validated AR models are available and
+each has been placed successfully in the same session. Preserve any `AndroidRuntime:E`, Filament
+crash, non-finite extent, `renderables=0`, unexpected scale, leaked anchor, or stuck-counter evidence
+and mark the affected step failed.
 
 ## Failure triage
 
-- No catalog or a `401`/`302` response: fix the login/session or LAN setup before diagnosing
-  rendering.
-- A first placement fails and later taps do nothing: restart the Activity and capture the first
-  failure; the old SceneView loader scope can be cancelled by an uncaught error.
-- A `FerosaAR` line reports `renderables=0`, a non-finite extent, or an unexpected scale: stop and
-  preserve the GLB and logcat; do not attach the asset to a real product.
-- Any `AndroidRuntime:E` or native Filament crash: stop the test, preserve the complete preceding
-  logcat lines, and do not call the renderer checkpoint passed.
+- `401`/`302`, empty catalog, or no AR product: fix authentication, catalog, or LAN setup first.
+- `Place` disabled: wait for a fresh tracked horizontal target and a ready preview; do not fall back
+  to tapping the camera surface.
+- Counter changes more than once for one press: stop, preserve logcat/screenshots, and fail the
+  duplicate-placement step.
+- A model-load failure or cancellation must restore the preview/idle state and leave the counter
+  unchanged. If it does not, preserve the first failure and do not continue the release gate.
+- Any `AndroidRuntime:E`, native Filament crash, orphan anchor, `renderables=0`, non-finite extent,
+  or unexpected scale fails the affected step.

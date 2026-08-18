@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dialog
@@ -49,6 +50,26 @@ import java.util.Locale
 
 internal const val PRODUCT_INFO_PANEL_HEIGHT_FRACTION = 0.9f
 private val DEFAULT_PRODUCT_INFO_PANEL_HEIGHT = 640.dp
+
+/**
+ * Resolves the viewport available to the product sheet.
+ *
+ * Dialog content can report an unbounded max height. In that case, use the
+ * device window height instead of treating the defensive fallback as the
+ * sheet's actual size.
+ */
+internal fun productInfoPanelAvailableHeight(
+    measuredHeight: Dp,
+    windowHeight: Dp,
+): Dp {
+    if (measuredHeight.value.isFinite() && measuredHeight.value > 0f) {
+        return measuredHeight
+    }
+    if (windowHeight.value.isFinite() && windowHeight.value > 0f) {
+        return windowHeight
+    }
+    return DEFAULT_PRODUCT_INFO_PANEL_HEIGHT
+}
 
 /** Keeps the details sheet inside the dialog viewport so its content can scroll safely. */
 internal fun productInfoPanelMaxHeight(availableHeight: Dp): Dp {
@@ -124,7 +145,12 @@ fun ProductInfoPanel(
                     .background(Color.Black.copy(alpha = 0.46f))
                     .semantics { dialog() }
             ) {
-                val panelMaxHeight = productInfoPanelMaxHeight(maxHeight)
+                val windowHeight = LocalConfiguration.current.screenHeightDp.dp
+                val panelAvailableHeight = productInfoPanelAvailableHeight(
+                    measuredHeight = maxHeight,
+                    windowHeight = windowHeight,
+                )
+                val panelMaxHeight = productInfoPanelMaxHeight(panelAvailableHeight)
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(

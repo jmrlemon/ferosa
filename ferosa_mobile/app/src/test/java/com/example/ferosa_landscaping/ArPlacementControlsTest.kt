@@ -6,6 +6,7 @@ import com.example.ferosa_landscaping.ui.ar.PlacementControlState
 import com.example.ferosa_landscaping.ui.ar.PlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
 import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelMaxHeight
+import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelAvailableHeight
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
@@ -193,6 +194,32 @@ class ArPlacementControlsTest {
     @Test
     fun product_info_panel_uses_a_safe_fallback_for_an_unbounded_viewport() {
         assertEquals(640f, productInfoPanelMaxHeight((-1f).dp).value, 0.0001f)
+    }
+
+    @Test
+    fun product_info_panel_uses_the_window_height_when_dialog_constraints_are_unbounded() {
+        assertEquals(
+            800f,
+            productInfoPanelAvailableHeight(measuredHeight = (-1f).dp, windowHeight = 800.dp).value,
+            0.0001f,
+        )
+        assertEquals(
+            800f,
+            productInfoPanelAvailableHeight(
+                measuredHeight = Float.POSITIVE_INFINITY.dp,
+                windowHeight = 800.dp,
+            ).value,
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun product_info_panel_prefers_a_finite_dialog_height_over_the_window_height() {
+        assertEquals(
+            600f,
+            productInfoPanelAvailableHeight(measuredHeight = 600.dp, windowHeight = 800.dp).value,
+            0.0001f,
+        )
     }
 
     private fun readyState() = PlacementControlState(

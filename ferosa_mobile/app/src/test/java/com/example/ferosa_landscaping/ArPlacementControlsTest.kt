@@ -7,6 +7,7 @@ import com.example.ferosa_landscaping.ui.ar.PlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.canConfirmPlacement
 import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelMaxHeight
 import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelAvailableHeight
+import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelBottomContentPadding
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
@@ -220,6 +221,16 @@ class ArPlacementControlsTest {
             productInfoPanelAvailableHeight(measuredHeight = 600.dp, windowHeight = 800.dp).value,
             0.0001f,
         )
+    }
+
+    @Test
+    fun product_info_panel_keeps_a_safe_bottom_gap_when_navigation_insets_are_missing() {
+        assertEquals(24f, productInfoPanelBottomContentPadding(0.dp).value, 0.0001f)
+    }
+
+    @Test
+    fun product_info_panel_adds_a_small_gap_after_a_reported_navigation_inset() {
+        assertEquals(32f, productInfoPanelBottomContentPadding(24.dp).value, 0.0001f)
     }
 
     private fun readyState() = PlacementControlState(

@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dialog
@@ -50,6 +51,8 @@ import java.util.Locale
 
 internal const val PRODUCT_INFO_PANEL_HEIGHT_FRACTION = 0.9f
 private val DEFAULT_PRODUCT_INFO_PANEL_HEIGHT = 640.dp
+private val PRODUCT_INFO_PANEL_MIN_BOTTOM_CONTENT_PADDING = 24.dp
+private val PRODUCT_INFO_PANEL_EXTRA_BOTTOM_GAP = 8.dp
 
 /**
  * Resolves the viewport available to the product sheet.
@@ -77,6 +80,14 @@ internal fun productInfoPanelMaxHeight(availableHeight: Dp): Dp {
         return DEFAULT_PRODUCT_INFO_PANEL_HEIGHT
     }
     return availableHeight * PRODUCT_INFO_PANEL_HEIGHT_FRACTION
+}
+
+/** Keeps the final action row clear of the gesture bar even when dialog insets are zero. */
+internal fun productInfoPanelBottomContentPadding(navigationBarHeight: Dp): Dp {
+    if (!navigationBarHeight.value.isFinite() || navigationBarHeight.value <= 0f) {
+        return PRODUCT_INFO_PANEL_MIN_BOTTOM_CONTENT_PADDING
+    }
+    return navigationBarHeight + PRODUCT_INFO_PANEL_EXTRA_BOTTOM_GAP
 }
 
 /**
@@ -152,6 +163,10 @@ fun ProductInfoPanel(
                     windowHeight = windowHeight,
                 )
                 val panelMaxHeight = productInfoPanelMaxHeight(panelAvailableHeight)
+                val navigationBarHeight = with(LocalDensity.current) {
+                    WindowInsets.navigationBars.getBottom(this).toDp()
+                }
+                val bottomContentPadding = productInfoPanelBottomContentPadding(navigationBarHeight)
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     Box(
@@ -189,7 +204,7 @@ fun ProductInfoPanel(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .navigationBarsPadding()
+                                .padding(bottom = bottomContentPadding)
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 20.dp, vertical = 16.dp)
                         ) {

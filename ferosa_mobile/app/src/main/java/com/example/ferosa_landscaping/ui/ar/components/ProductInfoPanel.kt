@@ -147,7 +147,10 @@ fun ProductInfoPanel(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
                             .fillMaxWidth()
-                            .height(panelMaxHeight)
+                            // Let the sheet wrap its content on normal screens, but cap it so
+                            // long descriptions/cart errors remain scrollable instead of
+                            // extending behind the status/navigation bars.
+                            .heightIn(max = panelMaxHeight)
                             .widthIn(max = 560.dp)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         shape = RoundedCornerShape(28.dp),

@@ -10,6 +10,8 @@ import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
 import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
+import com.example.ferosa_landscaping.ui.ar.containsScreenHitBounds
+import com.example.ferosa_landscaping.ui.ar.screenHitBoundsFromPoints
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -141,6 +143,37 @@ class ArPlacementControlsTest {
         val second = sampleProduct(8)
 
         assertEquals(second, toggleSelectedProduct(current = first, tapped = second))
+    }
+
+    @Test
+    fun screen_hit_bounds_cover_taps_on_the_visible_model_away_from_its_origin() {
+        val bounds = screenHitBoundsFromPoints(
+            listOf(
+                480f to 240f,
+                700f to 240f,
+                480f to 1120f,
+                700f to 1120f,
+            )
+        )
+
+        assertTrue(bounds != null)
+        assertTrue(containsScreenHitBounds(bounds!!, x = 600f, y = 300f, paddingPx = 0f))
+        assertFalse(containsScreenHitBounds(bounds, x = 760f, y = 300f, paddingPx = 0f))
+    }
+
+    @Test
+    fun screen_hit_bounds_ignore_non_finite_projection_points() {
+        val bounds = screenHitBoundsFromPoints(
+            listOf(
+                Float.NaN to 200f,
+                100f to Float.POSITIVE_INFINITY,
+                120f to 220f,
+                220f to 420f,
+            )
+        )
+
+        assertTrue(bounds != null)
+        assertTrue(containsScreenHitBounds(bounds!!, x = 170f, y = 320f, paddingPx = 0f))
     }
 
     private fun readyState() = PlacementControlState(

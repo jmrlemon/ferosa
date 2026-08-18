@@ -30,6 +30,48 @@ data class PlacementTargetStability(
 )
 
 /**
+ * Screen-space bounds used as a forgiving tap target for a rendered AR model.
+ *
+ * A model's world origin is commonly its grounded base, not the visual centre. Using only that
+ * origin for selection makes tall products difficult to tap, so the fallback hit test projects the
+ * model bounds and checks this rectangle instead.
+ */
+data class ScreenHitBounds(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+)
+
+/** Returns the smallest finite screen-space rectangle containing the projected model points. */
+fun screenHitBoundsFromPoints(points: List<Pair<Float, Float>>): ScreenHitBounds? {
+    val finitePoints = points.filter { (x, y) -> x.isFinite() && y.isFinite() }
+    if (finitePoints.isEmpty()) return null
+
+    return ScreenHitBounds(
+        left = finitePoints.minOf { it.first },
+        top = finitePoints.minOf { it.second },
+        right = finitePoints.maxOf { it.first },
+        bottom = finitePoints.maxOf { it.second },
+    )
+}
+
+/** Checks whether a screen point lies within bounds, allowing a uniform touch-target padding. */
+fun containsScreenHitBounds(
+    bounds: ScreenHitBounds,
+    x: Float,
+    y: Float,
+    paddingPx: Float,
+): Boolean {
+    require(paddingPx.isFinite() && paddingPx >= 0f) { "paddingPx must be finite and non-negative" }
+    return x.isFinite() && y.isFinite() &&
+        x >= bounds.left - paddingPx &&
+        x <= bounds.right + paddingPx &&
+        y >= bounds.top - paddingPx &&
+        y <= bounds.bottom + paddingPx
+}
+
+/**
  * Accepts only a horizontal-plane hit that is inside both ARCore's polygon and its extents.
  *
  * ARCore can return a geometrically nearby hit outside the tracked polygon when the plane is

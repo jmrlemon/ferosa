@@ -83,12 +83,14 @@ import com.example.ferosa_landscaping.ui.ar.calculateGroundedModelTransform
 import com.example.ferosa_landscaping.ui.ar.components.CatalogDrawer
 import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
+import com.example.ferosa_landscaping.ui.ar.containsScreenHitBounds
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_MISS_GRACE_MILLIS
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
+import com.example.ferosa_landscaping.ui.ar.screenHitBoundsFromPoints
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
@@ -1698,36 +1700,84 @@ private fun ArScreen(
                     }
 
                     /**
-                     * Finds which placed model (if any) is located near the given screen
-                     * coordinates by projecting each model's world position to screen space
-                     * using the camera's worldToView() and checking distance against a touch
-                     * radius threshold.
+                     * Finds which placed model (if any) is under a screen coordinate.
+                     *
+                     * SceneView's collision ray is the authoritative hit test. The projected model
+                     * bounds are a forgiving fallback for devices/assets where the collision AABB
+                     * is temporarily unavailable while Filament updates a transform. The old
+                     * origin-only check was particularly hard to use for tall plants because the
+                     * grounded origin is at the pot/base, not in the visible leaves.
                      */
                     fun findPlacedModelAtPosition(x: Float, y: Float): PlacedModel? {
-                        val touchRadiusPx = 80f // generous touch target radius in pixels
-                        val camera = sv.cameraNode
+                        val placedModels = placedModelsRef.value
+                        if (placedModels.isEmpty()) return null
 
-                        for (placed in placedModelsRef.value) {
-                            val modelNode = placed.modelNode
-                            val worldPos = modelNode.worldPosition
-
-                            // Project world position to normalized view coordinates
-                            // worldToView returns: x=(0=left, 1=right), y=(0=bottom, 1=top)
-                            val viewCoords = camera.worldToView(worldPos)
-
-                            // Convert normalized view coordinates to screen pixels
-                            val screenX = viewCoords.x * sv.width
-                            val screenY = (1f - viewCoords.y) * sv.height // flip Y (screen Y is top-down)
-
-                            val dx = screenX - x
-                            val dy = screenY - y
-                            val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-
-                            if (distance <= touchRadiusPx) {
-                                return placed
+                        fun hitBelongsToModel(hitNode: Node, placed: PlacedModel): Boolean {
+                            var current: Node? = hitNode
+                            while (current != null) {
+                                if (current === placed.modelNode) return true
+                                current = current.parent
                             }
+                            return false
                         }
-                        return null
+
+                        // Prefer the nearest SceneView collision hit, which also handles overlap
+                        // correctly when several products are placed in front of one another.
+                        val collisionHit = runCatching {
+                            sv.collisionSystem.hitTest(x, y)
+                        }.getOrDefault(emptyList())
+                        collisionHit.firstNotNullOfOrNull { hit ->
+                            placedModels.firstOrNull { placed ->
+                                hitBelongsToModel(hit.node, placed)
+                            }
+                        }?.let { return it }
+
+                        val camera = sv.cameraNode
+                        val touchPaddingPx = 48f * sv.resources.displayMetrics.density
+
+                        // If a collision result is unavailable, use the projected model AABB rather
+                        // than the grounded origin. This keeps the entire visible product tappable.
+                        return placedModels.mapNotNull { placed ->
+                            val modelNode = placed.modelNode
+                            val bounds = runCatching {
+                                val center = modelNode.center
+                                val halfExtent = modelNode.halfExtent
+                                val projectedPoints = buildList {
+                                    for (xSign in listOf(-1f, 1f)) {
+                                        for (ySign in listOf(-1f, 1f)) {
+                                            for (zSign in listOf(-1f, 1f)) {
+                                                val localPoint = Position(
+                                                    x = center.x + xSign * halfExtent.x,
+                                                    y = center.y + ySign * halfExtent.y,
+                                                    z = center.z + zSign * halfExtent.z,
+                                                )
+                                                val viewCoords = camera.worldToView(
+                                                    modelNode.getWorldPosition(localPoint)
+                                                )
+                                                add(
+                                                    (viewCoords.x * sv.width) to
+                                                        ((1f - viewCoords.y) * sv.height)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                screenHitBoundsFromPoints(projectedPoints)
+                            }.getOrNull() ?: return@mapNotNull null
+
+                            if (!containsScreenHitBounds(bounds, x, y, touchPaddingPx)) {
+                                return@mapNotNull null
+                            }
+
+                            val centerView = camera.worldToView(
+                                modelNode.getWorldPosition(modelNode.center)
+                            )
+                            val centerX = centerView.x * sv.width
+                            val centerY = (1f - centerView.y) * sv.height
+                            val dx = centerX - x
+                            val dy = centerY - y
+                            (dx * dx + dy * dy) to placed
+                        }.minByOrNull { it.first }?.second
                     }
 
                     val gestureDetector = GestureDetectorCompat(

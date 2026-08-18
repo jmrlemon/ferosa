@@ -1525,6 +1525,7 @@ private fun ArScreen(
         products.isNotEmpty()
     val placeButtonVisible = !showPlacementCoach &&
         arSessionMessage == null &&
+        selectedProduct != null &&
         !placementLimitReached &&
         !isLoading &&
         products.isNotEmpty()

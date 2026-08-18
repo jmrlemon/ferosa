@@ -283,25 +283,26 @@ record that five-distinct-product validation is pending assets rather than silen
 
 ---
 
-## Follow-up: Stabilize intermittent surface tracking — ✅ implemented and reviewed
+## Follow-up: Stabilize surface targeting and clear transient previews — ✅ implemented and reviewed
 
-**Problem:** The 150 ms centre probe directly set the preview hit to `null` whenever one ARCore
-raycast missed. During plane discovery, the hit-test also required the pose to be inside the
-currently growing plane polygon. Those two choices made a valid preview blink while ARCore updated
-the detected surface.
+**Problem:** The ARCore raycast could return a nearby horizontal-plane pose outside the tracked
+polygon, so the preview or plane texture could look detached from the physical surface. After a
+placement, the next transient preview also remained selected and could visually overlap the newly
+committed model. Users needed a way to clear that preview without deleting committed objects.
 
-**Change:** Horizontal plane hits now allow the tracked pose while the plane polygon expands, but
-must remain within the plane's rectangular extents; depth points are not accepted as placement
-surfaces. The transient preview uses a plain scene node instead of SceneView's `HitResultNode`,
-whose built-in `PAUSED` visibility rule caused the remaining blink. A pure renderer-independent
-target tracker requires two consecutive valid samples, retains a confirmed target for at most
-350 ms after a transient miss, and resets on expiry/session or preview cleanup. The Place action
-continues to run a fresh hit test, so the retained target is visual smoothing only and cannot
-create a stale anchor.
+**Change:** Placement accepts only horizontal hits whose pose is inside both the ARCore plane polygon
+and its extents; depth points remain excluded. The plain scene-node preview, two-sample
+confirmation, and bounded 350 ms miss grace continue to absorb transient tracking gaps, while the
+Place action still re-tests the exact reticle coordinate before creating an anchor. Once a target is
+confirmed, the plane guide texture is hidden so its coarse mesh cannot suggest a floating surface;
+a target miss restores the guide. Tapping the selected catalog card again now clears the product
+selection and disposes only the transient preview; already-placed models remain unchanged. The
+selected card exposes the same action through its accessibility description.
 
 **Verification:**
 
 - [x] Unit tests cover confirmation, one-miss grace, expiry, and misses before confirmation
+- [x] Unit tests cover strict polygon/extents acceptance and selected-product toggle behavior
 - [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
 - [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
 - [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
@@ -312,4 +313,6 @@ create a stale anchor.
 **Code review (2026-08-18):** Tests were reviewed first, followed by correctness, readability,
 architecture, security, and performance. No required findings remained. The review specifically
 checked stale-hit expiry, session/reset cleanup, fresh placement revalidation, hot-path allocation,
-and that no new dependency or external-data surface was introduced.
+that plane-guide visibility is restored on reset/miss, that clearing selection cannot delete an
+anchor, and that no new dependency or external-data surface was introduced. The implementation and
+tests are committed in `3c4e6dd`.

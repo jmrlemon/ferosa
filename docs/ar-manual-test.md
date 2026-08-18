@@ -57,6 +57,10 @@ Save screenshots and the relevant filtered logcat lines under a local evidence f
    FerosaAR: Placed product=11, ... heightMeters=1.0, ... yawDegrees=..., renderables=1
    ```
 
+   Tap the currently selected catalog card again. The transient preview and `Place` controls must
+   clear, while the committed `1/5` model remains unchanged. Tap the card once more to prepare one
+   preview again; this must not add another model or change the counter.
+
    Repeated taps on the floor, and a second tap while the first placement is loading, must not create
    an extra anchor. A rejected/cancelled load must restore the preview and leave the counter
    unchanged.
@@ -102,8 +106,10 @@ Save screenshots and the relevant filtered logcat lines under a local evidence f
 
 11. **Real-world scale and grounding.** Put a metre rule or another known-length object beside the
     rendered Monstera. Its height must be within ±10% of the configured `100 cm`; the pot/base must
-    sit on the detected plane with no visible float or sink. Retain the `Preview ready` and `Placed`
-    lines containing `heightMeters=1.0`, `scale=...`, and `position=...`.
+    sit on the detected plane with no visible float or sink. The plane guide may disappear after the
+    target is confirmed; moving off the tracked surface must restore it and turn the reticle back to
+    an unavailable state. Retain the `Preview ready` and `Placed` lines containing `heightMeters=1.0`,
+    `scale=...`, and `position=...`.
 
 12. **Screenshot and product panel.** Save an AR screenshot using the camera button. Confirm the
     saved image contains the camera view and placed model, and that the selected product panel still

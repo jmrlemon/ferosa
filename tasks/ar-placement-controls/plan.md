@@ -12,8 +12,9 @@ Extend the existing Android AR screen from tap-to-place to aim-and-confirm place
 centre reticle and 150 ms centre hit-test probe provide the foundation, while the validated Monstera
 provides a complete development fixture. The implementation adds one unanchored real-size preview,
 an explicit Place button, a deterministic 180-degree turn, and stricter coordination with the
-existing Move and Remove flows. No resizing, dependency, backend, database, or catalog work is part
-of this plan.
+existing Move and Remove flows. The selected catalog card can be tapped again to clear the transient
+preview; this does not change catalog data. No resizing, dependency, backend, or database work is
+part of this plan.
 
 ## Measured Baseline
 
@@ -188,9 +189,9 @@ Every implementation task must satisfy all applicable items:
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Preview pose jitters as hit results vary | High | Use a non-trackable transient preview node with two-sample confirmation and a bounded 350 ms miss grace; placement still re-tests the exact reticle coordinate before creating an anchor. |
+| Preview pose jitters as hit results vary | High | Use a non-trackable transient preview node with strict polygon/extents validation, two-sample confirmation, and a bounded 350 ms miss grace; placement still re-tests the exact reticle coordinate before creating an anchor. |
 | Stored target becomes stale before Place | High | Re-hit-test the exact reticle coordinate on button press; never anchor solely from cached readiness. |
-| Preview and committed model briefly overlap | Medium | Make commit state explicit and disable controls; hide or replace the preview during the transaction. |
+| Preview and committed model briefly overlap | Medium | Make commit state explicit and disable controls; hide the preview during the transaction, and let the user tap the selected catalog card again to clear the next preview. |
 | Product switches while a model is loading | High | Use product/scene generation tokens and dispose stale completion results. |
 | Model bytes/instances multiply across frames | High | Resolve on product change only; keep one preview; prohibit creation in `onSessionUpdated`. |
 | Turning modifies the wrong transform component | Medium | Test yaw normalization and manually verify position, scale, and grounding before/after turn. |

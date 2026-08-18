@@ -734,7 +734,6 @@ private fun ArScreen(
     var placementStage by remember { mutableStateOf(ModelPlacementStage.Idle) }
     var isPlacementSurfaceReady by remember { mutableStateOf(false) }
     var placementNotice by remember { mutableStateOf<String?>(null) }
-    val modelPlaced    = remember { mutableStateOf(false) }
     var showInfoPanel  by remember { mutableStateOf(false) }
     var showPlacementCoach by rememberSaveable { mutableStateOf(true) }
 
@@ -743,6 +742,7 @@ private fun ArScreen(
     val pendingModelLoads = remember {
         Collections.synchronizedSet(mutableSetOf<Job>())
     }
+    val placementRequestInFlight = remember { AtomicBoolean(false) }
     val previewJobRef = remember { AtomicReference<Job?>(null) }
     var previewStage by remember { mutableStateOf(PreviewStage.Idle) }
     var previewYawDegrees by remember { mutableStateOf(0f) }
@@ -801,12 +801,12 @@ private fun ArScreen(
         }
     }
 
-    // Track when models have been placed
-    LaunchedEffect(placedModels) {
-        if (placedModels.isNotEmpty()) {
-            modelPlaced.value = true
-            showPlacementCoach = false
-        }
+    // The ViewModel list is the source of truth for committed scene objects. The placement coach
+    // is only shown for an empty scene; explicit Place remains available for the second through
+    // fifth model until the authoritative limit is reached.
+    val hasPlacedModels = placedModels.isNotEmpty()
+    LaunchedEffect(hasPlacedModels) {
+        if (hasPlacedModels) showPlacementCoach = false
     }
 
     // Refs for gesture handler access
@@ -842,6 +842,8 @@ private fun ArScreen(
                 }
             }
             loadsToCancel.forEach { it.cancel() }
+            previewJobRef.getAndSet(null)?.cancel()
+            placementRequestInFlight.set(false)
             disposePreview()
             val sv = sceneViewRef.value
             viewModel.placedModels.value.forEach { placed ->
@@ -1032,8 +1034,34 @@ private fun ArScreen(
         }
     }
 
+    fun preparePreviewIfNeeded() {
+        val product = selectedProductRef.value ?: return
+        if (viewModel.placedModels.value.size >= ArViewModel.MAX_PLACED_MODELS) return
+        if (previewRef.value == null && previewStage == PreviewStage.Idle) {
+            preparePreview(product)
+        }
+    }
+
     LaunchedEffect(selectedProduct?.id, sceneViewRef.value) {
-        preparePreview(selectedProduct)
+        if (placedModels.size < ArViewModel.MAX_PLACED_MODELS) {
+            preparePreview(selectedProduct)
+        } else {
+            previewGeneration.incrementAndGet()
+            previewJobRef.getAndSet(null)?.cancel()
+            disposePreview()
+            isPlacementSurfaceReady = false
+        }
+    }
+
+    LaunchedEffect(placedModels.size) {
+        if (placedModels.size >= ArViewModel.MAX_PLACED_MODELS) {
+            previewGeneration.incrementAndGet()
+            previewJobRef.getAndSet(null)?.cancel()
+            disposePreview()
+            isPlacementSurfaceReady = false
+        } else {
+            preparePreviewIfNeeded()
+        }
     }
 
     fun restorePreviewIfCurrent(sv: ARSceneView, productId: Int) {
@@ -1156,6 +1184,7 @@ private fun ArScreen(
                         if (viewModel.placeModel(builtAnchorNode, product)) {
                             committed = true
                             disposePreviewIfCurrent(product.id)
+                            preparePreviewIfNeeded()
                         } else {
                             // The limit may have been reached while the model loaded. A rejected
                             // node must never become visible or untracked.
@@ -1225,6 +1254,7 @@ private fun ArScreen(
         pendingModelLoads += modelLoadJob
         modelLoadJob.invokeOnCompletion { cause ->
             pendingModelLoads -= modelLoadJob
+            placementRequestInFlight.set(false)
             // Cancellation can win before the coroutine body starts, so keep a main-thread cleanup
             // guard for the anchor created before the job was launched.
             if (cause != null && anchorDetached.compareAndSet(false, true)) {
@@ -1238,8 +1268,12 @@ private fun ArScreen(
         if (placementStage != ModelPlacementStage.Idle || previewStage == PreviewStage.Loading) {
             return
         }
+        if (!placementRequestInFlight.compareAndSet(false, true)) {
+            return
+        }
         val state = placementControlState()
         if (!canConfirmPlacement(state)) {
+            placementRequestInFlight.set(false)
             placementNotice = when {
                 state.isMoving -> "Finish moving the selected item before placing another."
                 !state.isPreviewReady -> "Preparing the selected 3D preview."
@@ -1253,6 +1287,7 @@ private fun ArScreen(
         val sv = sceneViewRef.value
         val product = selectedProductRef.value
         if (sv == null || product == null) {
+            placementRequestInFlight.set(false)
             placementNotice = "The AR camera is not ready yet."
             return
         }
@@ -1262,7 +1297,22 @@ private fun ArScreen(
             preview.hitNode.isVisible = false
         }
         previewStage = PreviewStage.Loading
-        if (!placeModel(sv, x, y, product, previewYawDegrees)) {
+        val started = try {
+            placeModel(sv, x, y, product, previewYawDegrees)
+        } catch (exception: Exception) {
+            placementStage = ModelPlacementStage.Idle
+            placementNotice = customerReadableModelError(exception)
+            if (BuildConfig.DEBUG) {
+                Log.w(
+                    "FerosaAR",
+                    "Placement start failed for product=${product.id}: " +
+                        "${exception::class.simpleName}: ${exception.message}",
+                )
+            }
+            false
+        }
+        if (!started) {
+            placementRequestInFlight.set(false)
             restorePreviewIfCurrent(sv, product.id)
         }
     }
@@ -1271,34 +1321,36 @@ private fun ArScreen(
         // Invalidates downloads and model preparation started before this reset. Pending jobs detach
         // their anchors instead of placing into the new scene generation.
         sceneGeneration.incrementAndGet()
+        previewGeneration.incrementAndGet()
+        previewJobRef.getAndSet(null)?.cancel()
         val loadsToCancel = synchronized(pendingModelLoads) {
             pendingModelLoads.toList().also {
                 pendingModelLoads.clear()
             }
         }
         loadsToCancel.forEach { it.cancel() }
+        disposePreview()
+        isPlacementSurfaceReady = false
         placementStage = ModelPlacementStage.Idle
         placementNotice = null
         val currentPlacements = viewModel.placedModels.value
         sceneViewRef.value?.let { sv ->
             for (placed in currentPlacements) {
-                sv.removeChildNode(placed.anchorNode)
-                placed.anchorNode.anchor.detach()
+                runCatching { sv.removeChildNode(placed.anchorNode) }
+                runCatching { placed.anchorNode.anchor.detach() }
             }
         }
         viewModel.clearSceneState()
-        modelPlaced.value = false
+        preparePreviewIfNeeded()
     }
 
     fun deletePlacedModel(placed: PlacedModel) {
         sceneViewRef.value?.let { sv ->
-            sv.removeChildNode(placed.anchorNode)
-            placed.anchorNode.anchor.detach()
+            runCatching { sv.removeChildNode(placed.anchorNode) }
+            runCatching { placed.anchorNode.anchor.detach() }
         }
         viewModel.deleteModel(placed)
-        if (placedModels.size <= 1) {
-            modelPlaced.value = false
-        }
+        preparePreviewIfNeeded()
     }
 
     fun turnPlacedModel180(placed: PlacedModel) {
@@ -1367,14 +1419,15 @@ private fun ArScreen(
 
     // Combined loading state
     val isLoading = isViewModelLoading || placementStage != ModelPlacementStage.Idle
+    val placementLimitReached = placedModels.size >= ArViewModel.MAX_PLACED_MODELS
     val coachVisible = showPlacementCoach &&
         arSessionMessage == null &&
-        !modelPlaced.value &&
+        !hasPlacedModels &&
         !isLoading &&
         products.isNotEmpty()
     val placeButtonVisible = !showPlacementCoach &&
         arSessionMessage == null &&
-        !modelPlaced.value &&
+        !placementLimitReached &&
         !isLoading &&
         products.isNotEmpty()
     val turnPreviewButtonVisible = placeButtonVisible && previewStage == PreviewStage.Ready
@@ -2052,7 +2105,7 @@ private fun ArScreen(
 
         // Show the placement target only after the short coach has been dismissed.
         AnimatedVisibility(
-            visible = !showPlacementCoach && arSessionMessage == null && !modelPlaced.value && !isLoading && products.isNotEmpty(),
+            visible = placeButtonVisible,
             modifier = Modifier.align(Alignment.Center),
             enter = fadeIn(),
             exit = fadeOut()
@@ -2122,7 +2175,7 @@ private fun ArScreen(
             }
 
             AnimatedVisibility(
-                visible = showInfoPanel && modelPlaced.value,
+                visible = showInfoPanel && hasPlacedModels,
                 enter   = slideInVertically(initialOffsetY = { it }),
                 exit    = slideOutVertically(targetOffsetY = { it })
             ) {
@@ -2218,7 +2271,7 @@ private fun ArScreen(
                 }
             }
 
-            if (!showInfoPanel || !modelPlaced.value) {
+            if (!showInfoPanel || !hasPlacedModels) {
                 Spacer(Modifier.navigationBarsPadding())
             }
         }

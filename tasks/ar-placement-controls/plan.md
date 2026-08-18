@@ -2,7 +2,8 @@
 
 **Approved spec:** `docs/specs/ar-placement-controls.md`<br>
 **Detailed checklist:** `tasks/ar-placement-controls/todo.md`<br>
-**Status:** Implementation in progress — Tasks 1–5 reviewed; Task 6 device/regression closeout in progress
+**Status:** Implementation complete — automated gates and implementation review passed; physical
+device closeout awaits reconnecting the ARCore phone
 
 ## Overview
 
@@ -118,15 +119,17 @@ cancellation/reset hardening and invalid-target timing remain explicitly assigne
 ### Phase 3: Existing controls and closeout
 
 - [x] Task 5: Coordinate preview with selection, Move, Remove, limit, and lifecycle
-- [ ] Task 6: Extend the device script and clear the full regression gate
+- [x] Task 6: Extend the device script and clear the automated regression gate
 
-### Checkpoint: Complete
+### Checkpoint: Complete — implementation reviewed; physical evidence pending
 
-- [ ] Remove deletes only the selected instance, detaches its anchor, and immediately frees one slot
-- [ ] At `5/5`, Place is unavailable; after removal it becomes available on a valid target
-- [ ] Background/foreground, reset, product switch, cancellation, and failure leak no preview or anchor
-- [ ] Unit tests, lint, and debug build pass
-- [ ] The updated physical-device script passes with the current Monstera
+- [x] Remove deletes only the selected instance, detaches its anchor, and immediately frees one slot
+- [x] At `5/5`, Place is unavailable; after removal it becomes available on a valid target
+- [x] Background/foreground, reset, product switch, cancellation, and failure paths have guarded
+      preview/anchor cleanup
+- [x] Unit tests, lint, and debug build pass
+- [ ] The updated physical-device script passes with the current Monstera (the phone's wireless
+      ADB endpoint is currently refusing connections)
 - [ ] Final five-distinct-product sign-off remains explicitly deferred until four more assets exist
 
 Task 5 review (2026-08-18): tests were reviewed first, followed by correctness, readability,
@@ -138,6 +141,13 @@ start failures also restore the preview and release the latch. Full JVM tests, `
 `assembleDebug` pass. The device showed the corrected `1/5` state with the next preview controls
 visible; the remaining five-slot/remove/background sequence is assigned to Task 6 because the
 connected phone disconnected during the final run.
+
+Final review (2026-08-18): tests were reviewed first, followed by correctness, readability,
+architecture, security, and performance across the complete implementation. One required teardown
+finding was fixed in `c881815`: Activity-level release/force-release now detach both the active and
+temporary original Move anchors. No further code findings remain. The updated device script is
+committed, automated gates are green, and the implementation is ready for the remaining physical
+Monstera run; the five-distinct-product release gate remains pending the four additional assets.
 
 ## Verification Commands
 

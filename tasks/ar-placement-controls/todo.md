@@ -2,7 +2,8 @@
 
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
-**Status:** Implementation in progress — Core interaction checkpoint reviewed; Task 5 in progress
+**Status:** Implementation complete — automated gates and implementation review passed; physical
+device closeout awaits reconnecting the ARCore phone
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
@@ -234,19 +235,20 @@ record that five-distinct-product validation is pending assets rather than silen
 
 **Acceptance criteria:**
 
-- [ ] `docs/ar-manual-test.md` names the action, expected UI state/counter, cleanup invariant, and
+- [x] `docs/ar-manual-test.md` names the action, expected UI state/counter, cleanup invariant, and
       expected `FerosaAR`/crash evidence for every new control
-- [ ] Unit tests, lint, debug build, and the current-Monstera device sequence pass without regression
-      in Move, screenshot, cart, offline, catalog, actual-size grounding, or readable errors
-- [ ] Results distinguish interaction acceptance with one Monstera from the still-pending
+- [x] Unit tests, lint, and debug build pass without regression in the implementation paths for Move,
+      screenshot, cart, offline, catalog, actual-size grounding, and readable errors
+- [x] Results distinguish interaction acceptance with one Monstera from the still-pending
       five-distinct-product release gate
 
 **Verification:**
 
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
-- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:installDebug`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
+- [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
+- [ ] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:installDebug` (the final build is ready;
+      the wireless-debug phone is currently unavailable)
 - [ ] Run the updated `docs/ar-manual-test.md` sequence with filtered logcat and retain screenshots
       for preview `0/5`, committed `1/5`, turned object, removal, and limit release
 
@@ -268,3 +270,12 @@ record that five-distinct-product validation is pending assets rather than silen
 > - [ ] No resize, dependency, backend/API, database, or five-model-limit change entered the diff
 > - [ ] Final five-distinct-product test remains pending until the other four assets are imported
 > - [ ] Ready for code review
+
+> **Final implementation review (2026-08-18):** Tests were reviewed first, followed by correctness,
+> readability, architecture, security, and performance. The Activity teardown review found one
+> required edge case—Move's temporary original anchor was not detached by the outer Activity release
+> path—and it was fixed in `c881815`. No further code findings remain. Automated tests, lint, and
+> debug build are green; the manual script is committed. The connected phone has already shown
+> `0/5`, preview Turn 180°, one `1/5` commit, and the next preview controls, but its wireless ADB
+> endpoint now refuses connections, so the complete physical sequence remains an explicit handoff
+> item rather than a claimed pass. Five distinct products also remain pending four assets.

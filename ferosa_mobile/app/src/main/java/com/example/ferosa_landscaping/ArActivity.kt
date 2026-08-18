@@ -66,6 +66,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.android.filament.Engine
 import com.example.ferosa_landscaping.data.api.ApiClient
 import com.example.ferosa_landscaping.data.cache.ModelCacheManager
 import com.example.ferosa_landscaping.data.repository.CartRepository
@@ -85,6 +86,7 @@ import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
+import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_MISS_GRACE_MILLIS
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
@@ -100,12 +102,13 @@ import com.google.ar.core.Plane
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
+import io.github.sceneview.ar.arcore.transform
 import io.github.sceneview.ar.node.AnchorNode
-import io.github.sceneview.ar.node.HitResultNode
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
+import io.github.sceneview.node.Node
 import kotlinx.coroutines.*
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
@@ -178,9 +181,27 @@ private enum class PreviewStage {
 
 private data class PreviewHandle(
     val productId: Int,
-    val hitNode: HitResultNode,
+    val hitNode: PlacementPreviewNode,
     val modelNode: ModelNode,
 )
+
+/**
+ * A transient preview node deliberately does not inherit SceneView's trackable visibility policy.
+ * HitResultNode hides itself whenever its plane reports PAUSED, which makes a valid preview blink
+ * during normal ARCore plane refinement. PlacementTargetStability owns visibility; this node only
+ * follows the last accepted hit pose and retains it briefly across transient tracking pauses.
+ */
+private class PlacementPreviewNode(engine: Engine) : Node(engine) {
+    var hitResult: HitResult? = null
+        set(value) {
+            field = value
+            value?.hitPose?.let { worldTransform(it.transform) }
+        }
+
+    init {
+        isSmoothTransformEnabled = true
+    }
+}
 
 private fun customerReadableModelError(exception: Throwable): String {
     val message = exception.message.orEmpty()
@@ -907,17 +928,22 @@ private fun ArScreen(
             lifecycleOwner.lifecycle.currentState != Lifecycle.State.DESTROYED
     }
 
-    fun findPlacementHit(sv: ARSceneView, x: Float, y: Float) = sv.hitTestAR(
+    fun findPlacementHit(sv: ARSceneView, x: Float, y: Float): HitResult? = sv.hitTestAR(
         xPx = x,
         yPx = y,
         planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING),
         point = false,
-        depthPoint = true,
+        // Depth points can be noisy and are not guaranteed to be horizontal. Placement is only
+        // allowed on an ARCore horizontal plane; depth remains enabled for occlusion/rendering.
+        depthPoint = false,
         instantPlacementPoint = false,
         trackingStates = setOf(TrackingState.TRACKING),
-        // The polygon is still expanding when ARCore first recognizes a surface. Requiring the
-        // exact pose to be inside that polygon makes a valid horizontal plane flicker in and out.
+        // Allow a plane while its polygon is still being refined, but reject rays outside the
+        // plane's rectangular extents so the preview does not jump to a nearby unrelated surface.
         planePoseInPolygon = false,
+        predicate = { hit ->
+            (hit.trackable as? Plane)?.isPoseInExtents(hit.hitPose) == true
+        },
     )
 
     fun applyPlacementTarget(hit: HitResult?, nowMillis: Long) {
@@ -1041,11 +1067,7 @@ private fun ArScreen(
                         modelNode.isTouchable = false
                         modelNode.isHittable = false
 
-                        val hitNode = HitResultNode(
-                            engine = sv.engine,
-                            hitTest = { _ -> null },
-                        ).apply {
-                            update = false
+                        val hitNode = PlacementPreviewNode(engine = sv.engine).apply {
                             isVisible = false
                             isTouchable = false
                             isHittable = false
@@ -1584,6 +1606,7 @@ private fun ArScreen(
                     sv.planeRenderer.isShadowReceiver = true
                     var lastDragAnchorUpdateAt = 0L
                     var lastSurfaceProbeAt = 0L
+                    var trackingFailureGeneration = 0
                     sv.onSessionConfigChanged = { _, config ->
                         if (BuildConfig.DEBUG) {
                             Log.d(
@@ -1611,7 +1634,20 @@ private fun ArScreen(
                             ?: "AR camera could not start. Close other apps using the camera, then try again."
                     }
                     sv.onTrackingFailureChanged = { reason ->
-                        if (reason != null) {
+                        // Keep the last confirmed preview through transient PAUSED states. The
+                        // frame probe owns the bounded 350 ms miss expiry; clearing immediately
+                        // here would defeat that smoothing whenever ARCore briefly reports a
+                        // recoverable tracking reason. A camera-unavailable state is terminal
+                        // enough to clear immediately.
+                        val failureGeneration = ++trackingFailureGeneration
+                        if (reason != null && reason.name != "CAMERA_UNAVAILABLE") {
+                            coroutineScope.launch {
+                                delay(PLACEMENT_TARGET_MISS_GRACE_MILLIS)
+                                if (trackingFailureGeneration == failureGeneration) {
+                                    hidePreviewTarget()
+                                }
+                            }
+                        } else if (reason?.name == "CAMERA_UNAVAILABLE") {
                             hidePreviewTarget()
                         }
                         arSessionMessage = when (reason?.name) {

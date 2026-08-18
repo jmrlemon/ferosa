@@ -3,8 +3,8 @@
 **Spec:** `docs/specs/ar-placement-controls.md`<br>
 **Plan:** `tasks/ar-placement-controls/plan.md`<br>
 **Status:** Implementation complete — automated gates and implementation reviews passed; the
-surface-target stability follow-up is included; physical device closeout awaits reconnecting the
-ARCore phone
+surface-target stability follow-up is included; physical device closeout still needs one clean
+ARCore-phone run
 
 Six ordered tasks and three checkpoints. The current Monstera is the development fixture; importing
 four more assets is not a dependency for these tasks.
@@ -290,11 +290,14 @@ raycast missed. During plane discovery, the hit-test also required the pose to b
 currently growing plane polygon. Those two choices made a valid preview blink while ARCore updated
 the detected surface.
 
-**Change:** Horizontal plane hits now allow the tracked pose while the plane polygon expands. A pure
-renderer-independent target tracker requires two consecutive valid samples, retains a confirmed
-target for at most 350 ms after a transient miss, and resets on expiry/session or preview cleanup.
-The Place action continues to run a fresh hit test, so the retained target is visual smoothing only
-and cannot create a stale anchor.
+**Change:** Horizontal plane hits now allow the tracked pose while the plane polygon expands, but
+must remain within the plane's rectangular extents; depth points are not accepted as placement
+surfaces. The transient preview uses a plain scene node instead of SceneView's `HitResultNode`,
+whose built-in `PAUSED` visibility rule caused the remaining blink. A pure renderer-independent
+target tracker requires two consecutive valid samples, retains a confirmed target for at most
+350 ms after a transient miss, and resets on expiry/session or preview cleanup. The Place action
+continues to run a fresh hit test, so the retained target is visual smoothing only and cannot
+create a stale anchor.
 
 **Verification:**
 
@@ -302,8 +305,9 @@ and cannot create a stale anchor.
 - [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:testDebugUnitTest`
 - [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:lintDebug`
 - [x] `Set-Location .\ferosa_mobile; .\gradlew.bat :app:assembleDebug`
-- [ ] Physical-device before/after evidence remains pending because the wireless ADB endpoint is
-      unavailable
+- [ ] Physical-device before/after evidence remains pending: a diagnostic run on the connected
+      Xiaomi 2511FPC34G / Android 16 was inconclusive after a native ARCore `FatalException` during
+      repeated session restarts, so no visual pass is claimed
 
 **Code review (2026-08-18):** Tests were reviewed first, followed by correctness, readability,
 architecture, security, and performance. No required findings remained. The review specifically

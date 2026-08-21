@@ -103,6 +103,7 @@ fun toggleSelectedProduct(
 ): ArProduct? = if (current?.id == tapped.id) null else tapped
 
 const val PLACEMENT_TARGET_CONFIRMATION_HITS = 2
+const val PLACEMENT_TARGET_PROBE_INTERVAL_MILLIS = 75L
 const val PLACEMENT_TARGET_MISS_GRACE_MILLIS = 350L
 
 fun updatePlacementTargetStability(

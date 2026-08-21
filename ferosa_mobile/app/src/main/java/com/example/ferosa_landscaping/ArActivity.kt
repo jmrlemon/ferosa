@@ -91,6 +91,7 @@ import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
 import com.example.ferosa_landscaping.ui.ar.nextPlacedModelYaw
 import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_MISS_GRACE_MILLIS
+import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_PROBE_INTERVAL_MILLIS
 import com.example.ferosa_landscaping.ui.ar.resolveCachedModelLoaderInput
 import com.example.ferosa_landscaping.ui.ar.screenHitBoundsFromPoints
 import com.example.ferosa_landscaping.ui.ar.shouldShowArEmptyState
@@ -1726,7 +1727,9 @@ private fun ArScreen(
                         }
 
                         val now = SystemClock.elapsedRealtime()
-                        if (sv.width > 0 && sv.height > 0 && now - lastSurfaceProbeAt >= 150L) {
+                        if (sv.width > 0 && sv.height > 0 &&
+                            now - lastSurfaceProbeAt >= PLACEMENT_TARGET_PROBE_INTERVAL_MILLIS
+                        ) {
                             lastSurfaceProbeAt = now
                             val (x, y) = crosshairCoordinates(sv.width, sv.height)
                             val centerHit = findPlacementHit(sv, x, y)

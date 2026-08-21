@@ -15,6 +15,7 @@ import com.example.ferosa_landscaping.ui.ar.isPlacementDepthPoseValid
 import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import com.example.ferosa_landscaping.ui.ar.nextPlacedModelYaw
+import com.example.ferosa_landscaping.ui.ar.PLACEMENT_TARGET_PROBE_INTERVAL_MILLIS
 import com.example.ferosa_landscaping.ui.ar.updatePlacementTargetStability
 import com.example.ferosa_landscaping.ui.ar.containsScreenHitBounds
 import com.example.ferosa_landscaping.ui.ar.screenHitBoundsFromPoints
@@ -108,6 +109,11 @@ class ArPlacementControlsTest {
 
         state = updatePlacementTargetStability(state, hasValidHit = true, nowMillis = 150L)
         assertTrue(isPlacementTargetStable(state, nowMillis = 150L))
+    }
+
+    @Test
+    fun target_probe_interval_keeps_preview_responsive() {
+        assertEquals(75L, PLACEMENT_TARGET_PROBE_INTERVAL_MILLIS)
     }
 
     @Test

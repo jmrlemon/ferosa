@@ -11,6 +11,7 @@ import com.example.ferosa_landscaping.ui.ar.components.productInfoPanelBottomCon
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
+import com.example.ferosa_landscaping.ui.ar.isPlacementDepthPoseValid
 import com.example.ferosa_landscaping.ui.ar.toggleSelectedProduct
 import com.example.ferosa_landscaping.ui.ar.turn180Degrees
 import com.example.ferosa_landscaping.ui.ar.nextPlacedModelYaw
@@ -138,6 +139,15 @@ class ArPlacementControlsTest {
         assertTrue(isPlacementPlanePoseValid(isPoseInPolygon = true, isPoseInExtents = true))
         assertFalse(isPlacementPlanePoseValid(isPoseInPolygon = false, isPoseInExtents = true))
         assertFalse(isPlacementPlanePoseValid(isPoseInPolygon = true, isPoseInExtents = false))
+    }
+
+    @Test
+    fun depth_fallback_accepts_only_nearly_upward_surface_normals() {
+        assertTrue(isPlacementDepthPoseValid(surfaceNormalY = 1f))
+        assertTrue(isPlacementDepthPoseValid(surfaceNormalY = 0.95f))
+        assertFalse(isPlacementDepthPoseValid(surfaceNormalY = 0.93f))
+        assertFalse(isPlacementDepthPoseValid(surfaceNormalY = 0f))
+        assertFalse(isPlacementDepthPoseValid(surfaceNormalY = Float.NaN))
     }
 
     @Test

@@ -84,6 +84,17 @@ fun isPlacementPlanePoseValid(
 ): Boolean = isPoseInPolygon && isPoseInExtents
 
 /**
+ * Keeps depth fallback placement on surfaces whose normal is within roughly 20 degrees of up.
+ *
+ * Depth points can describe arbitrary geometry, so a normal filter prevents a wall, plant leaf,
+ * or nearby object side from becoming a supposedly grounded placement target.
+ */
+const val PLACEMENT_DEPTH_MIN_UPWARD_NORMAL_Y = 0.94f
+
+fun isPlacementDepthPoseValid(surfaceNormalY: Float): Boolean =
+    surfaceNormalY.isFinite() && surfaceNormalY >= PLACEMENT_DEPTH_MIN_UPWARD_NORMAL_Y
+
+/**
  * Toggles the catalog preview without changing already-committed models in the scene.
  */
 fun toggleSelectedProduct(

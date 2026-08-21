@@ -85,6 +85,7 @@ import com.example.ferosa_landscaping.ui.ar.components.ProductInfoPanel
 import com.example.ferosa_landscaping.ui.ar.crosshairCoordinates
 import com.example.ferosa_landscaping.ui.ar.containsScreenHitBounds
 import com.example.ferosa_landscaping.ui.ar.formatArSessionConfigLog
+import com.example.ferosa_landscaping.ui.ar.isPlacementDepthPoseValid
 import com.example.ferosa_landscaping.ui.ar.isPlacementPlanePoseValid
 import com.example.ferosa_landscaping.ui.ar.isPlacementTargetStable
 import com.example.ferosa_landscaping.ui.ar.isPreviewRequestCurrent
@@ -102,6 +103,7 @@ import com.example.ferosa_landscaping.util.ArAvailability
 import com.example.ferosa_landscaping.util.ArCompatibilityChecker
 import com.example.ferosa_landscaping.util.ConnectivityMonitor
 import com.google.ar.core.Config
+import com.google.ar.core.DepthPoint
 import com.google.ar.core.HitResult
 import com.google.ar.core.Plane
 import com.google.ar.core.Session
@@ -938,30 +940,52 @@ private fun ArScreen(
             lifecycleOwner.lifecycle.currentState != Lifecycle.State.DESTROYED
     }
 
-    fun findPlacementHit(sv: ARSceneView, x: Float, y: Float): HitResult? = sv.hitTestAR(
-        xPx = x,
-        yPx = y,
-        planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING),
-        point = false,
-        // Depth points can be noisy and are not guaranteed to be horizontal. Placement is only
-        // allowed on an ARCore horizontal plane; depth remains enabled for occlusion/rendering.
-        depthPoint = false,
-        instantPlacementPoint = false,
-        trackingStates = setOf(TrackingState.TRACKING),
-        // Keep the generic hit-test filtering permissive, then apply the placement-specific
-        // polygon + extents rule in the predicate. This avoids the SceneView fallback that can
-        // return a nearby plane pose outside the actually tracked surface.
-        planePoseInPolygon = false,
-        predicate = placementPredicate@{ hit ->
-            val plane = hit.trackable as? Plane ?: return@placementPredicate false
-            runCatching {
-                isPlacementPlanePoseValid(
-                    isPoseInPolygon = plane.isPoseInPolygon(hit.hitPose),
-                    isPoseInExtents = plane.isPoseInExtents(hit.hitPose),
-                )
-            }.getOrDefault(false)
-        },
-    )
+    fun findPlacementHit(sv: ARSceneView, x: Float, y: Float): HitResult? {
+        // Plane hits remain authoritative because their geometry provides immediate real-world
+        // scale and a stable horizontal pose. The strict polygon/extents check avoids SceneView's
+        // nearby-plane fallback placing a model beside the visible surface.
+        val planeHit = sv.hitTestAR(
+            xPx = x,
+            yPx = y,
+            planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING),
+            point = false,
+            depthPoint = false,
+            instantPlacementPoint = false,
+            trackingStates = setOf(TrackingState.TRACKING),
+            planePoseInPolygon = false,
+            predicate = placementPredicate@{ hit ->
+                val plane = hit.trackable as? Plane ?: return@placementPredicate false
+                runCatching {
+                    isPlacementPlanePoseValid(
+                        isPoseInPolygon = plane.isPoseInPolygon(hit.hitPose),
+                        isPoseInExtents = plane.isPoseInExtents(hit.hitPose),
+                    )
+                }.getOrDefault(false)
+            },
+        )
+        if (planeHit != null) return planeHit
+
+        // Depth is a fallback only. It improves coverage on supported phones when ARCore has
+        // depth but has not fitted a plane yet; the upward-normal filter keeps walls and arbitrary
+        // object sides out of the grounded placement path.
+        return sv.hitTestAR(
+            xPx = x,
+            yPx = y,
+            planeTypes = emptySet(),
+            point = false,
+            depthPoint = true,
+            instantPlacementPoint = false,
+            trackingStates = setOf(TrackingState.TRACKING),
+            planePoseInPolygon = false,
+            predicate = depthPlacementPredicate@{ hit ->
+                if (hit.trackable !is DepthPoint) return@depthPlacementPredicate false
+                val surfaceNormalY = runCatching {
+                    hit.hitPose.getTransformedAxis(1, 1f)[1]
+                }.getOrDefault(Float.NaN)
+                isPlacementDepthPoseValid(surfaceNormalY)
+            },
+        )
+    }
 
     fun applyPlacementTarget(hit: HitResult?, nowMillis: Long) {
         val nextStability = updatePlacementTargetStability(

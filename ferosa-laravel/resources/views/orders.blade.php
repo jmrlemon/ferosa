@@ -28,16 +28,16 @@
     <x-alert type="error" class="mb-6 reveal">{{ session('error') }}</x-alert>
   @endif
 
-  <details class="customer-card mb-8 overflow-hidden group reveal reveal-1">
-    <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4 text-sm font-bold text-surface-800 hover:bg-surface-50 transition-colors">
+  <div class="customer-card mb-8 overflow-hidden reveal reveal-1">
+    <div class="px-5 py-4 flex items-center justify-between gap-4 text-sm font-bold text-surface-800">
       <span>
         <span class="block">Track by order reference</span>
         <span class="block mt-0.5 text-xs font-normal text-surface-400">Use this if you have an order number such as FRS-98243.</span>
       </span>
       <span class="w-8 h-8 rounded-lg bg-brand-50 text-brand-700 flex items-center justify-center" aria-hidden="true">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </span>
-    </summary>
+    </div>
     <div class="border-t border-surface-100 p-4 sm:p-5">
   <!-- Search -->
   <div class="mb-6 flex max-w-xl gap-2">
@@ -117,7 +117,7 @@
     <p class="text-surface-400 text-sm">Check the order ID and try again.</p>
   </div>
     </div>
-  </details>
+  </div>
 
   <!-- Order History -->
   <div>

@@ -144,7 +144,7 @@
             @endif
             @if($msg->hasAttachment())
               @if($msg->attachmentIsImage())
-                <a href="{{ $msg->attachmentUrl() }}" target="_blank" rel="noopener"
+                <a href="{{ $msg->attachmentUrl() }}" target="_blank" rel="noopener" data-lightbox
                    class="block overflow-hidden rounded-2xl border border-surface-200 max-w-[240px]">
                   <img src="{{ $msg->attachmentUrl() }}" alt="{{ $msg->attachment_name }}"
                        loading="lazy" class="block w-full h-auto">
@@ -233,6 +233,25 @@
     <p class="text-[10px] text-surface-400 text-center mt-2 hidden sm:block">Press Enter to send · Shift+Enter for new line</p>
   </div>
 </div>
+
+{{-- Image lightbox. Chat photos used to open in a new browser tab, which drops
+     the customer out of the conversation and, on the Android WebView, out of
+     the app shell entirely. The anchors keep their href as a no-JS fallback. --}}
+<div id="img-lightbox" class="hidden fixed inset-0 z-[80] items-center justify-center bg-black/80 p-4"
+     role="dialog" aria-modal="true" aria-label="Attachment preview">
+  <button type="button" id="img-lightbox-close" aria-label="Close preview"
+    class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+    </svg>
+  </button>
+  <img id="img-lightbox-img" src="" alt=""
+       class="max-h-[88vh] max-w-full rounded-xl object-contain shadow-2xl">
+  <a id="img-lightbox-open" href="#" target="_blank" rel="noopener"
+     class="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-colors">
+    Open full size
+  </a>
+</div>
 @endsection
 
 @section('scripts')
@@ -274,6 +293,7 @@
     link.href = att.url;
     link.target = '_blank';
     link.rel = 'noopener';
+    if (att.is_image) link.dataset.lightbox = '';
 
     if (att.is_image) {
       link.className = 'block overflow-hidden rounded-2xl border border-surface-200 max-w-[240px]';
@@ -500,6 +520,39 @@
   });
 
   /**
+   * Paste-to-attach. A screenshot copied with PrtSc / Win+Shift+S lives on the
+   * clipboard as an image blob with no filename, so it never reaches the file
+   * picker - which is why pasting into this box did nothing while it works on
+   * other sites. Handing the blob to the file input and firing `change` reuses
+   * the size check, the shrink pass and the preview exactly as a picked file.
+   */
+  ta.addEventListener('paste', (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+
+      const blob = item.getAsFile();
+      if (!blob) continue;
+
+      // Clipboard images arrive unnamed or as a generic "image.png"; give it a
+      // stamped name so the bubble and the stored row are tellable apart.
+      const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+      const named = new File([blob], `pasted-${Date.now()}.${ext}`, { type: blob.type });
+
+      const dt = new DataTransfer();
+      dt.items.add(named);
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event('change'));
+
+      // Keep the caption the user typed; only the image itself is consumed.
+      e.preventDefault();
+      return;
+    }
+  });
+
+  /**
    * XMLHttpRequest rather than fetch(), because only XHR reports upload
    * progress - without it a slow photo upload looks like the app has frozen.
    */
@@ -606,6 +659,53 @@
       list.scrollTop = list.scrollHeight;
       ta.focus();
     }
+  });
+
+  // --- Image lightbox ---------------------------------------------------
+  // Delegated from the list so it covers bubbles that arrive over polling and
+  // the optimistic one drawn while an upload is still in flight.
+  const lightbox    = document.getElementById('img-lightbox');
+  const lightboxImg = document.getElementById('img-lightbox-img');
+  const lightboxRaw = document.getElementById('img-lightbox-open');
+  let lastFocused = null;
+
+  function openLightbox(url, alt) {
+    lastFocused = document.activeElement;
+    lightboxImg.src = url;
+    lightboxImg.alt = alt || 'Attachment';
+    lightboxRaw.href = url;
+    lightbox.classList.remove('hidden');
+    lightbox.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('img-lightbox-close').focus();
+  }
+
+  function closeLightbox() {
+    lightbox.classList.add('hidden');
+    lightbox.classList.remove('flex');
+    // Release the decoded image; a chat can accumulate a lot of them.
+    lightboxImg.src = '';
+    document.body.style.overflow = '';
+    if (lastFocused) lastFocused.focus();
+  }
+
+  list.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-lightbox]');
+    if (!link) return;
+    // Ctrl/middle-click keeps the normal new-tab behaviour.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    const img = link.querySelector('img');
+    openLightbox(link.href, img && img.alt);
+  });
+
+  document.getElementById('img-lightbox-close').addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    // Clicking the backdrop closes; clicking the photo itself should not.
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !lightbox.classList.contains('hidden')) closeLightbox();
   });
 </script>
 @endsection

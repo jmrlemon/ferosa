@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -108,6 +109,48 @@ class PageController extends Controller
             'activityCounts',
             'businessProfile',
         ));
+    }
+
+    /**
+     * The public front door. Deliberately its own action rather than a redirect
+     * to the shop: a stranger arriving from a search result needs to learn what
+     * Ferosa is and that it books services at all, which a bare product grid
+     * never says. Everything here is already-public data — the active
+     * catalogue, active services, published projects — so no ownership check
+     * applies; the same `is_active` / `archived_at` filters the shop uses keep
+     * drafts off a page search engines can now index.
+     */
+    public function landing(): View
+    {
+        $featuredProducts = Product::query()
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->where('stock_qty', '>', 0)
+            ->latest()
+            ->limit(6)
+            ->get();
+
+        $featuredServices = ServiceType::query()
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->orderBy('default_fee')
+            ->limit(4)
+            ->get();
+
+        $featuredProjects = Project::query()
+            ->published()
+            ->orderByDesc('is_featured')
+            ->orderByDesc('completed_at')
+            ->latest('id')
+            ->limit(3)
+            ->get();
+
+        return view('landing', [
+            'featuredProducts' => $featuredProducts,
+            'featuredServices' => $featuredServices,
+            'featuredProjects' => $featuredProjects,
+            'businessProfile' => AppSetting::getBusinessProfile(),
+        ]);
     }
 
     public function shop(Request $request): View
@@ -261,15 +304,24 @@ class PageController extends Controller
                         ->lockForUpdate()
                         ->first();
 
+                    // ValidationException rather than abort(): a sold-out item is
+                    // something the customer can act on, so it belongs back on the
+                    // checkout form beside their delivery details. abort(422) threw
+                    // them onto the framework error page ("Something is broken"),
+                    // which discarded both the reason and everything they typed.
                     if (! $product) {
-                        abort(422, 'A product in your cart is no longer available.');
+                        throw ValidationException::withMessages([
+                            'cart' => 'A product in your cart is no longer available.',
+                        ]);
                     }
 
                     $qty = (int) $cartItem['qty'];
                     if ($product->stock_qty < $qty) {
-                        abort(422, $product->stock_qty === 0
-                            ? "{$product->name} is out of stock."
-                            : "Only {$product->stock_qty} unit(s) of {$product->name} are available.");
+                        throw ValidationException::withMessages([
+                            'cart' => $product->stock_qty === 0
+                                ? "{$product->name} is out of stock."
+                                : "Only {$product->stock_qty} unit(s) of {$product->name} are available.",
+                        ]);
                     }
 
                     $price = (float) $product->price;
@@ -662,6 +714,14 @@ class PageController extends Controller
 
     public function appointments(Request $request): View
     {
+        // Validated like the orders list, so a hand-typed status returns a 422
+        // rather than an unexplained empty page.
+        $request->validate([
+            'status' => ['nullable', 'string', 'in:scheduled,confirmed,completed,cancelled'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ]);
+
         $user = auth()->user();
 
         $query = Appointment::query()

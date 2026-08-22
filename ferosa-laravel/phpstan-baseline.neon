@@ -151,12 +151,6 @@ parameters:
 			path: app/Http/Controllers/AdminController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ArController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_path\.$#'
 			identifier: property.notFound
 			count: 1
@@ -455,12 +449,6 @@ parameters:
 			identifier: nullCoalesce.offset
 			count: 1
 			path: database/seeders/SystemSeeder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_name\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Feature/FunctionalWorkflowTest.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_path\.$#'

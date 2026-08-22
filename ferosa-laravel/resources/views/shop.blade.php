@@ -274,12 +274,16 @@
                 @endif
               </div>
               @if ($inStock)
+                @guest
+                  <a href="{{ route('login') }}" class="btn btn-secondary btn-sm">Sign in to buy</a>
+                @else
                 <button onclick="addToCart({{ $product->id }}, '{{ addslashes($product->name) }}', {{ (float) $product->price }})"
                         aria-label="Add {{ $product->name }} to cart"
                         class="btn btn-primary btn-sm">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                   Add
                 </button>
+                @endguest
               @else
                 <span class="badge badge-danger">Unavailable</span>
               @endif
@@ -304,7 +308,9 @@
   @endif
 </main>
 
-{{-- Floating cart button --}}
+{{-- Floating cart button. Guests have no server-side cart, so it and the whole
+     cart script below are auth-only; browsing still works without either. --}}
+@auth
 <a href="{{ route('checkout') }}" id="floating-cart"
    aria-label="Open shopping cart"
    class="fixed bottom-20 lg:bottom-6 right-5 z-50 bg-brand-800 text-white w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center hover:bg-brand-900 transition-colors hidden">
@@ -318,6 +324,7 @@
   </div>
   <span class="floating-cart-label">View cart</span>
 </a>
+@endauth
 
 <div id="shop-toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none" aria-live="polite" aria-atomic="true"></div>
 
@@ -326,9 +333,7 @@
 
 @section('scripts')
 <script>
-  const cartIcon    = document.getElementById('floating-cart');
-  const cartBadge   = document.getElementById('floating-cart-count');
-  const toastCont   = document.getElementById('shop-toast-container');
+  const toastCont = document.getElementById('shop-toast-container');
 
   // Live search: the whole catalogue is already rendered, so typing narrows it
   // in place - no round trip, no waiting for a submit. Pressing enter still
@@ -364,6 +369,10 @@
       input.addEventListener('search', () => applyLiveFilter(input.value));
     });
   }
+
+  @auth
+  const cartIcon  = document.getElementById('floating-cart');
+  const cartBadge = document.getElementById('floating-cart-count');
 
   function getCart() {
     try { return JSON.parse(localStorage.getItem('ferosa_cart')) || []; } catch { return []; }
@@ -436,5 +445,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', loadServerCart);
+  @endauth
 </script>
 @endsection

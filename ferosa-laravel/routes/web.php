@@ -20,8 +20,22 @@ Route::get('/', function () {
         return redirect()->route($user->isStaffOrAdmin() ? 'admin.dashboard' : 'home');
     }
 
-    return app(AuthController::class)->showLogin(request());
-});
+    // Guests get a landing page, not a login wall and not a bare product grid.
+    // The Android shell asks for `/login` by name (MainActivity), so its
+    // sign-in flow is unaffected.
+    return app(PageController::class)->landing();
+})->name('landing');
+
+// ── Public storefront ────────────────────────────────────────────────────
+// Browsing the catalogue and the finished-work portfolio needs no account;
+// buying does. Every cart, checkout, and messaging route stays behind `auth`,
+// and these views swap their Add buttons for a sign-in prompt when the
+// visitor is a guest.
+Route::get('/shop', [PageController::class, 'shop'])->name('shop');
+Route::get('/shop/{product}', [PageController::class, 'product'])->name('products.show');
+Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+Route::get('/ferosa-shop.html', [PageController::class, 'shop'])->name('legacy.shop');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -45,10 +59,6 @@ Route::get('/logout', [AuthController::class, 'logoutFallback'])->name('logout.f
 
 Route::middleware('auth')->group(function () {
     Route::get('/home', [PageController::class, 'home'])->name('home');
-    Route::get('/shop', [PageController::class, 'shop'])->name('shop');
-    Route::get('/shop/{product}', [PageController::class, 'product'])->name('products.show');
-    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
-    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
     Route::get('/checkout', [PageController::class, 'checkout'])->name('checkout');
     Route::post('/checkout', [PageController::class, 'storeCheckout'])->name('checkout.store');
     Route::get('/orders/confirmation/{order}', [PageController::class, 'orderConfirmation'])->name('orders.confirmation');
@@ -155,7 +165,6 @@ Route::middleware('auth')->group(function () {
 
     // Legacy URLs (keep your original exact UI links working)
     Route::get('/ferosa-home.html', [PageController::class, 'home'])->name('legacy.home');
-    Route::get('/ferosa-shop.html', [PageController::class, 'shop'])->name('legacy.shop');
     Route::get('/ferosa-orders.html', [PageController::class, 'orders'])->name('legacy.orders');
     Route::get('/ferosa-schedule.html', [PageController::class, 'schedule'])->name('legacy.schedule');
     Route::get('/ferosa-estimator.html', [PageController::class, 'estimator'])->name('legacy.estimator');

@@ -504,12 +504,15 @@
               Book Consultation
             </a>
 
-            <button onclick="openArVisualizer()"
-                    class="w-full bg-white hover:bg-surface-50 text-surface-700 font-medium py-3 rounded-xl text-sm border border-surface-200 transition-colors flex justify-center items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"/><path d="M12 12l8-5"/><path d="M12 12v9"/><path d="M12 12L4 7"/></svg>
-              Visualize in AR
-            </button>
-
+            {{-- AR lives in the Android app, which owns the camera and ARCore.
+                 This used to be a button that deep-linked to `ferosa://ar`; in a
+                 desktop browser it could only ever open a modal saying "use your
+                 phone", so it read as a broken control. A plain note states the
+                 capability without offering a click that cannot deliver it. --}}
+            <p class="flex justify-center items-center gap-1.5 pt-1 text-[11px] text-surface-400">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"/><path d="M12 12l8-5"/><path d="M12 12v9"/><path d="M12 12L4 7"/></svg>
+              AR preview available in the Ferosa Android app
+            </p>
             <button onclick="shareEstimate()"
                     class="w-full text-surface-400 hover:text-surface-600 text-xs py-1 flex justify-center items-center gap-1.5 transition-colors">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -825,52 +828,6 @@
     text.textContent = checked;
     badge.classList.toggle('hidden', checked === 0);
     badge.classList.toggle('inline-flex', checked > 0);
-  }
-
-  function openArVisualizer() {
-    const type  = document.querySelector('input[name="project_type"]:checked')?.value || 'design';
-    const size  = document.getElementById('size-input')?.value || '100';
-    const cost  = document.querySelector('[data-estimate-total]')?.textContent?.replace(/[^0-9]/g, '') || '0';
-    const id    = 'est-' + Date.now();
-    const link  = `ferosa://ar?designId=${id}&type=${type}&size=${size}&cost=${cost}`;
-
-    if (/android/i.test(navigator.userAgent)) {
-      const t = setTimeout(() => {
-        if (confirm('Ferosa AR app is required.\n\nWould you like to install it?'))
-          window.location.href = 'https://play.google.com/store/apps/details?id=com.example.ferosa_landscaping';
-      }, 1500);
-      window.addEventListener('blur', () => clearTimeout(t), { once: true });
-      window.location.href = link;
-    } else {
-      showArModal(link);
-    }
-  }
-
-  function showArModal(deepLink) {
-    document.getElementById('ar-modal')?.remove();
-    const m = document.createElement('div');
-    m.id = 'ar-modal';
-    m.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4';
-    m.innerHTML = `
-      <div class="bg-white rounded-2xl border border-surface-100 p-6 max-w-sm w-full shadow-xl">
-        <div class="w-11 h-11 bg-brand-50 rounded-xl flex items-center justify-center mb-4">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand-600)" stroke-width="1.75">
-            <path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"/><path d="M12 12l8-5"/><path d="M12 12v9"/><path d="M12 12L4 7"/>
-          </svg>
-        </div>
-        <h3 class="text-sm font-semibold text-surface-900 mb-1">AR Visualization</h3>
-        <p class="text-xs text-surface-400 mb-4">Open this page on your Android phone to place a 3D landscaping preview in your real space using ARCore.</p>
-        <div class="bg-surface-50 rounded-lg p-3 border border-surface-100 mb-4">
-          <p class="text-[10px] text-surface-400 mb-1">Deep link</p>
-          <p class="text-xs font-mono text-surface-600 break-all">${deepLink}</p>
-        </div>
-        <button onclick="document.getElementById('ar-modal').remove()"
-                class="btn btn-primary btn-block">
-          Got it
-        </button>
-      </div>`;
-    m.addEventListener('click', e => { if (e.target === m) m.remove(); });
-    document.body.appendChild(m);
   }
 
   // ─── Share ────────────────────────────────────────────────────────────────

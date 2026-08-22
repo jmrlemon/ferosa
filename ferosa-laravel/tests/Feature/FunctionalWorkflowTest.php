@@ -361,6 +361,36 @@ class FunctionalWorkflowTest extends TestCase
         $this->assertDatabaseCount('cart_items', 0);
     }
 
+    public function test_selling_out_mid_checkout_returns_the_customer_to_the_form_with_a_reason(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $product = $this->product(stock: 2);
+
+        $this->actingAs($customer)->postJson('/api/cart/items', [
+            'product_id' => $product->id,
+            'quantity' => 2,
+        ])->assertOk();
+
+        // Someone else clears the shelf between the cart and the submit.
+        $product->update(['stock_qty' => 0]);
+
+        $response = $this->actingAs($customer)->post(route('checkout.store'), [
+            'delivery_method' => 'pickup',
+            'payment_method' => 'cod',
+        ]);
+
+        // Back on checkout with the reason - not the framework's 422 error page,
+        // which said only "Something is broken" once APP_DEBUG was off.
+        $response->assertRedirect();
+        $response->assertSessionHasErrors(['cart' => "{$product->name} is out of stock."]);
+
+        // Nothing was half-written, and the cart survives so they can adjust it.
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseHas('cart_items', ['product_id' => $product->id]);
+    }
+
     public function test_invalid_order_transition_is_blocked_and_cancellation_restores_stock_once(): void
     {
         Notification::fake();
@@ -424,6 +454,41 @@ class FunctionalWorkflowTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame(2, Appointment::query()->count());
+    }
+
+    public function test_bookings_outside_the_published_visit_times_are_rejected(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Lawn Care',
+            'default_fee' => 5000,
+            'is_active' => true,
+        ]);
+
+        // The form never offers 03:17; posting it directly used to schedule a
+        // crew for the middle of the night.
+        $this->actingAs($customer)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => Carbon::now()->addDays(5)->setTime(3, 17)->format('Y-m-d H:i:s'),
+        ])->assertSessionHasErrors('appointment_at');
+
+        $this->assertSame(0, Appointment::query()->count());
+
+        // Every published slot still books cleanly.
+        foreach (Appointment::SLOT_TIMES as $index => $slot) {
+            [$hour, $minute] = array_map('intval', explode(':', $slot));
+            $this->actingAs($customer)->post(route('schedule.store'), [
+                'service_type_id' => $service->id,
+                'appointment_at' => Carbon::now()->addDays(5 + $index)->setTime($hour, $minute)->format('Y-m-d H:i:s'),
+            ])->assertSessionHasNoErrors();
+
+            // One active booking at a time, so clear the way for the next slot.
+            Appointment::query()->update(['status' => 'completed', 'slot_key' => null]);
+        }
+
+        $this->assertSame(count(Appointment::SLOT_TIMES), Appointment::query()->count());
     }
 
     public function test_estimator_shows_concrete_examples_for_every_quality_tier(): void

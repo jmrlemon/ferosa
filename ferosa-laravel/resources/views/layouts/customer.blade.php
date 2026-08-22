@@ -575,6 +575,15 @@
   @include('partials.type-scale')
 </head>
 <body class="flex h-screen bg-surface-50 text-surface-900 overflow-hidden font-sans antialiased{{ $inApp ? ' in-app' : '' }}" id="app-body">
+@php
+  // `home` is behind auth, so for a guest browsing the public storefront the
+  // brand mark has to lead somewhere they can actually reach.
+  $brandHomeUrl = auth()->check() ? route('home') : route('landing');
+
+  // A logged-out visitor is not inside any dashboard. Calling the chrome one is
+  // what made the public storefront read as somebody's private account page.
+  $sectionLabel = auth()->check() ? 'Customer dashboard' : 'Plants and landscaping';
+@endphp
 
   <a href="#main-content" class="skip-link">Skip to main content</a>
 
@@ -588,7 +597,7 @@
       <!-- Brand -->
       <div class="px-6 pt-6 pb-5">
         <div class="flex items-center justify-between">
-          <a href="{{ route('home') }}" class="flex items-center gap-3">
+          <a href="{{ $brandHomeUrl }}" class="flex items-center gap-3">
             <div class="w-10 h-10 bg-brand-700 rounded-xl flex items-center justify-center shadow-soft">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path d="M12 3C12 3 7 6.5 7 12c0 2.76 1.34 5.22 3.4 6.74.38-.48.93-.74 1.6-.74s1.22.26 1.6.74C15.66 17.22 17 14.76 17 12c0-5.5-5-9-5-9z" fill="white"/>
@@ -596,7 +605,7 @@
             </div>
             <span>
               <span class="block font-display font-bold text-[19px] leading-5 text-surface-900 tracking-tight">Ferosa</span>
-              <span class="block mt-0.5 text-[10px] font-semibold uppercase tracking-[.13em] text-surface-400">Customer dashboard</span>
+              <span class="block mt-0.5 text-[10px] font-semibold uppercase tracking-[.13em] text-surface-400">{{ $sectionLabel }}</span>
             </span>
           </a>
         </div>
@@ -609,10 +618,12 @@
       <nav class="flex flex-col w-full py-2 space-y-0.5">
         <span class="px-7 py-2 text-[11px] font-semibold text-surface-400 uppercase tracking-wider">Menu</span>
 
+        @auth
         <a href="{{ route('home') }}" class="nav-link flex items-center gap-3 w-full text-left px-4 py-2.5 text-[13px] {{ request()->routeIs('home') ? 'active' : '' }}">
           <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
           Home
         </a>
+        @endauth
         <a href="{{ route('shop') }}" class="nav-link flex items-center gap-3 w-full text-left px-4 py-2.5 text-[13px] {{ request()->routeIs('shop') || request()->routeIs('products.*') ? 'active' : '' }}">
           <svg class="w-[18px] h-[18px] flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
           Shop
@@ -639,6 +650,7 @@
         </a>
         @endauth
 
+        @auth
         <span class="px-7 pt-5 pb-2 text-[11px] font-semibold text-surface-400 uppercase tracking-wider">Tools</span>
 
         <a href="{{ route('estimator') }}" class="nav-link flex items-center gap-3 w-full text-left px-4 py-2.5 text-[13px] {{ request()->routeIs('estimator') ? 'active' : '' }}">
@@ -646,8 +658,6 @@
           Cost Estimator
         </a>
 
-
-        @auth
         <span class="px-7 pt-5 pb-2 text-[11px] font-semibold text-surface-400 uppercase tracking-wider">Support</span>
 
         <a href="{{ route('messages') }}" class="nav-link flex items-center gap-3 w-full text-left px-4 py-2.5 text-[13px] {{ request()->routeIs('messages') ? 'active' : '' }}">
@@ -717,7 +727,7 @@
     @endphp
     <header class="app-topbar hidden lg:flex h-[72px] flex-shrink-0 items-center justify-between gap-5 border-b border-surface-100 px-7 relative z-30">
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-[.14em] text-brand-600">Customer dashboard</p>
+        <p class="text-[10px] font-bold uppercase tracking-[.14em] text-brand-600">{{ $sectionLabel }}</p>
         <p class="mt-0.5 text-sm font-bold text-surface-800">{{ $currentPage[0] }} <span class="ml-2 font-normal text-surface-400">{{ $currentPage[1] }}</span></p>
       </div>
       @auth
@@ -748,7 +758,7 @@
     </header>
     <!-- Mobile Header (hidden when running inside Android app) -->
     <header class="mobile-app-header lg:hidden bg-white border-b border-surface-100 h-14 flex items-center justify-between px-4 flex-shrink-0 z-30">
-      <a href="{{ route('home') }}" class="flex items-center gap-2.5">
+      <a href="{{ $brandHomeUrl }}" class="flex items-center gap-2.5">
         <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M12 3C12 3 7 6.5 7 12c0 2.76 1.34 5.22 3.4 6.74.38-.48.93-.74 1.6-.74s1.22.26 1.6.74C15.66 17.22 17 14.76 17 12c0-5.5-5-9-5-9z" fill="white"/>

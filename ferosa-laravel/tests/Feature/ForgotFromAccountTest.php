@@ -92,8 +92,16 @@ class ForgotFromAccountTest extends TestCase
             ->assertSee('<div class="page active" id="page-login">', false);
     }
 
-    public function test_root_route_still_renders_for_guests(): void
+    /**
+     * The root URL used to render the login pane itself. It now renders the
+     * public landing page instead, so what still matters is that a guest hits
+     * a working page rather than an error, and can reach sign-in from there.
+     * `/login` continuing to render the auth panes is covered above.
+     */
+    public function test_root_route_sends_guests_somewhere_usable(): void
     {
-        $this->get('/')->assertOk()->assertSee('page-login', false);
+        $this->get('/')
+            ->assertOk()
+            ->assertSee(route('login'), false);
     }
 }

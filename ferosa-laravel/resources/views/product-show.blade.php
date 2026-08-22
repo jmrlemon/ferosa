@@ -73,22 +73,38 @@
         <p class="mt-6 text-[15px] leading-7 text-surface-500">Ask the Ferosa team about sizing, care, placement, and current availability before checkout.</p>
       @endif
 
-      @if($product->inStock())
-        <div id="product-buy-bar" class="mt-7 grid items-end gap-3 sm:grid-cols-[120px_1fr]">
-          <div class="product-buy-price">
-            <p class="text-[10px] font-bold uppercase tracking-wide text-surface-400">Price</p>
-            <p class="font-display text-lg font-bold text-brand-800 whitespace-nowrap">&#8369;{{ number_format((float) $product->price, 2) }}</p>
+      {{-- Guests see the price and stock but buy nothing: the cart lives on the
+           server behind `auth`, so the whole buy bar becomes a sign-in prompt
+           rather than a control that would fail on submit. --}}
+      @guest
+        <div class="mt-7 rounded-2xl border border-brand-100 bg-brand-50 p-5">
+          <p class="text-sm font-bold text-surface-900">
+            {{ $product->inStock() ? 'Sign in to order this item' : 'Sign in to ask about availability' }}
+          </p>
+          <p class="mt-1 text-[13px] leading-6 text-surface-600">Create a free account to add items to your cart, book a service visit, and track delivery.</p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a href="{{ route('login') }}" class="btn btn-primary btn-sm">Sign in</a>
+            <a href="{{ route('register') }}" class="btn btn-secondary btn-sm">Create account</a>
           </div>
-          <div>
-            <label for="product-quantity" class="field-label">Quantity</label>
-            <input id="product-quantity" type="number" min="1" max="{{ $product->stock_qty }}" value="1" class="field h-[50px] text-base">
-          </div>
-          <button id="product-add-button" type="button" class="btn btn-primary btn-lg disabled:cursor-wait disabled:opacity-70">Add to cart</button>
         </div>
-        <a href="{{ route('checkout') }}" class="btn btn-soft btn-lg btn-block mt-3">Review cart and checkout</a>
       @else
-        <a href="{{ route('messages') }}" class="btn btn-primary btn-lg mt-7">Ask about availability</a>
-      @endif
+        @if($product->inStock())
+          <div id="product-buy-bar" class="mt-7 grid items-end gap-3 sm:grid-cols-[120px_1fr]">
+            <div class="product-buy-price">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-surface-400">Price</p>
+              <p class="font-display text-lg font-bold text-brand-800 whitespace-nowrap">&#8369;{{ number_format((float) $product->price, 2) }}</p>
+            </div>
+            <div>
+              <label for="product-quantity" class="field-label">Quantity</label>
+              <input id="product-quantity" type="number" min="1" max="{{ $product->stock_qty }}" value="1" class="field h-[50px] text-base">
+            </div>
+            <button id="product-add-button" type="button" class="btn btn-primary btn-lg disabled:cursor-wait disabled:opacity-70">Add to cart</button>
+          </div>
+          <a href="{{ route('checkout') }}" class="btn btn-soft btn-lg btn-block mt-3">Review cart and checkout</a>
+        @else
+          <a href="{{ route('messages') }}" class="btn btn-primary btn-lg mt-7">Ask about availability</a>
+        @endif
+      @endguest
 
       <div class="mt-7 grid gap-3 sm:grid-cols-2">
         <div class="rounded-2xl border border-surface-200 bg-white p-4">

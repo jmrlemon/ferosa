@@ -42,6 +42,9 @@ class Product extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    /**
+     * @return HasOne<PlantModel, $this>
+     */
     public function plantModel(): HasOne
     {
         return $this->hasOne(PlantModel::class);

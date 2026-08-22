@@ -27,6 +27,14 @@ class Appointment extends Model
         'cancelled' => [],
     ];
 
+    /**
+     * The visit times a crew can be dispatched to. The booking form renders its
+     * buttons from this list and StoreScheduleRequest validates against it, so
+     * the two cannot drift: the times used to live only in the Blade template,
+     * which meant a posted 3 a.m. appointment was accepted without complaint.
+     */
+    public const SLOT_TIMES = ['09:00', '10:30', '13:00', '14:30', '16:00'];
+
     protected $fillable = [
         'user_id',
         'service_type_id',

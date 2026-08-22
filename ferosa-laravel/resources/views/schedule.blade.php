@@ -33,7 +33,7 @@
     sub="Choose your service first, then pick an available date and time. We confirm within one business day.">
     <x-slot:icon>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
+        <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M12 14v4M10 16h4"/>
       </svg>
     </x-slot:icon>
   </x-page-head>
@@ -167,7 +167,7 @@
             <h3 class="text-sm font-bold text-surface-900">Select a time</h3>
           </div>
           <div class="grid grid-cols-2 gap-2" id="time-slots">
-            @foreach (['09:00', '10:30', '13:00', '14:30', '16:00'] as $t)
+            @foreach (\App\Models\Appointment::SLOT_TIMES as $t)
               <button type="button"
                 class="time-slot min-h-[44px] border border-surface-200 py-2 rounded-xl text-xs font-bold text-surface-600"
                 data-time="{{ $t }}"

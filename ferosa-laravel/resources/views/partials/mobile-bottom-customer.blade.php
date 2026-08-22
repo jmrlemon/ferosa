@@ -33,6 +33,25 @@
   }
 </style>
 <nav class="mobile-customer-nav lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-surface-100 bg-white/95 backdrop-blur-xl" aria-label="Primary navigation">
+  @guest
+  {{-- Home, Estimate and Book are all behind auth, so a guest tapping them
+       would only ever bounce to the login screen. Show the two public
+       destinations and a way in instead. --}}
+  <div class="grid grid-cols-3 max-w-md mx-auto px-2 pt-1 text-[11px] text-center">
+    <a href="{{ route('shop') }}" class="mobile-nav-link {{ $shopActive }} flex flex-col items-center justify-center gap-1" @if($shopActive) aria-current="page" @endif>
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 0 0-8 0v4M5 9h14l1 12H4L5 9Z"/></svg>
+      Shop
+    </a>
+    <a href="{{ route('projects.index') }}" class="mobile-nav-link {{ $active('projects.index') }} flex flex-col items-center justify-center gap-1" @if($r === 'projects.index') aria-current="page" @endif>
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6"/></svg>
+      Projects
+    </a>
+    <a href="{{ route('login') }}" class="mobile-nav-link flex flex-col items-center justify-center gap-1">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h7a3 3 0 0 1 3 3v1"/></svg>
+      Sign in
+    </a>
+  </div>
+  @else
   <div class="grid grid-cols-5 max-w-md mx-auto px-2 pt-1 text-[11px] text-center">
     <a href="{{ route('home') }}" class="mobile-nav-link {{ $active('home') }} flex flex-col items-center justify-center gap-1" @if($r === 'home') aria-current="page" @endif>
       <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0 7-7 7 7M5 10v10a1 1 0 0 0 1 1h3m10-11 2 2m-2-2v10a1 1 0 0 1-1 1h-3m-6 0a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1m-6 0h6"/></svg>
@@ -60,4 +79,5 @@
       More
     </button>
   </div>
+  @endguest
 </nav>

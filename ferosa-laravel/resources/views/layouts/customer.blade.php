@@ -447,6 +447,31 @@
       cursor: wait;
     }
 
+    /* Keep the outgoing document from showing while a normal browser
+       navigation waits for the next server-rendered page. */
+    .page-navigation-cover {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f8f7f3;
+    }
+    .page-navigation-cover.hidden { display: none; }
+    .page-navigation-spinner {
+      width: 1.5rem;
+      height: 1.5rem;
+      border: 2px solid #d8ecdf;
+      border-top-color: #236746;
+      border-radius: 999px;
+      animation: pageNavigationSpin .7s linear infinite;
+    }
+    @keyframes pageNavigationSpin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .page-navigation-spinner { animation-duration: 1ms; }
+    }
+
     /* When running inside the Android WebView app:
        • Hide the web mobile header & bottom nav — the native app provides its own
        • Make the body and content wrapper scrollable (no fixed-height clipping)
@@ -768,6 +793,11 @@
     <div id="main-content" class="flex-1 overflow-y-auto relative w-full h-full bg-surface-50" tabindex="-1">
       @yield('content')
     </div>
+  </div>
+
+  <div id="page-navigation-cover" class="page-navigation-cover hidden" aria-hidden="true">
+    <span class="page-navigation-spinner" aria-hidden="true"></span>
+    <span class="sr-only">Loading page</span>
   </div>
 
   <script>
@@ -1153,6 +1183,44 @@
         updateHeaderCartCount();
       }
     });
+  </script>
+
+  <script>
+    (() => {
+      const cover = document.getElementById('page-navigation-cover');
+      if (!cover) return;
+
+      function showNavigationCover() {
+        cover.classList.remove('hidden');
+        cover.setAttribute('aria-hidden', 'false');
+      }
+
+      function shouldCoverLink(event, link) {
+        if (!link || event.defaultPrevented || event.button !== 0) return false;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+        if (link.target && link.target.toLowerCase() !== '_self') return false;
+        if (link.hasAttribute('download') || link.dataset.noNavigationCover === 'true') return false;
+
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return false;
+
+        try {
+          const destination = new URL(link.href, window.location.href);
+          if (destination.origin !== window.location.origin) return false;
+          return destination.pathname !== window.location.pathname ||
+            destination.search !== window.location.search;
+        } catch {
+          return false;
+        }
+      }
+
+      document.addEventListener('click', event => {
+        const link = event.target instanceof Element
+          ? event.target.closest('a[href]')
+          : null;
+        if (shouldCoverLink(event, link)) showNavigationCover();
+      });
+    })();
   </script>
 
   <!-- Notification dropdown panel (positioned outside sidebar to avoid overflow issues) -->

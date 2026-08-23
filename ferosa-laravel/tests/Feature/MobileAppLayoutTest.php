@@ -27,6 +27,14 @@ class MobileAppLayoutTest extends TestCase
         $this->assertStringNotContainsString('in-app', $body[0]);
     }
 
+    public function test_browser_navigation_has_a_cover_for_the_outgoing_page(): void
+    {
+        $html = $this->actingAs($this->customer())->get('/shop')->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="page-navigation-cover"', $html);
+        $this->assertStringContainsString('cover.classList.remove(\'hidden\')', $html);
+    }
+
     public function test_android_app_requests_render_the_in_app_layout(): void
     {
         $html = $this->actingAs($this->customer())

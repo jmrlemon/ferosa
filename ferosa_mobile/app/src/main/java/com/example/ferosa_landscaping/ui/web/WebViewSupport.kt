@@ -187,6 +187,65 @@ internal fun webDestinationMatches(actualUrl: String, expectedUrl: String): Bool
 }
 
 /**
+ * Whether the outgoing WebView frame must be hidden while a destination loads.
+ *
+ * The shared WebView keeps drawing its previous document until the new
+ * document commits. The cover therefore stays up whenever the selected web
+ * destination is not the document that has committed for the current screen,
+ * including reloads of the same URL.
+ */
+internal fun shouldShowWebNavigationCover(
+    isNativeScreen: Boolean,
+    hasTargetUrl: Boolean,
+    targetIsReady: Boolean,
+    currentScreenReady: Boolean,
+    isLoading: Boolean,
+): Boolean {
+    if (isNativeScreen || !hasTargetUrl) return false
+
+    // A WebView can legitimately be on a detail page inside the selected tab
+    // (for example /shop/17 while the Shop tab is selected). Once that tab has
+    // committed, do not cover those internal pages merely because their URL is
+    // different from the tab's landing URL.
+    return isLoading || (!currentScreenReady && !targetIsReady)
+}
+
+/**
+ * Whether the WebView is actually ready to reveal for a tab navigation.
+ *
+ * [readyUrlMatchesTarget] alone is not enough: it can describe an older visit
+ * to the target while the shared WebView is currently showing another page or
+ * still has a different request in flight.
+ */
+internal fun isWebTargetReady(
+    readyUrlMatchesTarget: Boolean,
+    currentDocumentMatchesTarget: Boolean,
+    hasInFlightNavigation: Boolean,
+): Boolean = readyUrlMatchesTarget && currentDocumentMatchesTarget && !hasInFlightNavigation
+
+/**
+ * Whether a WebView commit may reveal the native navigation cover.
+ *
+ * A callback for the old tab can arrive after a new tab has been selected. It
+ * may still match the WebView's current URL, so the callback must also be for
+ * the active tab's target or for an already-committed page inside that tab.
+ * `onPageFinished` is deliberately not enough: it can arrive before WebView
+ * has drawn the new document, leaving the old raster visible for a frame.
+ */
+internal fun shouldReleaseWebNavigationCover(
+    callbackMatchesCurrentDocument: Boolean,
+    isNativeScreen: Boolean,
+    currentScreenReady: Boolean,
+    callbackMatchesTarget: Boolean,
+    callbackIsVisibleCommit: Boolean = true,
+): Boolean {
+    if (!callbackIsVisibleCommit || !callbackMatchesCurrentDocument || isNativeScreen) {
+        return false
+    }
+    return currentScreenReady || callbackMatchesTarget
+}
+
+/**
  * Whether a WebView callback still belongs to the document the WebView is
  * displaying now.
  *

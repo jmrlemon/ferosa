@@ -15,6 +15,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,7 +24,6 @@ import androidx.annotation.RequiresApi
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -75,10 +75,57 @@ import com.example.ferosa_landscaping.ui.web.buildFileChooserIntent
 import com.example.ferosa_landscaping.ui.web.createImageCaptureUri
 import com.example.ferosa_landscaping.ui.web.downloadNeedsLegacyPermission
 import com.example.ferosa_landscaping.ui.web.enqueueBrowserDownload
+import com.example.ferosa_landscaping.ui.web.isWebTargetReady
 import com.example.ferosa_landscaping.ui.web.resolveFileChooserResult
+import com.example.ferosa_landscaping.ui.web.shouldReleaseWebNavigationCover
+import com.example.ferosa_landscaping.ui.web.shouldShowWebNavigationCover
 import com.example.ferosa_landscaping.ui.web.webCallbackMatchesCurrentDocument
 import com.example.ferosa_landscaping.ui.web.webDestinationMatches
 import kotlinx.coroutines.delay
+
+/** Imperatively covers the old WebView frame before Compose changes screens. */
+class WebNavigationCoverController {
+    private var showCover: (() -> Unit)? = null
+    private var coverRequested = false
+    private var requestedTarget: AppScreen? = null
+
+    fun attach(showCover: () -> Unit) {
+        this.showCover = showCover
+        if (coverRequested) showCover()
+    }
+
+    fun showImmediately(target: AppScreen? = null) {
+        coverRequested = true
+        requestedTarget = target
+        showCover?.invoke()
+    }
+
+    /** Shows the cover without replacing a newer tab destination request. */
+    fun ensureShown() {
+        coverRequested = true
+        showCover?.invoke()
+    }
+
+    /**
+     * Releases only when the commit belongs to the destination that requested
+     * the cover. This closes the small window where an old callback can arrive
+     * before Compose has published the new currentScreen value.
+     */
+    fun releaseFor(screen: AppScreen): Boolean {
+        if (coverRequested && requestedTarget != null && requestedTarget != screen) {
+            return false
+        }
+        release()
+        return true
+    }
+
+    fun release() {
+        coverRequested = false
+        requestedTarget = null
+    }
+
+    fun isRequested(): Boolean = coverRequested
+}
 
 /**
  * Main content area that holds:
@@ -96,6 +143,7 @@ fun AppContent(
     userRole: String,
     summary: AccountSummary,
     onNavigate: (AppScreen) -> Unit,
+    webNavigationCoverController: WebNavigationCoverController,
     onLoggedOut: () -> Unit,
     onOpenAr: (ArLaunchRequest) -> Unit,
     onRefreshSummary: () -> Unit,
@@ -205,6 +253,7 @@ fun AppContent(
     // Reference to the single shared WebView and its pull-to-refresh container.
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
     val swipeRefreshRef = remember { mutableStateOf<SwipeRefreshLayout?>(null) }
+    val webLoadingCoverRef = remember { mutableStateOf<View?>(null) }
 
     val targetUrl = remember(currentScreen) { currentScreen.webUrl() }
 
@@ -216,11 +265,28 @@ fun AppContent(
     // both wanted the same page - this keeps that from becoming two requests.
     val inFlightUrl = remember { mutableStateOf<String?>(null) }
     val isNativeScreen = currentScreen.isNativeFor(userRole)
-    val hasReadyTarget = targetUrl != null && readyWebUrl?.let { readyUrl ->
-        webDestinationMatches(readyUrl, targetUrl)
-    } == true
-    val showWebLoading = !loadFailed && !isNativeScreen && targetUrl != null &&
-        !hasReadyTarget && (isLoading || webPageReadyFor != currentScreen)
+    fun targetWebPageIsReady(url: String?): Boolean {
+        if (url == null) return false
+
+        return isWebTargetReady(
+            readyUrlMatchesTarget = readyWebUrl?.let { readyUrl ->
+                webDestinationMatches(readyUrl, url)
+            } == true,
+            currentDocumentMatchesTarget = webViewRef.value?.url?.let { currentUrl ->
+                webDestinationMatches(currentUrl, url)
+            } == true,
+            hasInFlightNavigation = inFlightUrl.value != null,
+        )
+    }
+
+    val targetIsReady = targetWebPageIsReady(targetUrl)
+    val showWebLoading = !loadFailed && shouldShowWebNavigationCover(
+        isNativeScreen = isNativeScreen,
+        hasTargetUrl = targetUrl != null,
+        targetIsReady = targetIsReady,
+        currentScreenReady = webPageReadyFor == currentScreen,
+        isLoading = isLoading,
+    )
 
     // Where "back" bottoms out before the app should close.
     val rootScreen = if (userRole == "admin" || userRole == "staff") {
@@ -254,6 +320,9 @@ fun AppContent(
         // navigation destination; loading it here would cancel the hidden Shop
         // warm-up and briefly expose the web Home page before Shop.
         if (isNativeScreen) {
+            // Keep the native cover requested behind Compose while its
+            // AnimatedContent transition is still fading in. The next web
+            // tab releases it only after its own document commits.
             isLoading = false
             return@LaunchedEffect
         }
@@ -269,13 +338,23 @@ fun AppContent(
             inFlightUrl.value = null
         }
 
-        if (url != null && readyWebUrl?.let { webDestinationMatches(it, url) } == true) {
+        val targetIsReadyNow = targetWebPageIsReady(url)
+        // A tab can have been ready during an earlier visit while the shared
+        // WebView is now displaying a different document. Do not let that old
+        // readiness flag make a late callback reveal the outgoing page.
+        if (url != null && !targetIsReadyNow && webPageReadyFor == currentScreen) {
+            webPageReadyFor = null
+        }
+        if (url != null && targetIsReadyNow) {
             webPageReadyFor = currentScreen
             tabHistoryBaseline =
                 webViewRef.value?.copyBackForwardList()?.currentIndex ?: -1
             inFlightUrl.value = null
             isLoading = false
-        } else if (url != null && webPageReadyFor != currentScreen) {
+            webNavigationCoverController.releaseFor(currentScreen)
+        } else if (url != null &&
+            (webPageReadyFor != currentScreen || !targetIsReadyNow)
+        ) {
             isLoading = true
             // The WebView's factory issues the first load itself, so without this
             // guard startup requested the landing page twice.
@@ -310,6 +389,7 @@ fun AppContent(
             inFlightUrl.value = null
             loadFailed = true
             isLoading = false
+            webNavigationCoverController.release()
         }
     }
 
@@ -400,7 +480,7 @@ fun AppContent(
                     }
 
                     webViewClient = object : WebViewClient() {
-                        /** Reveal the current tab as soon as WebView commits drawable content. */
+                        /** Reveal the current tab only after drawable content commits. */
                         private fun settleVisiblePage(view: WebView?, url: String?): Boolean {
                             if (url == null ||
                                 !webCallbackMatchesCurrentDocument(url, view?.url)
@@ -418,6 +498,7 @@ fun AppContent(
 
                             if (url.endsWith("/login") || url.contains("/login?")) {
                                 isLoading = false
+                                webNavigationCoverController.release()
                                 onLoggedOut()
                                 return true
                             }
@@ -435,6 +516,19 @@ fun AppContent(
                                 }
                                 webPageReadyFor = latestScreen.value
                                 isLoading = false
+                            }
+
+                            if (shouldReleaseWebNavigationCover(
+                                    callbackMatchesCurrentDocument = true,
+                                    isNativeScreen = latestScreen.value.isNativeFor(userRole),
+                                    currentScreenReady = webPageReadyFor == latestScreen.value,
+                                    callbackMatchesTarget = expectedUrl?.let {
+                                        webDestinationMatches(url, it)
+                                    } == true,
+                                    callbackIsVisibleCommit = true,
+                                )
+                            ) {
+                                webNavigationCoverController.releaseFor(latestScreen.value)
                             }
                             return true
                         }
@@ -455,6 +549,7 @@ fun AppContent(
                             webPageReadyFor = null
                             loadFailed = true
                             isLoading = false
+                            webNavigationCoverController.release()
                         }
 
                         override fun shouldOverrideUrlLoading(
@@ -502,14 +597,27 @@ fun AppContent(
                         }
 
                         override fun onPageFinished(view: WebView?, url: String?) {
-                            // Backstop for WebView implementations that do not
-                            // dispatch onPageCommitVisible consistently.
-                            if (settleVisiblePage(view, url)) {
-                                view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
-                                // A page the user navigated to may have changed the
-                                // cart or read their messages; keep the badges honest.
-                                onRefreshSummary()
+                            // onPageFinished can precede WebView's first raster
+                            // for the new document. It must not mark the tab ready
+                            // or clear inFlightUrl, otherwise the timeout/covers
+                            // can be bypassed while the old frame is still visible.
+                            if (url == null ||
+                                !webCallbackMatchesCurrentDocument(url, view?.url)
+                            ) {
+                                return
                             }
+
+                            if (url.endsWith("/login") || url.contains("/login?")) {
+                                isLoading = false
+                                webNavigationCoverController.release()
+                                onLoggedOut()
+                                return
+                            }
+
+                            view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                            // A page the user navigated to may have changed the
+                            // cart or read their messages; keep the badges honest.
+                            onRefreshSummary()
                         }
 
                         override fun onPageStarted(
@@ -519,6 +627,17 @@ fun AppContent(
                         ) {
                             // A fresh navigation clears any previous failure.
                             loadFailed = false
+
+                            // This callback also covers links opened inside a
+                            // rendered web page. Those do not change the native
+                            // tab enum, so navigateTo() cannot cover them.
+                            webNavigationCoverController.ensureShown()
+                            if (inFlightUrl.value == null && url != null) {
+                                inFlightUrl.value = url
+                            }
+                            if (!latestScreen.value.isNativeFor(userRole)) {
+                                isLoading = true
+                            }
                         }
 
                         @Suppress("OVERRIDE_DEPRECATION")
@@ -561,6 +680,7 @@ fun AppContent(
                             webPageReadyFor = null
                             loadFailed = true
                             isLoading = false
+                            webNavigationCoverController.release()
                             return true
                         }
                     }
@@ -587,7 +707,7 @@ fun AppContent(
                 // Compose's PullToRefreshBox never sees scroll from a WebView
                 // inside AndroidView, so the classic view-system container is
                 // the one that actually works here.
-                SwipeRefreshLayout(ctx).apply {
+                val swipeRefresh = SwipeRefreshLayout(ctx).apply {
                     setColorSchemeColors(Brand600.toArgb())
                     addView(
                         createdWebView,
@@ -607,9 +727,41 @@ fun AppContent(
                     }
                     swipeRefreshRef.value = this
                 }
+
+                // Keep the cover in the same native view hierarchy as the
+                // WebView. A Compose canvas drawn beside AndroidView is not
+                // guaranteed to be above the native child on every renderer.
+                val root = FrameLayout(ctx).apply {
+                    setBackgroundColor(AndroidColor.rgb(248, 247, 243))
+                    addView(
+                        swipeRefresh,
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        ),
+                    )
+                }
+                val webLoadingCover = View(ctx).apply {
+                    setBackgroundColor(AndroidColor.rgb(248, 247, 243))
+                    isClickable = true
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }
+                root.addView(
+                    webLoadingCover,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+                webLoadingCoverRef.value = webLoadingCover
+                webNavigationCoverController.attach {
+                    webLoadingCover.visibility = View.VISIBLE
+                    webLoadingCover.bringToFront()
+                }
+                root
             },
             modifier = Modifier.fillMaxSize(),
-            update = { container ->
+            update = {
                 // The WebView is never hidden with View.INVISIBLE, and that is the
                 // whole point. An invisible WebView stops compositing and keeps the
                 // last frame it drew, so hiding it during a tab load meant the new
@@ -619,13 +771,20 @@ fun AppContent(
                 // whole booking form under a highlighted Shop tab.
                 //
                 // Staying visible lets the WebView paint the new page behind the
-                // opaque loading cover below, so by the time the cover is removed
-                // there is real content underneath it. The cover is what hides the
-                // old page now; nothing here needs to.
+                // native loading cover, so by the time the cover is removed there
+                // is real content underneath it. The cover is what hides the old
+                // page now; nothing here needs to.
                 //
                 // Pull-to-refresh would otherwise fire under a native screen or
                 // while the shell is already loading that tab.
-                container.isEnabled = !isNativeScreen && !showWebLoading && !loadFailed
+                webLoadingCoverRef.value?.visibility =
+                    if (showWebLoading || webNavigationCoverController.isRequested()) {
+                        View.VISIBLE
+                    } else {
+                        View.GONE
+                    }
+                swipeRefreshRef.value?.isEnabled =
+                    !isNativeScreen && !showWebLoading && !loadFailed
             },
         )
 
@@ -681,24 +840,6 @@ fun AppContent(
                     )
                 }
             }
-        }
-
-        // ── 2.5. Loading cover — prevents stale/unstyled content flashing ───
-        // This is now the only thing hiding the outgoing page, so it has to be
-        // there on the very first frame of the switch: a fade-in, however short,
-        // is a window where the previous tab is still legible underneath.
-        // Fading out is still worth it - by then the page below is the right one.
-        AnimatedVisibility(
-            visible = showWebLoading,
-            enter = fadeIn(animationSpec = snap()),
-            exit = fadeOut(animationSpec = tween(200)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Surface50)
-            )
         }
 
         // ── 3. Top loading bar ──────────────────────────────────────────────

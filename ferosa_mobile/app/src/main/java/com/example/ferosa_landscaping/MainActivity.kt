@@ -61,6 +61,7 @@ import com.example.ferosa_landscaping.ui.components.formatBadgeCount
 import com.example.ferosa_landscaping.ui.navigation.AppScreen
 import com.example.ferosa_landscaping.ui.shell.AppContent
 import com.example.ferosa_landscaping.ui.shell.ArLaunchRequest
+import com.example.ferosa_landscaping.ui.shell.WebNavigationCoverController
 import com.example.ferosa_landscaping.ui.summary.SummaryViewModel
 import com.example.ferosa_landscaping.ui.theme.Brand50
 import com.example.ferosa_landscaping.ui.theme.Brand600
@@ -148,6 +149,17 @@ private fun FerosaApp(
     var currentScreen by rememberSaveable(stateSaver = AppScreenSaver) {
         mutableStateOf(AppScreen.HOME)
     }
+    val webNavigationCoverController = remember { WebNavigationCoverController() }
+
+    fun navigateTo(screen: AppScreen) {
+        if (screen != currentScreen) {
+            // The WebView can draw its old document during the frame before
+            // Compose applies the new screen. Cover it synchronously from the
+            // tap handler, then let AppContent keep the cover up until commit.
+            webNavigationCoverController.showImmediately(screen)
+        }
+        currentScreen = screen
+    }
 
     val summaryViewModel: SummaryViewModel = viewModel(
         factory = SummaryViewModel.Factory(SummaryRepository(ApiClient.service))
@@ -205,7 +217,7 @@ private fun FerosaApp(
     // Consume a notification tap once signed in.
     LaunchedEffect(pendingTargetScreen.value, isLoggedIn) {
         val target = pendingTargetScreen.value ?: return@LaunchedEffect
-        currentScreen = target
+        navigateTo(target)
         pendingTargetScreen.value = null
     }
 
@@ -221,7 +233,7 @@ private fun FerosaApp(
                 userRole = userRole,
                 cartCount = summary.cartCount,
                 unreadCount = summary.unreadMessages + summary.unreadNotifications,
-                onNavigate = { currentScreen = it },
+                onNavigate = ::navigateTo,
             )
         }
     ) { innerPadding ->
@@ -230,7 +242,8 @@ private fun FerosaApp(
             currentScreen = currentScreen,
             userRole = userRole,
             summary = summary,
-            onNavigate = { currentScreen = it },
+            onNavigate = ::navigateTo,
+            webNavigationCoverController = webNavigationCoverController,
             onLoggedOut = ::signOut,
             onOpenAr = onOpenAr,
             onRefreshSummary = { summaryViewModel.refresh() },

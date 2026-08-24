@@ -1014,6 +1014,9 @@
               <a href="{{ route('admin.dashboard', ['tab' => 'orders']) }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-500 transition-colors hover:border-surface-300 hover:text-surface-800">Reset</a>
             </form>
 
+            {{-- admin.orders.bulk-status is behind the `admin` middleware, so
+                 showing this to staff only gave them a 403. --}}
+            @if($isAdmin)
             <form method="POST" action="{{ route('admin.orders.bulk-status') }}" class="flex items-center gap-2 bg-surface-50 p-1.5 rounded-lg border border-surface-100" id="admin-bulk-orders-form">
               @csrf
               <span class="text-[10px] font-medium text-surface-400 uppercase tracking-wider ml-1 hidden sm:block">Bulk:</span>
@@ -1024,6 +1027,7 @@
               </select>
               <button type="submit" class="bg-white border border-surface-200 text-surface-700 rounded-lg px-2.5 py-1 text-[10px] font-medium hover:bg-surface-50 transition-colors">Apply</button>
             </form>
+            @endif
           </div>
         </div>
 
@@ -1202,14 +1206,14 @@
                         @csrf
                         @method('PUT')
                         <div class="flex flex-col gap-1 min-w-[100px]">
-                          <select name="status" class="border border-surface-200 rounded px-2 py-0.5 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
+                          <select name="status" {{ $isAdmin ? '' : 'disabled' }} class="border border-surface-200 rounded px-2 py-0.5 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
                             @foreach ($inlineStatuses as $status)
                               <option value="{{ $status }}" {{ $order->status === $status ? 'selected' : '' }}>
                                 {{ ucfirst(str_replace('_', ' ', $status)) }}
                               </option>
                             @endforeach
                           </select>
-                          <select name="payment_status" class="border border-surface-200 rounded px-2 py-0.5 text-[10px] {{ $order->payment_status === 'paid' ? 'text-brand-600 bg-brand-50 font-medium' : 'text-surface-600' }} outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
+                          <select name="payment_status" {{ $isAdmin ? '' : 'disabled' }} class="border border-surface-200 rounded px-2 py-0.5 text-[10px] {{ $order->payment_status === 'paid' ? 'text-brand-600 bg-brand-50 font-medium' : 'text-surface-600' }} outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
                             <option value="unpaid" {{ $order->payment_status === 'unpaid' ? 'selected' : '' }}>Unpaid</option>
                             <option value="pending_verification" {{ $order->payment_status === 'pending_verification' ? 'selected' : '' }}>Pending verification</option>
                             <option value="paid" {{ $order->payment_status === 'paid' ? 'selected' : '' }}>Paid</option>

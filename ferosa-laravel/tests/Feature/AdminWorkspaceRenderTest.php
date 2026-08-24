@@ -171,6 +171,36 @@ class AdminWorkspaceRenderTest extends TestCase
         }
     }
 
+    /**
+     * Order status changes are admin-only middleware, so staff must not be
+     * offered the controls: the bulk form used to render for them and 403 on
+     * submit, and the inline selects were live with no way to save.
+     */
+    public function test_staff_are_not_offered_admin_only_order_controls(): void
+    {
+        $this->seedWorkload();
+        $this->actingAs(User::factory()->create(['role' => 'staff']));
+
+        $html = $this->get('/admin?tab=orders')->getContent();
+
+        $this->assertStringNotContainsString(
+            'orders/bulk-status',
+            $html,
+            'Staff were shown the bulk status form, which their role cannot submit.'
+        );
+        $this->assertStringContainsString(
+            'name="status" disabled',
+            $html,
+            'The inline order status select must be disabled for staff.'
+        );
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $adminHtml = $this->get('/admin?tab=orders')->getContent();
+
+        $this->assertStringContainsString('orders/bulk-status', $adminHtml);
+        $this->assertStringNotContainsString('name="status" disabled', $adminHtml);
+    }
+
     public function test_customers_are_kept_out_of_the_admin_workspace(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'user']));

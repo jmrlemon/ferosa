@@ -9,6 +9,7 @@ use App\Models\Feedback;
 use App\Models\Message;
 use App\Models\Order;
 use App\Models\Product;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -19,6 +20,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Laravel's stock `tailwind` pagination view carries `dark:` variants,
+        // so page links rendered black for anyone whose OS is in dark mode
+        // while the rest of the UI stayed light.
+        Paginator::defaultView('vendor.pagination.ferosa');
+        Paginator::defaultSimpleView('vendor.pagination.ferosa');
+
         // A worker keeps one PHP process alive across many jobs, so settings
         // memoised while handling one job would otherwise leak into the next.
         Queue::before(fn () => AppSetting::flushMemo());

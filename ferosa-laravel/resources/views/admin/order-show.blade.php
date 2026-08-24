@@ -37,7 +37,6 @@
     <h1 class="text-sm font-semibold text-surface-600">Ordering & Delivery</h1>
     <div class="flex items-center gap-2">
       <span class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-bold text-white">Ferosa Landscaping</span>
-      <a href="{{ route('home') }}" class="rounded-md border border-surface-300 px-2.5 py-1 text-sm text-surface-600 hover:bg-surface-50">View Site</a>
     </div>
   </header>
 

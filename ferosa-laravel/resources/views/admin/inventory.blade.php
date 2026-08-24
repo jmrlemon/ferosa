@@ -53,21 +53,21 @@
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-surface-100 p-4 sm:p-5">
         <h3 class="font-bold text-surface-900">Movement history</h3>
         <form method="GET" action="{{ route('admin.inventory.index') }}" class="flex flex-wrap items-center gap-2">
-          <select name="product_id" class="rounded-lg border border-surface-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-500">
+          <select name="product_id" class="h-11 rounded-lg border border-surface-200 px-2.5 text-xs outline-none focus:border-brand-500">
             <option value="">All products</option>
             @foreach($products as $option)
               <option value="{{ $option->id }}" @selected(($filters['product_id'] ?? null) == $option->id)>{{ $option->name }}</option>
             @endforeach
           </select>
-          <select name="type" class="rounded-lg border border-surface-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-500">
+          <select name="type" class="h-11 rounded-lg border border-surface-200 px-2.5 text-xs outline-none focus:border-brand-500">
             <option value="">All types</option>
             @foreach([StockMovement::TYPE_OPENING, StockMovement::TYPE_RESTOCK, StockMovement::TYPE_SALE, StockMovement::TYPE_RETURN, StockMovement::TYPE_WASTAGE, StockMovement::TYPE_CORRECTION] as $type)
               <option value="{{ $type }}" @selected(($filters['type'] ?? null) === $type)>{{ ucfirst($type) }}</option>
             @endforeach
           </select>
-          <button type="submit" class="rounded-lg bg-surface-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-surface-800">Filter</button>
+          <button type="submit" class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-semibold text-white transition-colors hover:bg-surface-800">Filter</button>
           @if(($filters['type'] ?? null) || ($filters['product_id'] ?? null))
-            <a href="{{ route('admin.inventory.index') }}" class="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-semibold text-surface-600 hover:bg-surface-50">Clear</a>
+            <a href="{{ route('admin.inventory.index') }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-semibold text-surface-600 transition-colors hover:bg-surface-50">Clear</a>
           @endif
         </form>
       </div>

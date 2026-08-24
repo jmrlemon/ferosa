@@ -2,10 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Appointment;
 use App\Models\AppSetting;
 use App\Models\Conversation;
+use App\Models\Feedback;
 use App\Models\Message;
 use App\Models\Order;
+use App\Models\Product;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -46,6 +49,60 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $view->with(app('_adminHeaderCounts'));
+        });
+
+        // The sidebar renders on the dashboard and on every standalone admin
+        // page, so its badges are computed here — otherwise Inventory, Project
+        // Portfolio and Business Profile showed a sidebar without the counts
+        // the dashboard shows.
+        View::composer('admin.partials.workspace-sidebar', function ($view) {
+            $user = auth()->user();
+
+            $empty = [
+                'appointments_overdue' => 0,
+                'appointments_pending' => 0,
+                'orders_pending' => 0,
+                'low_stock' => 0,
+                'unread_messages' => 0,
+                'feedback' => 0,
+            ];
+
+            if (! $user?->isStaffOrAdmin()) {
+                $view->with('sidebarBadges', $empty);
+
+                return;
+            }
+
+            if (! app()->has('_adminSidebarBadges')) {
+                app()->instance('_adminSidebarBadges', [
+                    'appointments_overdue' => Appointment::query()
+                        ->whereNull('archived_at')
+                        ->whereIn('status', ['scheduled', 'confirmed'])
+                        ->where('appointment_at', '<', now())
+                        ->count(),
+                    'appointments_pending' => Appointment::query()
+                        ->whereNull('archived_at')
+                        ->where('status', 'scheduled')
+                        ->count(),
+                    'orders_pending' => Order::query()
+                        ->whereNull('archived_at')
+                        ->whereIn('status', ['pending', 'confirmed'])
+                        ->count(),
+                    'low_stock' => Product::query()
+                        ->whereNull('archived_at')
+                        ->where('is_active', true)
+                        ->where('stock_qty', '<=', 5)
+                        ->count(),
+                    'unread_messages' => Message::query()
+                        ->whereNull('read_at')
+                        ->where('sender_id', '!=', $user->id)
+                        ->whereHas('conversation.customer', fn ($q) => $q->where('role', 'user'))
+                        ->count(),
+                    'feedback' => Feedback::query()->count(),
+                ]);
+            }
+
+            $view->with('sidebarBadges', app('_adminSidebarBadges'));
         });
 
         $layouts = ['layouts.customer', 'partials.mobile-bottom-customer'];

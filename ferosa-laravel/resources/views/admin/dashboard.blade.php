@@ -18,32 +18,11 @@
   <style>
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    .tab-btn { transition: all 0.15s; }
-    .tab-btn:hover { background-color: rgba(0,0,0,0.03); }
-    .tab-btn.active { background-color: #e8f2ec; color: #1b5239; font-weight: 700; box-shadow: inset 3px 0 0 #236746; }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
     :focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
-    #admin-sidebar { background: linear-gradient(180deg, rgba(238,247,241,.78), transparent 190px), #fff; }
-    .admin-panel {
-      border-color: #e8e4db !important;
-      box-shadow: 0 1px 2px rgba(18,52,38,.025), 0 10px 32px rgba(18,52,38,.04);
-    }
-    #tabs-main { background:
-      radial-gradient(circle at 90% 0%, rgba(130,189,152,.10), transparent 24rem),
-      #f8f7f3;
-    }
-    #tabs-main > main { max-width: 1600px; margin-inline: auto; }
-    #tabs-main .overflow-x-auto { scrollbar-gutter: stable; }
-    #tabs-main table thead { background: rgba(248,247,243,.86); }
-    #tabs-main .tab-content > .bg-white {
-      border-color: #e8e4db !important;
-      border-radius: 1rem !important;
-      box-shadow: 0 1px 2px rgba(18,52,38,.025), 0 12px 36px rgba(18,52,38,.04);
-    }
-    #tabs-main .tab-content h2 { letter-spacing: -.01em; }
     .admin-chat-bubble {
       padding: .625rem 1rem;
       font-size: .875rem;
@@ -63,9 +42,6 @@
       border-radius: 1.25rem 1.25rem 1.25rem .3rem;
       box-shadow: 0 1px 2px rgba(18, 52, 38, .05);
     }
-    #tabs-main input:not([type="checkbox"]):not([type="radio"]),
-    #tabs-main select,
-    #tabs-main textarea { min-height: 2.5rem; }
     summary::-webkit-details-marker { display: none; }
     @media (max-width: 767px) {
       #admin-sidebar { position: fixed; inset: 0 auto 0 0; width: 272px; z-index: 60; transform: translateX(-100%); transition: transform .22s ease; }
@@ -87,7 +63,9 @@
       *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; }
     }
   </style>
-  @include('admin.partials.type-scale')
+  {{-- Same theme file every other admin page loads, so the dashboard tabs and
+       the standalone admin pages share one set of cards, inputs and colours. --}}
+  @include('admin.partials.premium-theme')
   <script>
     window.addEventListener('pageshow', function (event) {
       if (event.persisted) window.location.reload();
@@ -133,7 +111,6 @@
       }
     });
   </script>
-  @include('partials.a11y-focus')
 </head>
 <body class="flex h-screen h-[100dvh] bg-surface-50 text-surface-800 overflow-hidden font-sans antialiased">
   <a href="#admin-main" class="skip-link">Skip to admin content</a>
@@ -151,8 +128,6 @@
     // data; the fallback keeps the view renderable on its own.
     $activeTab = $activeTab ?? $routeTab ?? (in_array(request('tab'), $availableTabs, true) ? request('tab') : 'overview');
     $tabClass = fn (string $tab, string $extra = '') => trim('tab-content '.$extra.' '.($activeTab === $tab ? 'active' : ''));
-    $tabButtonClass = fn (string $tab) => 'tab-btn '.($activeTab === $tab ? 'active ' : '').'flex items-center gap-2.5 w-full text-left px-2.5 py-2 text-[13px] text-surface-500 rounded-lg';
-    $badgeCount = fn (int $count) => $count > 9 ? '9+' : (string) $count;
     // Tabs navigate server-side: the controller loads only the active tab's
     // data, so switching client-side would show empty tables.
     $tabUrl = fn (string $tab) => match ($tab) {
@@ -165,126 +140,8 @@
 
   <div id="admin-overlay" class="hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-50" onclick="toggleAdminSidebar()" aria-hidden="true"></div>
 
-  <!-- Sidebar -->
-  <aside id="admin-sidebar" aria-label="Admin navigation" class="w-64 bg-white border-r border-surface-100 flex flex-col justify-between flex-shrink-0 z-20">
-    <div class="min-h-0 overflow-y-auto">
-      <div class="px-4 h-[68px] border-b border-surface-100 flex items-center gap-3 sticky top-0 bg-white/95 backdrop-blur z-10">
-        <div class="w-9 h-9 bg-brand-950 rounded-xl flex items-center justify-center shadow-sm">
-          <svg class="w-5 h-5 text-brand-100" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 4.5c-6.6.2-11.3 3-13.5 8.3M5.2 19c1.1-5.2 4.8-8.7 10.8-10.7M19.5 4.5c.4 6.8-2.8 11.3-8.1 11.8-2.3.2-4.3-.8-5.4-3.5"/></svg>
-        </div>
-        <div class="min-w-0 flex-1">
-          <span class="block font-display text-base font-semibold leading-none text-brand-950">Ferosa</span>
-          <span class="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-surface-400">Admin workspace</span>
-        </div>
-        <button id="admin-sidebar-close" type="button" onclick="toggleAdminSidebar(true)" class="md:hidden flex h-10 w-10 items-center justify-center rounded-xl text-surface-500 hover:bg-surface-50" aria-label="Close admin navigation">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
+  @include('admin.partials.workspace-sidebar', ['adminSection' => $activeTab])
 
-      <nav aria-label="Primary admin" class="flex flex-col w-full py-3 px-3 space-y-0.5">
-        <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-2 mb-1">Dashboard</p>
-        <a href="{{ $tabUrl('overview') }}" class="{{ $tabButtonClass('overview') }}" id="btn-overview">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-          Overview
-        </a>
-
-        <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-2 mt-4 mb-1">Operations</p>
-        <a href="{{ route('admin.service-scheduling') }}" class="{{ $tabButtonClass('appointments') }}" id="btn-appointments">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <span class="truncate">Appointments</span>
-          @if($overdueAppointments > 0)
-            <span aria-label="{{ $overdueAppointments }} overdue appointment{{ $overdueAppointments !== 1 ? 's' : '' }}" title="{{ $overdueAppointments }} overdue appointment{{ $overdueAppointments !== 1 ? 's' : '' }}" class="ml-auto inline-flex min-h-[20px] flex-shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-2 text-[9px] font-bold leading-none text-red-700">{{ $badgeCount($overdueAppointments) }} overdue</span>
-          @elseif($appointmentsNeedingConfirmation > 0)
-            <span aria-label="{{ $appointmentsNeedingConfirmation }} appointment{{ $appointmentsNeedingConfirmation !== 1 ? 's' : '' }} awaiting confirmation" title="{{ $appointmentsNeedingConfirmation }} appointment{{ $appointmentsNeedingConfirmation !== 1 ? 's' : '' }} awaiting confirmation" class="ml-auto inline-flex min-h-[20px] flex-shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 text-[9px] font-bold leading-none text-amber-700">{{ $badgeCount($appointmentsNeedingConfirmation) }} pending</span>
-          @endif
-        </a>
-        <a href="{{ route('admin.ordering-delivery') }}" class="{{ $tabButtonClass('orders') }}" id="btn-orders">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M5 8.5V17l7 4 7-4V8.5M12 12v9m-7-12.5 7 4 7-4"/></svg>
-          <span class="truncate">Orders &amp; Delivery</span>
-          @if(($orderFlowStats['pending'] ?? 0) > 0)
-            <span aria-label="{{ $orderFlowStats['pending'] }} order{{ $orderFlowStats['pending'] !== 1 ? 's' : '' }} awaiting processing" title="{{ $orderFlowStats['pending'] }} order{{ $orderFlowStats['pending'] !== 1 ? 's' : '' }} awaiting processing" class="ml-auto inline-flex min-h-[20px] flex-shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 text-[9px] font-bold leading-none text-amber-700">{{ $badgeCount($orderFlowStats['pending']) }} actions</span>
-          @endif
-        </a>
-        <a href="{{ $tabUrl('services') }}" class="{{ $tabButtonClass('services') }}" id="btn-services">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          Services
-        </a>
-        <a href="{{ $tabUrl('products') }}" class="{{ $tabButtonClass('products') }}" id="btn-products">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-          Inventory
-          @if($lowStockProducts->count() > 0)
-            <span title="{{ $lowStockProducts->count() }} low-stock product{{ $lowStockProducts->count() !== 1 ? 's' : '' }}" class="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center leading-none">{{ $badgeCount($lowStockProducts->count()) }}</span>
-          @endif
-        </a>
-        <a href="{{ route('admin.projects.index') }}" class="{{ $tabButtonClass('projects') }}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6"/></svg>
-          Project Portfolio
-        </a>
-
-        <a href="{{ $tabUrl('messages') }}" class="{{ $tabButtonClass('messages') }}" id="btn-messages">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-          Messages
-          @if($totalUnreadMessages > 0)
-            <span title="{{ $totalUnreadMessages }} unread message{{ $totalUnreadMessages !== 1 ? 's' : '' }}" class="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center leading-none">{{ $badgeCount($totalUnreadMessages) }}</span>
-          @endif
-        </a>
-
-        @if($isAdmin)
-        <a href="{{ $tabUrl('payment') }}" class="{{ $tabButtonClass('payment') }}" id="btn-payment">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2m2-6h2a2 2 0 012 2v2a2 2 0 01-2 2h-2m0-6v6"/></svg>
-          Billing
-        </a>
-        @endif
-
-        <p class="text-[10px] font-semibold text-surface-400 uppercase tracking-wider px-2 mt-4 mb-1">System</p>
-        @if($isAdmin)
-          <a href="{{ route('admin.business-profile.edit') }}" class="{{ $tabButtonClass('business-profile') }}">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 10h.01M9 14h.01M15 10h.01M15 14h.01M10 21v-4h4v4"/></svg>
-            Business Profile
-          </a>
-        @endif
-        <a href="{{ $tabUrl('archived') }}" class="{{ $tabButtonClass('archived') }}" id="btn-archived">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-          Archived
-        </a>
-        <a href="{{ $tabUrl('audit') }}" class="{{ $tabButtonClass('audit') }}" id="btn-audit">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          Audit Logs
-        </a>
-        <a href="{{ $tabUrl('feedbacks') }}" class="{{ $tabButtonClass('feedbacks') }}" id="btn-feedbacks">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-          Feedback
-          @if($feedbacks->total() > 0)
-            <span id="admin-feedback-badge" data-count="{{ $feedbacks->total() }}" title="{{ $feedbacks->total() }} feedback submission{{ $feedbacks->total() !== 1 ? 's' : '' }}" class="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center leading-none">{{ $badgeCount($feedbacks->total()) }}</span>
-          @endif
-        </a>
-        @if($isAdmin)
-          <a href="{{ $tabUrl('users') }}" class="{{ $tabButtonClass('users') }}" id="btn-users">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-            Users
-          </a>
-        @endif
-      </nav>
-    </div>
-
-    <div class="border-t border-surface-100 bg-white/70 p-3">
-      <div class="flex items-center gap-3 rounded-xl border border-surface-200 bg-surface-50/80 p-2.5">
-        <a href="{{ route('admin.account.edit') }}" class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-700 text-sm font-bold text-white" aria-label="Open admin account">
-          {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
-        </a>
-        <a href="{{ route('admin.account.edit') }}" class="min-w-0 flex-1">
-          <span class="block truncate text-[13px] font-bold text-surface-800">{{ auth()->user()->name }}</span>
-          <span class="block text-[10px] font-medium text-surface-400">Admin account</span>
-        </a>
-        <form method="POST" action="{{ route('logout') }}" class="flex-shrink-0">
-          @csrf
-          <button type="submit" aria-label="Sign out" title="Sign out" class="flex h-9 w-9 items-center justify-center rounded-lg text-surface-400 transition-colors hover:bg-red-50 hover:text-red-600">
-            <svg class="h-[17px] w-[17px]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0-4-4m4 4H7m6 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1"/></svg>
-          </button>
-        </form>
-      </div>
-    </div>
-  </aside>
 
   <!-- Main Content -->
   <div class="flex-1 flex flex-col overflow-hidden w-full">
@@ -706,20 +563,20 @@
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">From</label>
               <input type="date" name="sales_from" value="{{ $salesFrom ?? request('sales_from') }}"
-                     class="border border-surface-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 text-surface-700 transition-colors">
+                     class="h-11 rounded-lg border border-surface-200 px-3 text-xs text-surface-700 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">To</label>
               <input type="date" name="sales_to" value="{{ $salesTo ?? request('sales_to') }}"
-                     class="border border-surface-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 text-surface-700 transition-colors">
+                     class="h-11 rounded-lg border border-surface-200 px-3 text-xs text-surface-700 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
-            <button class="bg-surface-900 text-white rounded-lg px-4 py-1.5 text-xs font-medium hover:bg-surface-800 transition-colors">Apply</button>
+            <button class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Apply</button>
             <a href="{{ route('admin.reports.overview', array_filter(['sales_from' => $salesFrom ?? request('sales_from'), 'sales_to' => $salesTo ?? request('sales_to')])) }}"
-               class="inline-flex items-center gap-1.5 border border-surface-200 bg-white text-surface-600 rounded-lg px-4 py-1.5 text-xs font-medium hover:bg-surface-50 transition-colors">
+               class="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg border border-surface-200 bg-white px-4 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-50">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m4 6V7m4 10v-3M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
               View Report
             </a>
-            <a href="{{ route('admin.dashboard', ['tab' => 'overview']) }}" class="text-xs text-surface-400 hover:text-surface-700 py-1.5 transition-colors">Reset</a>
+            <a href="{{ route('admin.dashboard', ['tab' => 'overview']) }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-500 transition-colors hover:border-surface-300 hover:text-surface-800">Reset</a>
           </form>
         </div>
       </div>
@@ -920,7 +777,7 @@
             <input type="hidden" name="tab" value="appointments">
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
-              <select name="appt_status" class="border border-surface-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-brand-500 text-surface-600 min-w-[120px]">
+              <select name="appt_status" class="h-11 min-w-[120px] rounded-lg border border-surface-200 px-3 text-xs text-surface-600 outline-none focus:border-brand-500">
                 <option value="">All</option>
                 @foreach (['scheduled', 'confirmed', 'completed', 'cancelled'] as $st)
                   <option value="{{ $st }}" {{ ($apptStatus ?? '') === $st ? 'selected' : '' }}>{{ ucfirst($st) }}</option>
@@ -932,11 +789,11 @@
               <div class="relative">
                 <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                 <input type="search" name="appt_q" value="{{ $apptQ ?? '' }}" placeholder="Name, email, service..."
-                       class="pl-8 pr-3 py-1.5 border border-surface-200 rounded-lg text-xs outline-none focus:border-brand-500 w-full transition-colors">
+                       class="h-11 w-full rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
               </div>
             </div>
-            <button type="submit" class="bg-surface-900 text-white rounded-lg px-4 py-1.5 text-xs font-medium hover:bg-surface-800 transition-colors">Filter</button>
-            <a href="{{ route('admin.dashboard', ['tab' => 'appointments']) }}" class="text-xs text-surface-400 hover:text-surface-700 py-1.5">Reset</a>
+            <button type="submit" class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Filter</button>
+            <a href="{{ route('admin.dashboard', ['tab' => 'appointments']) }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-500 transition-colors hover:border-surface-300 hover:text-surface-800">Reset</a>
           </form>
         </div>
 
@@ -1106,7 +963,7 @@
               <p class="text-xs text-surface-400 mt-0.5">Process new orders first, then manage billing, fulfilment, and delivery proof.</p>
             </div>
             <a href="{{ route('admin.reports.orders-csv', array_filter(['order_status' => request('order_status'), 'order_q' => request('order_q')])) }}"
-               class="inline-flex items-center gap-1.5 text-xs font-medium border border-surface-200 bg-white px-3 py-1.5 rounded-lg text-surface-600 hover:bg-surface-50 transition-colors">
+               class="inline-flex h-11 items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-50">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               Export CSV
             </a>
@@ -1136,7 +993,7 @@
               <input type="hidden" name="tab" value="orders">
               <div>
                 <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
-                <select name="order_status" class="border border-surface-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-brand-500 text-surface-600 min-w-[120px]">
+                <select name="order_status" class="h-11 min-w-[120px] rounded-lg border border-surface-200 px-3 text-xs text-surface-600 outline-none focus:border-brand-500">
                   <option value="">All</option>
                   @foreach (['pending', 'confirmed', 'out_for_delivery', 'delivered', 'completed', 'cancelled'] as $st)
                     <option value="{{ $st }}" {{ request('order_status') === $st ? 'selected' : '' }}>
@@ -1150,11 +1007,11 @@
                 <div class="relative">
                   <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                   <input type="search" name="order_q" value="{{ request('order_q') }}" placeholder="Order #, name, email"
-                         class="pl-8 pr-3 py-1.5 border border-surface-200 rounded-lg text-xs outline-none focus:border-brand-500 w-full transition-colors">
+                         class="h-11 w-full rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
                 </div>
               </div>
-              <button type="submit" class="bg-surface-900 text-white rounded-lg px-4 py-1.5 text-xs font-medium hover:bg-surface-800 transition-colors">Filter</button>
-              <a href="{{ route('admin.dashboard', ['tab' => 'orders']) }}" class="text-xs text-surface-400 hover:text-surface-700 py-1.5">Reset</a>
+              <button type="submit" class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Filter</button>
+              <a href="{{ route('admin.dashboard', ['tab' => 'orders']) }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-500 transition-colors hover:border-surface-300 hover:text-surface-800">Reset</a>
             </form>
 
             <form method="POST" action="{{ route('admin.orders.bulk-status') }}" class="flex items-center gap-2 bg-surface-50 p-1.5 rounded-lg border border-surface-100" id="admin-bulk-orders-form">
@@ -1599,7 +1456,7 @@
     <!-- BILLING TAB -->
     @if($isAdmin)
     <div id="tab-payment" class="{{ $tabClass('payment') }}">
-      <div class="space-y-5 max-w-5xl">
+      <div class="space-y-5">
         <div>
           <h1 class="text-2xl font-bold text-surface-900">Billing</h1>
           <p class="mt-1 text-sm text-surface-500">Manage payment setup, unpaid records, and customer checkout billing details.</p>
@@ -1625,11 +1482,11 @@
           <p class="text-xs text-surface-400 mt-0.5">These details appear during customer checkout when they choose GCash.</p>
         </div>
 
-        <form method="POST" action="{{ route('admin.payment-settings.update') }}" enctype="multipart/form-data" class="p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <form method="POST" action="{{ route('admin.payment-settings.update') }}" enctype="multipart/form-data" class="p-5 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
           @csrf
           @method('PUT')
 
-          <div class="lg:col-span-2 space-y-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">GCash Account Name</label>
               <input name="gcash_name" value="{{ old('gcash_name', $gcashSettings['name'] ?? '') }}" placeholder="e.g. Maria Santos"
@@ -1642,7 +1499,7 @@
                      class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 transition-colors">
             </div>
 
-            <div>
+            <div class="sm:col-span-2">
               <label class="block text-[10px] font-medium text-surface-400 mb-1">Upload GCash QR</label>
               <input name="gcash_qr" type="file" accept="image/*"
                      class="w-full text-xs text-surface-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-surface-100 file:text-surface-700 hover:file:bg-surface-200">
@@ -1650,15 +1507,17 @@
             </div>
 
             @if(!empty($gcashSettings['qr_url']))
-              <label class="inline-flex items-center gap-2 text-xs text-surface-500">
+              <label class="inline-flex items-center gap-2 text-xs text-surface-500 sm:col-span-2">
                 <input type="checkbox" name="remove_gcash_qr" value="1" class="w-3.5 h-3.5 rounded border-surface-300 text-red-500 focus:ring-red-500">
                 Remove current QR image
               </label>
             @endif
 
-            <button class="bg-surface-900 text-white rounded-lg px-4 py-2 text-xs font-medium hover:bg-surface-800 transition-colors">
-              Save Billing Details
-            </button>
+            <div class="sm:col-span-2">
+              <button class="bg-surface-900 text-white rounded-lg px-4 py-2 text-xs font-medium hover:bg-surface-800 transition-colors">
+                Save Billing Details
+              </button>
+            </div>
           </div>
 
           <div class="rounded-xl border border-surface-100 bg-surface-50 p-4">
@@ -1817,10 +1676,10 @@
             <div class="relative">
               <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input type="search" name="audit_q" value="{{ $auditQ ?? request('audit_q') }}" placeholder="Activity, user, target, or ID"
-                     class="pl-8 pr-3 py-1.5 border border-surface-200 rounded-lg text-xs outline-none focus:border-brand-500 w-52 transition-colors">
+                     class="h-11 w-52 rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
             </div>
-            <button type="submit" class="bg-surface-900 text-white rounded-lg px-4 py-1.5 text-xs font-medium hover:bg-surface-800 transition-colors">Search</button>
-            <a href="{{ route('admin.dashboard', ['tab' => 'audit']) }}" class="text-xs text-surface-400 hover:text-surface-700 py-1.5">Reset</a>
+            <button type="submit" class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Search</button>
+            <a href="{{ route('admin.dashboard', ['tab' => 'audit']) }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-500 transition-colors hover:border-surface-300 hover:text-surface-800">Reset</a>
           </form>
         </div>
 
@@ -1986,10 +1845,10 @@
           <form method="GET" action="{{ route('admin.dashboard') }}" class="flex items-center gap-2">
             <input type="hidden" name="tab" value="feedbacks">
             <input type="text" name="feedback_q" value="{{ $feedbackQ }}" placeholder="Search…"
-              class="border border-surface-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:border-brand-500 w-44">
-            <button class="bg-surface-900 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-surface-800 transition-colors">Search</button>
+              class="h-11 w-44 rounded-lg border border-surface-200 px-3 text-xs outline-none focus:border-brand-500">
+            <button class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Search</button>
             @if($feedbackQ)
-              <a href="{{ route('admin.dashboard', ['tab' => 'feedbacks']) }}" class="text-xs text-surface-400 hover:text-surface-700 py-1.5">Reset</a>
+              <a href="{{ route('admin.dashboard', ['tab' => 'feedbacks']) }}" class="inline-flex h-11 items-center justify-center rounded-lg border border-surface-200 bg-white px-3 text-xs font-medium text-surface-500 transition-colors hover:border-surface-300 hover:text-surface-800">Reset</a>
             @endif
           </form>
         </div>

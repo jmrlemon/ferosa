@@ -13,13 +13,6 @@
   @include('admin.partials.premium-theme')
   <style>
     :focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
-    #admin-sidebar { background: linear-gradient(180deg, rgba(238,247,241,.78), transparent 190px), #fff; }
-    #admin-workspace-main {
-      background:
-        radial-gradient(circle at 90% 0%, rgba(130,189,152,.10), transparent 24rem),
-        #f8f7f3;
-    }
-    #admin-workspace-main > main { max-width: 1600px; margin-inline: auto; }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
@@ -87,7 +80,6 @@
       }
     });
   </script>
-  @include('partials.a11y-focus')
   @stack('head')
 </head>
 <body class="flex h-screen h-[100dvh] overflow-hidden bg-surface-50 font-sans text-surface-800 antialiased">
@@ -119,7 +111,7 @@
     </header>
 
     <div id="admin-workspace-main" class="min-h-0 flex-1 overflow-y-auto">
-      <main id="admin-main" tabindex="-1" class="p-5 sm:p-6">
+      <main id="admin-main" tabindex="-1" class="w-full max-w-none px-4 py-5 sm:px-6 sm:py-6">
         @yield('content')
       </main>
     </div>

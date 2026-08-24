@@ -45,6 +45,29 @@
     font-weight: 600 !important;
     letter-spacing: -.02em;
   }
+  #admin-sidebar { background: linear-gradient(180deg, rgba(238,247,241,.78), transparent 190px), #fff; }
+
+  /* The scroll container is `#tabs-main` on the dashboard and
+     `#admin-workspace-main` on every standalone admin page. Both get the same
+     surface so switching between them does not change the page chrome. */
+  #tabs-main,
+  #admin-workspace-main {
+    background:
+      radial-gradient(circle at 90% 0%, rgba(130,189,152,.10), transparent 24rem),
+      var(--admin-stone-50);
+  }
+  #tabs-main > main,
+  #admin-workspace-main > main {
+    width: min(100%, 100rem);
+    margin-inline: auto;
+  }
+  #tabs-main .overflow-x-auto,
+  #admin-workspace-main .overflow-x-auto { scrollbar-gutter: stable; }
+  #tabs-main table thead,
+  #admin-workspace-main table thead { background: rgba(248,247,243,.86); }
+  #tabs-main h2,
+  #admin-workspace-main h2 { letter-spacing: -.01em; }
+
   section.rounded-xl,
   div.rounded-xl.bg-white,
   form.rounded-xl.bg-white {

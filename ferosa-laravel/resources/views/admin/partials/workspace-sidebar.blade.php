@@ -1,6 +1,13 @@
 @php
   $adminSection = $adminSection ?? '';
   $isAdmin = auth()->user()?->isAdmin();
+  // Badge counts come from the workspace-sidebar view composer, so the same
+  // numbers show on the dashboard tabs and on the standalone admin pages.
+  $badges = $sidebarBadges ?? [];
+  $badge = fn (string $key) => (int) ($badges[$key] ?? 0);
+  $badgeCount = fn (int $count) => $count > 9 ? '9+' : (string) $count;
+  $countBadgeClass = 'ml-auto flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white';
+  $pillBadgeClass = 'ml-auto inline-flex min-h-[20px] flex-shrink-0 items-center justify-center whitespace-nowrap rounded-full px-2 text-[9px] font-bold leading-none';
   $navClass = fn (string $section) => trim(
       'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors '.
       ($adminSection === $section
@@ -35,11 +42,19 @@
       <p class="mb-1 mt-4 px-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400">Operations</p>
       <a href="{{ route('admin.service-scheduling') }}" class="{{ $navClass('appointments') }}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        Appointments
+        <span class="truncate">Appointments</span>
+        @if($badge('appointments_overdue') > 0)
+          <span title="{{ $badge('appointments_overdue') }} overdue appointment{{ $badge('appointments_overdue') !== 1 ? 's' : '' }}" class="{{ $pillBadgeClass }} border border-red-200 bg-red-50 text-red-700">{{ $badgeCount($badge('appointments_overdue')) }} overdue</span>
+        @elseif($badge('appointments_pending') > 0)
+          <span title="{{ $badge('appointments_pending') }} appointment{{ $badge('appointments_pending') !== 1 ? 's' : '' }} awaiting confirmation" class="{{ $pillBadgeClass }} border border-amber-200 bg-amber-50 text-amber-700">{{ $badgeCount($badge('appointments_pending')) }} pending</span>
+        @endif
       </a>
       <a href="{{ route('admin.ordering-delivery') }}" class="{{ $navClass('orders') }}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M5 8.5V17l7 4 7-4V8.5M12 12v9m-7-12.5 7 4 7-4"/></svg>
-        Orders &amp; Delivery
+        <span class="truncate">Orders &amp; Delivery</span>
+        @if($badge('orders_pending') > 0)
+          <span title="{{ $badge('orders_pending') }} order{{ $badge('orders_pending') !== 1 ? 's' : '' }} awaiting processing" class="{{ $pillBadgeClass }} border border-amber-200 bg-amber-50 text-amber-700">{{ $badgeCount($badge('orders_pending')) }} actions</span>
+        @endif
       </a>
       <a href="{{ route('admin.dashboard', ['tab' => 'services']) }}" class="{{ $navClass('services') }}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -48,6 +63,9 @@
       <a href="{{ route('admin.dashboard', ['tab' => 'products']) }}" class="{{ $navClass('products') }}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         Inventory
+        @if($badge('low_stock') > 0)
+          <span title="{{ $badge('low_stock') }} low-stock product{{ $badge('low_stock') !== 1 ? 's' : '' }}" class="{{ $countBadgeClass }}">{{ $badgeCount($badge('low_stock')) }}</span>
+        @endif
       </a>
       {{-- Stock movements live inside each product's edit page, under Inventory.
            A second top-level entry only split one job across two places. --}}
@@ -58,6 +76,9 @@
       <a href="{{ route('admin.dashboard', ['tab' => 'messages']) }}" class="{{ $navClass('messages') }}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
         Messages
+        @if($badge('unread_messages') > 0)
+          <span title="{{ $badge('unread_messages') }} unread message{{ $badge('unread_messages') !== 1 ? 's' : '' }}" class="{{ $countBadgeClass }}">{{ $badgeCount($badge('unread_messages')) }}</span>
+        @endif
       </a>
       @if($isAdmin)
         <a href="{{ route('admin.dashboard', ['tab' => 'payment']) }}" class="{{ $navClass('payment') }}">
@@ -84,6 +105,9 @@
       <a href="{{ route('admin.dashboard', ['tab' => 'feedbacks']) }}" class="{{ $navClass('feedbacks') }}">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
         Feedback
+        @if($badge('feedback') > 0)
+          <span id="admin-feedback-badge" data-count="{{ $badge('feedback') }}" title="{{ $badge('feedback') }} feedback submission{{ $badge('feedback') !== 1 ? 's' : '' }}" class="{{ $countBadgeClass }}">{{ $badgeCount($badge('feedback')) }}</span>
+        @endif
       </a>
       @if($isAdmin)
         <a href="{{ route('admin.dashboard', ['tab' => 'users']) }}" class="{{ $navClass('users') }}">

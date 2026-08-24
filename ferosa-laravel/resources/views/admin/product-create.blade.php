@@ -16,10 +16,6 @@
     <h1 class="text-sm font-semibold text-surface-600">Add Inventory Item</h1>
     <div class="flex items-center gap-2">
       <span class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-bold text-white">Ferosa Landscaping</span>
-      <a href="{{ route('home') }}" class="inline-flex items-center gap-1.5 rounded-md border border-surface-300 px-2.5 py-1 text-sm text-surface-600 transition-colors hover:bg-surface-50">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M11.5 3a15 15 0 0 0 0 18M12.5 3a15 15 0 0 1 0 18"/></svg>
-        View Site
-      </a>
     </div>
   </header>
 
@@ -61,9 +57,27 @@
                 <label class="block text-sm font-medium text-surface-800">Product Name *
                   <input name="name" value="{{ old('name') }}" required class="mt-2 h-10 w-full rounded-lg border border-surface-200 px-3 text-base font-normal outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
                 </label>
-                <label class="block text-sm font-medium text-surface-800">Category *
-                  <input name="category" value="{{ old('category') }}" required class="mt-2 h-10 w-full rounded-lg border border-surface-200 px-3 text-base font-normal outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
-                </label>
+                <div class="block text-sm font-medium text-surface-800">
+                  <label for="category-input">Category *</label>
+                  <div id="category-combo" class="relative mt-2">
+                    <input id="category-input" name="category" value="{{ old('category') }}" autocomplete="off" maxlength="100" required
+                           role="combobox" aria-expanded="false" aria-controls="category-list" aria-autocomplete="list"
+                           placeholder="Pick one or type a new category"
+                           class="h-10 w-full rounded-lg border border-surface-200 pl-3 pr-10 text-base font-normal outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+                    <button id="category-toggle" type="button" aria-label="Show categories" tabindex="-1"
+                            class="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-surface-500 transition-colors hover:text-brand-700">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <ul id="category-list" role="listbox" hidden
+                        class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-surface-200 bg-white py-1 shadow-lg">
+                      @foreach ($categories as $categoryOption)
+                        <li role="option" data-value="{{ $categoryOption }}" tabindex="-1"
+                            class="cursor-pointer px-3 py-2 text-base font-normal text-surface-800 hover:bg-brand-50 hover:text-brand-800">{{ ucfirst($categoryOption) }}</li>
+                      @endforeach
+                    </ul>
+                  </div>
+                  <p class="mt-1 text-xs font-normal text-surface-500">Choose an existing category or type a new one.</p>
+                </div>
               </div>
               <label class="block text-sm font-medium text-surface-800">Description
                 <textarea name="description" rows="4" class="mt-2 w-full rounded-lg border border-surface-200 px-3 py-2 text-base font-normal outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">{{ old('description') }}</textarea>
@@ -113,5 +127,91 @@
       </aside>
     </div>
   </main>
+
+  <script>
+    (function () {
+      const combo = document.getElementById('category-combo');
+      const input = document.getElementById('category-input');
+      const toggle = document.getElementById('category-toggle');
+      const list = document.getElementById('category-list');
+      if (!combo || !input || !toggle || !list) {
+        return;
+      }
+
+      const options = Array.prototype.slice.call(list.querySelectorAll('[role="option"]'));
+
+      function open() {
+        filter();
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      }
+
+      function close() {
+        list.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+      }
+
+      // Typing narrows the list but never blocks a brand-new category name.
+      function filter() {
+        const needle = input.value.trim().toLowerCase();
+        let shown = 0;
+        options.forEach(function (option) {
+          const match = needle === '' || option.dataset.value.toLowerCase().indexOf(needle) !== -1;
+          option.hidden = !match;
+          if (match) {
+            shown += 1;
+          }
+        });
+        if (shown === 0) {
+          close();
+        }
+      }
+
+      function choose(option) {
+        input.value = option.dataset.value;
+        close();
+        input.focus();
+      }
+
+      toggle.addEventListener('mousedown', function (event) {
+        event.preventDefault();
+        if (list.hidden) {
+          input.focus();
+          input.value = '';
+          open();
+        } else {
+          close();
+        }
+      });
+
+      input.addEventListener('focus', open);
+      input.addEventListener('input', function () {
+        filter();
+        if (list.hidden) {
+          open();
+        }
+      });
+
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          close();
+        }
+      });
+
+      list.addEventListener('mousedown', function (event) {
+        const option = event.target.closest('[role="option"]');
+        if (option) {
+          event.preventDefault();
+          choose(option);
+        }
+      });
+
+      document.addEventListener('mousedown', function (event) {
+        if (!combo.contains(event.target)) {
+          close();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

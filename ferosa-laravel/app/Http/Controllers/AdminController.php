@@ -760,10 +760,36 @@ class AdminController extends Controller
             ->with('status', 'Reply sent.');
     }
 
+    /**
+     * Distinct categories already in use, for the category dropdowns.
+     *
+     * @return list<string>
+     */
+    private function productCategories(): array
+    {
+        $used = Product::query()
+            ->whereNull('archived_at')
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->distinct()
+            ->pluck('category');
+
+        // Seeded so a fresh shop still offers the usual landscaping categories
+        // instead of an empty dropdown.
+        return $used
+            ->merge(['plants', 'trees', 'shrubs', 'flowers', 'seeds', 'soil', 'fertilizer', 'pots', 'tools', 'materials'])
+            ->map(fn ($category) => strtolower(trim((string) $category)))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
     public function createProduct(): View
     {
         return view('admin.product-create', [
             'isStaffOrAdmin' => auth()->user()?->isStaffOrAdmin(),
+            'categories' => $this->productCategories(),
         ]);
     }
 

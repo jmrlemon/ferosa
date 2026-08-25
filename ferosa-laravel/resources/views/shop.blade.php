@@ -89,7 +89,7 @@
     filled($maxPrice) ? 'price' : null,
   ])->filter()->count();
 @endphp
-<main class="customer-page max-w-5xl">
+<main class="customer-page">
 
   {{-- Header --}}
   <x-page-head

@@ -1,7 +1,7 @@
 @extends('layouts.customer')
 
 @section('content')
-<main class="customer-page max-w-2xl">
+<main class="customer-page is-narrow">
   <div class="customer-card p-6 sm:p-8 reveal">
     <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
       <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>

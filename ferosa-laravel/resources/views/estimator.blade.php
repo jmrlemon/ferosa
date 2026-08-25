@@ -522,7 +522,7 @@
 
           {{-- Disclaimer --}}
           <div class="px-5 pb-5">
-            <p class="text-[10px] text-surface-300 leading-relaxed text-center">
+            <p class="text-[10px] text-surface-400 leading-relaxed text-center">
               Estimates are indicative only. A site visit may be required for an accurate quote.
             </p>
           </div>

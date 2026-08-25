@@ -3,7 +3,7 @@
 @section('title', 'Orders & Delivery - Ferosa Landscaping')
 
 @section('content')
-<main class="customer-page max-w-4xl">
+<main class="customer-page">
   <x-page-head
     kicker="Purchases"
     {{-- Literal "&": the component prints the title with {{ }}, so an HTML
@@ -414,7 +414,7 @@
                         ($active ? 'bg-brand-600 ring-brand-50' : 'bg-white border-surface-300 ring-white');
                       $text =
                         $done ? 'text-surface-900' :
-                        ($active ? 'text-brand-700' : 'text-surface-300');
+                        ($active ? 'text-brand-700' : 'text-surface-350');
                     @endphp
                     <div class="relative flex gap-3">
                       <div class="relative z-10 w-3 h-3 mt-0.5 rounded-full ring-2 {{ $circle }} flex items-center justify-center border {{ $done || $active ? 'border-brand-600' : 'border-surface-300' }}">
@@ -479,7 +479,7 @@
       <form id="cancel-order-form" method="POST">
         @csrf
         @method('DELETE')
-        <label class="block text-xs font-medium text-surface-600 mb-1">Reason <span class="text-surface-300">(optional)</span></label>
+        <label class="block text-xs font-medium text-surface-600 mb-1">Reason <span class="text-surface-400">(optional)</span></label>
         <textarea name="cancel_reason" rows="3" maxlength="500"
           class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 resize-none transition-all mb-4"
           placeholder="Tell us why you want to cancel this order."></textarea>
@@ -515,7 +515,7 @@
           <h3 class="text-base font-semibold text-surface-900">Rate Your Order</h3>
           <p class="text-xs text-surface-400 mt-0.5">Order <span id="modal-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
         </div>
-        <button onclick="closeFeedbackModal()" class="p-1.5 text-surface-300 hover:text-surface-600 transition-colors rounded-lg">
+        <button onclick="closeFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -530,7 +530,7 @@
           <div class="flex justify-between sm:justify-start sm:gap-3" id="modal-star-group">
             @for ($i = 1; $i <= 5; $i++)
               <button type="button" data-value="{{ $i }}"
-                class="modal-star text-5xl sm:text-4xl text-surface-200 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
+                class="modal-star text-5xl sm:text-4xl text-surface-350 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
                 aria-label="{{ $i }} star">&#9733;</button>
             @endfor
           </div>
@@ -539,7 +539,7 @@
 
         {{-- Comment --}}
         <div>
-          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-300">(optional)</span></label>
+          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
           <textarea name="comment" rows="3"
             class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-100 resize-none transition-all"
             placeholder="Tell us about your experience..."></textarea>
@@ -603,10 +603,10 @@
     } else {
       dotEl.className += 'bg-white border-surface-300';
       dotEl.innerHTML = '';
-      labelEl.className = 'text-sm font-medium text-surface-300';
+      labelEl.className = 'text-sm font-medium text-surface-350';
     }
     if (label) labelEl.textContent = label;
-    if (desc)  { descEl.textContent = desc; descEl.className = (done || active) ? 'text-xs text-surface-600' : 'text-xs text-surface-300'; }
+    if (desc)  { descEl.textContent = desc; descEl.className = (done || active) ? 'text-xs text-surface-600' : 'text-xs text-surface-350'; }
   }
 
   async function trackOrder() {
@@ -713,7 +713,7 @@
   function paintModal(upTo) {
     modalStars.forEach((s, i) => {
       s.classList.toggle('text-amber-400', i < upTo);
-      s.classList.toggle('text-surface-200', i >= upTo);
+      s.classList.toggle('text-surface-350', i >= upTo);
     });
   }
 

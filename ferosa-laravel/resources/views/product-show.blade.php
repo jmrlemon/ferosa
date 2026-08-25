@@ -34,7 +34,7 @@
 @endsection
 
 @section('content')
-<main class="customer-page max-w-6xl">
+<main class="customer-page">
   <nav class="mb-5 flex items-center gap-2 text-xs text-surface-400" aria-label="Breadcrumb">
     <a href="{{ route('shop') }}" class="font-semibold text-brand-700 hover:text-brand-900">Shop</a>
     <span aria-hidden="true">/</span>

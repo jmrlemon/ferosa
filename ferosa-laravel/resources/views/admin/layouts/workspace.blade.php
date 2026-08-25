@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  @include('partials.favicon')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="ferosa-user-role" content="{{ auth()->user()?->role ?? 'staff' }}">
   <title>@yield('title', 'Ferosa Admin')</title>
@@ -12,11 +13,6 @@
   @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin/notifications.js'])
   @include('admin.partials.premium-theme')
   <style>
-    :focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
     @media (max-width: 767px) {
       #admin-sidebar {
         position: fixed;

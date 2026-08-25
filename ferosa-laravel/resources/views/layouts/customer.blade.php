@@ -15,7 +15,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover">
+  @include('partials.favicon')
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -39,16 +40,6 @@
        Do not redeclare colours here — reference the tokens directly. */
     * { font-family: 'DM Sans', system-ui, sans-serif; }
     .font-display { font-family: 'Fraunces', Georgia, serif; }
-
-    :focus-visible {
-      outline: 3px solid rgba(52, 127, 87, .28);
-      outline-offset: 3px;
-    }
-
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #e5e5e5; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #d4d4d4; }
 
     /* Hide scrollbars in sidebar */
     #customer-sidebar { overflow-x: hidden; }
@@ -96,10 +87,11 @@
       margin: 0 auto;
       padding: 2.25rem 1rem 7rem;
     }
-    .customer-page.max-w-2xl { max-width: 42rem; }
-    .customer-page.max-w-3xl { max-width: 48rem; }
-    .customer-page.max-w-4xl { max-width: 56rem; }
-    .customer-page.max-w-5xl { max-width: 64rem; }
+    /* Two widths, not six. Everything that browses, lists or lays out side by
+       side keeps the full workspace width above; single-column reading and
+       form pages take the narrow one, so the shell stops resizing itself as
+       the customer moves between pages. */
+    .customer-page.is-narrow { max-width: 48rem; }
     @media (min-width: 640px) {
       .customer-page { padding-left: 1.5rem; padding-right: 1.5rem; }
     }
@@ -564,6 +556,7 @@
 
   @yield('styles')
   @include('partials.a11y-focus')
+  @include('partials.scrollbars')
 
   <script>
     window.addEventListener('pageshow', function (event) {

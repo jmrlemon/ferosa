@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  @include('partials.favicon')
   <title>Archived - Ferosa Landscaping Admin</title>
   <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
   @vite(['resources/css/app.css', 'resources/js/app.js'])

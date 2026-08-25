@@ -3,7 +3,7 @@
 @section('title', 'Completed Projects - Ferosa Landscaping')
 
 @section('content')
-<main class="customer-page max-w-6xl">
+<main class="customer-page">
   <section class="overflow-hidden rounded-[1.6rem] bg-brand-950 px-6 py-9 text-white sm:px-9 sm:py-12">
     <div class="grid gap-8 lg:grid-cols-[1fr_320px] lg:items-end">
       <div>

@@ -90,7 +90,7 @@
     : ['Awaiting confirmation', 'bg-amber-50 text-amber-700 border-amber-100'];
 @endphp
 
-<main class="customer-page home-shell max-w-6xl">
+<main class="customer-page home-shell">
   <section class="welcome-panel rounded-[1.6rem] px-6 py-7 sm:px-9 sm:py-9 lg:px-11 lg:py-10 text-white home-reveal">
     <div class="grid lg:grid-cols-[1.15fr_.85fr] gap-8 lg:gap-12 items-center">
       <div class="max-w-2xl">

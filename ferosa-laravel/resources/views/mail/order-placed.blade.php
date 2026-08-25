@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
-<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #111827;">
+<body style="font-family: system-ui, sans-serif; line-height: 1.5; color: #181714;">
   <p>Hi {{ $order->user->name ?? 'there' }},</p>
   <p>Thank you for your order. We received it and will prepare it for fulfillment.</p>
   <p><strong>Order number:</strong> {{ $order->order_number }}<br>

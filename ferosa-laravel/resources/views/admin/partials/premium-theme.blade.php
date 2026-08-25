@@ -118,3 +118,4 @@
 </style>
 @include('admin.partials.type-scale')
 @include('partials.a11y-focus')
+@include('partials.scrollbars')

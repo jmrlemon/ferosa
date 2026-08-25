@@ -43,7 +43,7 @@
     ->map(fn ($part) => mb_strtoupper(mb_substr($part, 0, 1)))
     ->implode('');
 @endphp
-<main class="customer-page max-w-3xl space-y-6">
+<main class="customer-page is-narrow space-y-6">
 
   <x-page-head
     kicker="Your account"

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  @include('partials.favicon')
 <title>Ferosa Landscaping - Garden & Landscaping</title>
 <meta name="description" content="Plan landscaping projects, schedule services, shop garden essentials, and track updates with Ferosa Landscaping.">
 <meta property="og:type" content="website">
@@ -665,7 +666,6 @@ html, body {
   letter-spacing: .02em;
 }
 .help-badge { display: none; }
-:focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
 
 @media (max-width: 900px) {
   .scene { padding: 16px; }
@@ -700,6 +700,7 @@ html, body {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 </style>
+@include('partials.a11y-focus')
 
   <script>
     window.addEventListener('pageshow', function (event) {

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  @include('partials.favicon')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="ferosa-user-role" content="{{ auth()->user()?->role ?? 'staff' }}">
   <title>Admin Dashboard - Ferosa Landscaping</title>
@@ -18,11 +19,6 @@
   <style>
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
-    :focus-visible { outline: 3px solid rgba(52,127,87,.3); outline-offset: 3px; }
     .admin-chat-bubble {
       padding: .625rem 1rem;
       font-size: .875rem;
@@ -192,7 +188,7 @@
                     {{ $latest?->body ?? 'No messages yet' }}
                   </p>
                   @if($convo->last_message_at)
-                    <p class="text-[10px] text-surface-300 mt-0.5">{{ $convo->last_message_at->diffForHumans() }}</p>
+                    <p class="text-[10px] text-surface-400 mt-0.5">{{ $convo->last_message_at->diffForHumans() }}</p>
                   @endif
                 </div>
               </button>
@@ -465,7 +461,7 @@
           <div class="bg-white p-4 sm:p-5">
             <p class="text-[10px] font-bold uppercase tracking-wider text-surface-400">Customer rating</p>
             <p class="mt-2 text-xl font-bold text-surface-900 sm:text-2xl">
-              @if($avgRating){{ number_format((float) $avgRating, 1) }}<span class="text-sm font-medium text-amber-500"> / 5</span>@else<span class="text-surface-300">Not rated</span>@endif
+              @if($avgRating){{ number_format((float) $avgRating, 1) }}<span class="text-sm font-medium text-amber-500"> / 5</span>@else<span class="text-surface-400">Not rated</span>@endif
             </p>
             <p class="mt-1 text-[11px] text-surface-400">From {{ number_format($feedbacks->total()) }} review{{ $feedbacks->total() === 1 ? '' : 's' }}</p>
           </div>
@@ -499,7 +495,7 @@
                   </div>
                   <p class="mt-0.5 truncate text-xs text-surface-500">{{ $priorityAppointment->serviceType->name ?? 'Service visit' }} &middot; {{ $priorityApptAt?->format('g:i A') ?? 'Time pending' }}</p>
                 </div>
-                <svg class="h-4 w-4 shrink-0 text-surface-300 transition group-hover:translate-x-0.5 group-hover:text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg>
+                <svg class="h-4 w-4 shrink-0 text-surface-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg>
               </a>
             @empty
               <div class="px-5 py-10 text-center">
@@ -539,7 +535,7 @@
                   </div>
                   <p class="mt-0.5 truncate text-xs text-surface-500">{{ $priorityOrder->user->name ?? 'Customer' }} &middot; &#8369;{{ number_format((float) $priorityOrder->total_amount, 2) }}</p>
                 </div>
-                <svg class="h-4 w-4 shrink-0 text-surface-300 transition group-hover:translate-x-0.5 group-hover:text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg>
+                <svg class="h-4 w-4 shrink-0 text-surface-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/></svg>
               </a>
             @empty
               <div class="px-5 py-10 text-center">
@@ -787,7 +783,7 @@
             <div class="relative flex-1 max-w-[240px]">
               <label class="block text-[10px] font-medium text-surface-400 mb-1">Search</label>
               <div class="relative">
-                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                 <input type="search" name="appt_q" value="{{ $apptQ ?? '' }}" placeholder="Name, email, service..."
                        class="h-11 w-full rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
               </div>
@@ -899,7 +895,7 @@
                           'feedback_rating' => $appt->feedback?->rating,
                           'feedback_comment'=> $appt->feedback?->comment ?? '',
                         ]) }})"
-                        class="text-surface-300 hover:text-brand-600 transition-colors" title="View Details">
+                        class="text-surface-400 hover:text-brand-600 transition-colors" title="View Details">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                       </button>
 
@@ -930,7 +926,7 @@
                               data-confirm-action="Archive">
                           @csrf
                           @method('PUT')
-                          <button class="p-1 text-surface-300 hover:text-red-500 rounded transition-colors" title="Archive">
+                          <button class="p-1 text-surface-400 hover:text-red-500 rounded transition-colors" title="Archive">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                           </button>
                         </form>
@@ -1005,7 +1001,7 @@
               <div class="relative flex-1 max-w-[240px]">
                 <label class="block text-[10px] font-medium text-surface-400 mb-1">Search</label>
                 <div class="relative">
-                  <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                   <input type="search" name="order_q" value="{{ request('order_q') }}" placeholder="Order #, name, email"
                          class="h-11 w-full rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
                 </div>
@@ -1125,7 +1121,7 @@
                           'customer_phone'  => $order->user->phone_number ?? '',
                           'items'           => $order->items ?? [],
                         ]) }})"
-                        class="text-surface-300 hover:text-brand-600 transition-colors" title="View Details">
+                        class="text-surface-400 hover:text-brand-600 transition-colors" title="View Details">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                       </button>
                     </div>
@@ -1235,7 +1231,7 @@
                               data-confirm-action="Archive">
                           @csrf
                           @method('PUT')
-                          <button class="p-1 text-surface-300 hover:text-red-500 rounded transition-colors" title="Archive">
+                          <button class="p-1 text-surface-400 hover:text-red-500 rounded transition-colors" title="Archive">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                           </button>
                         </form>
@@ -1290,7 +1286,7 @@
           <input type="hidden" name="tab" value="services">
           <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
             <div class="relative md:col-span-9">
-              <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-300" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
+              <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
               <input type="search" name="service_q" value="{{ $serviceQ ?? request('service_q') }}" placeholder="Search services..." class="h-10 w-full rounded-lg border border-surface-200 px-3 pl-9 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
             <div class="flex gap-2 md:col-span-3">
@@ -1382,7 +1378,7 @@
           <input type="hidden" name="tab" value="products">
           <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
             <div class="relative md:col-span-5">
-              <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-300" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
+              <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
               <input type="search" name="product_q" value="{{ $productQ ?? request('product_q') }}" placeholder="Search by product or category..." class="h-10 w-full rounded-lg border border-surface-200 px-3 pl-9 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
             <select name="product_category" class="h-10 rounded-lg border border-surface-200 bg-white px-3 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 md:col-span-4">
@@ -1678,7 +1674,7 @@
           <form method="GET" action="{{ route('admin.dashboard') }}" class="flex items-end gap-2">
             <input type="hidden" name="tab" value="audit">
             <div class="relative">
-              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input type="search" name="audit_q" value="{{ $auditQ ?? request('audit_q') }}" placeholder="Activity, user, target, or ID"
                      class="h-11 w-52 rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
             </div>
@@ -1819,7 +1815,7 @@
                           <button class="bg-surface-900 text-white rounded-lg px-2.5 py-1 text-[10px] font-medium hover:bg-surface-800 transition-colors">Set</button>
                         </form>
                       @else
-                        <span class="text-[10px] text-surface-300">Cannot edit self</span>
+                        <span class="text-[10px] text-surface-400">Cannot edit self</span>
                       @endif
                     </div>
                   </td>
@@ -1876,7 +1872,7 @@
                   </td>
                   <td class="px-5 py-3">
                     <span class="text-amber-400 tracking-tighter text-sm">
-                      {{ str_repeat('★', $fb->rating) }}<span class="text-surface-200">{{ str_repeat('★', 5 - $fb->rating) }}</span>
+                      {{ str_repeat('★', $fb->rating) }}<span class="text-surface-350">{{ str_repeat('★', 5 - $fb->rating) }}</span>
                     </span>
                   </td>
                   <td class="px-5 py-3">
@@ -1956,7 +1952,7 @@
             </div>
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-xs text-surface-500">
-                <svg class="w-3.5 h-3.5 text-surface-300 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                <svg class="w-3.5 h-3.5 text-surface-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                 <span id="od-customer-phone">—</span>
               </div>
             </div>

@@ -18,35 +18,35 @@
   <title>Invoice {{ $invoiceNumber }} — Ferosa</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; color: #111827; background: #f9fafb; padding: 32px 16px; }
-    .invoice { background: #fff; max-width: 560px; margin: 0 auto; padding: 36px 32px; border-radius: 12px; border: 1px solid #e5e7eb; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; color: #181714; background: #f8f7f3; padding: 32px 16px; }
+    .invoice { background: #fff; max-width: 560px; margin: 0 auto; padding: 36px 32px; border-radius: 12px; border: 1px solid #e2ded4; }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
-    .logo { font-size: 20px; font-weight: 800; letter-spacing: -.5px; color: #15803d; }
-    .sub { font-size: 11px; color: #9ca3af; margin-top: 2px; }
-    .doc-type { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; text-align: right; }
+    .logo { font-size: 20px; font-weight: 800; letter-spacing: -.5px; color: #1b5239; }
+    .sub { font-size: 11px; color: #948e83; margin-top: 2px; }
+    .doc-type { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #948e83; text-align: right; }
     .doc-no { font-family: monospace; font-size: 15px; font-weight: 700; text-align: right; margin-top: 2px; }
-    .divider { border: none; border-top: 1px solid #f3f4f6; margin: 16px 0; }
+    .divider { border: none; border-top: 1px solid #f0eee8; margin: 16px 0; }
     .row { display: flex; justify-content: space-between; padding: 5px 0; gap: 16px; }
-    .row .label { color: #6b7280; }
+    .row .label { color: #746f65; }
     .row .value { font-weight: 600; text-align: right; }
-    .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin: 24px 0 8px; }
+    .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #948e83; margin: 24px 0 8px; }
     table { width: 100%; border-collapse: collapse; }
-    thead th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #9ca3af; padding: 8px 0; border-bottom: 1px solid #f3f4f6; text-align: left; }
+    thead th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #948e83; padding: 8px 0; border-bottom: 1px solid #f0eee8; text-align: left; }
     thead th:last-child, td:last-child { text-align: right; }
-    tbody td { padding: 9px 0; border-bottom: 1px solid #f9fafb; vertical-align: top; }
+    tbody td { padding: 9px 0; border-bottom: 1px solid #f8f7f3; vertical-align: top; }
     tbody tr:last-child td { border-bottom: none; }
-    .muted { color: #9ca3af; font-size: 11px; }
-    .totals { margin-top: 8px; border-top: 1px solid #f3f4f6; padding-top: 10px; }
+    .muted { color: #948e83; font-size: 11px; }
+    .totals { margin-top: 8px; border-top: 1px solid #f0eee8; padding-top: 10px; }
     .balance { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding: 14px 16px; border-radius: 10px; font-weight: 800; font-size: 15px; }
     .balance.due { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-    .balance.paid { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .balance.paid { background: #eef7f1; color: #1b5239; border: 1px solid #d8ecdf; }
     .balance.partial { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-    .balance.refunded { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
-    .empty { color: #9ca3af; font-style: italic; padding: 12px 0; }
-    .footer { margin-top: 28px; text-align: center; font-size: 11px; color: #9ca3af; line-height: 1.6; }
+    .balance.refunded { background: #f0eee8; color: #514d46; border: 1px solid #e2ded4; }
+    .empty { color: #948e83; font-style: italic; padding: 12px 0; }
+    .footer { margin-top: 28px; text-align: center; font-size: 11px; color: #948e83; line-height: 1.6; }
     .print-btn { display: block; text-align: center; margin: 20px auto 0; max-width: 560px; }
-    .print-btn button, .print-btn a { display: inline-block; background: #111827; color: #fff; border: none; padding: 10px 28px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
-    .print-btn a { background: #fff; color: #374151; border: 1px solid #e5e7eb; margin-left: 6px; }
+    .print-btn button, .print-btn a { display: inline-block; background: #181714; color: #fff; border: none; padding: 10px 28px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .print-btn a { background: #fff; color: #3b3833; border: 1px solid #e2ded4; margin-left: 6px; }
     @media print {
       body { background: #fff; padding: 0; }
       .invoice { border: none; border-radius: 0; padding: 24px; max-width: none; }

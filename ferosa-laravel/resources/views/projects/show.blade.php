@@ -3,7 +3,7 @@
 @section('title', $project->title.' - Ferosa Projects')
 
 @section('content')
-<main class="customer-page max-w-6xl">
+<main class="customer-page">
   <a href="{{ route('projects.index') }}" class="mb-5 inline-flex items-center gap-2 text-xs font-bold text-brand-700">&larr; Completed projects</a>
 
   <section class="grid gap-7 lg:grid-cols-[1fr_360px] lg:items-end">

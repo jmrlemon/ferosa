@@ -3,7 +3,7 @@
 @section('title', 'Notifications – Ferosa')
 
 @section('content')
-<div class="customer-page max-w-2xl">
+<div class="customer-page is-narrow">
   <x-page-head
     kicker="Activity"
     title="Notifications"
@@ -53,7 +53,7 @@
             <p class="text-xs text-surface-400 mt-1">{{ $notif['created_at'] }}</p>
           </div>
           {{-- Arrow --}}
-          <svg class="w-4 h-4 text-surface-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-surface-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
         </a>

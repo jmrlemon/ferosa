@@ -6,31 +6,31 @@
   <title>Low Stock Alert — Ferosa</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; color: #111827; background: #f9fafb; padding: 32px 16px; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; color: #181714; background: #f8f7f3; padding: 32px 16px; }
     .wrapper { max-width: 560px; margin: 0 auto; }
-    .card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
-    .header { background: #15803d; padding: 24px 28px; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e2ded4; overflow: hidden; }
+    .header { background: #1b5239; padding: 24px 28px; }
     .header .logo { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: #fff; margin-bottom: 2px; }
-    .header .subtitle { font-size: 12px; color: #bbf7d0; }
+    .header .subtitle { font-size: 12px; color: #d8ecdf; }
     .alert-banner { background: #fefce8; border-bottom: 1px solid #fef08a; padding: 12px 28px; display: flex; align-items: center; gap: 10px; }
     .alert-banner .icon { font-size: 20px; }
     .alert-banner p { font-size: 13px; font-weight: 600; color: #854d0e; }
     .body { padding: 24px 28px; }
-    .intro { font-size: 13px; color: #374151; margin-bottom: 20px; line-height: 1.6; }
+    .intro { font-size: 13px; color: #3b3833; margin-bottom: 20px; line-height: 1.6; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    thead th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #9ca3af; padding: 8px 12px; border-bottom: 2px solid #f3f4f6; text-align: left; background: #f9fafb; }
-    tbody td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; vertical-align: middle; }
+    thead th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #948e83; padding: 8px 12px; border-bottom: 2px solid #f0eee8; text-align: left; background: #f8f7f3; }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid #f0eee8; font-size: 13px; vertical-align: middle; }
     tbody tr:last-child td { border-bottom: none; }
-    .product-name { font-weight: 600; color: #111827; }
-    .category { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .product-name { font-weight: 600; color: #181714; }
+    .category { font-size: 11px; color: #746f65; margin-top: 2px; }
     .stock-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
     .stock-critical { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
     .stock-low { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
     .stock-zero { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-    .footer { padding: 16px 28px; background: #f9fafb; border-top: 1px solid #f3f4f6; font-size: 11px; color: #9ca3af; text-align: center; }
-    .footer a { color: #15803d; text-decoration: none; }
+    .footer { padding: 16px 28px; background: #f8f7f3; border-top: 1px solid #f0eee8; font-size: 11px; color: #948e83; text-align: center; }
+    .footer a { color: #1b5239; text-decoration: none; }
     .cta { margin-top: 16px; }
-    .cta a { display: inline-block; background: #15803d; color: #fff; font-weight: 600; font-size: 13px; padding: 10px 24px; border-radius: 8px; text-decoration: none; }
+    .cta a { display: inline-block; background: #1b5239; color: #fff; font-weight: 600; font-size: 13px; padding: 10px 24px; border-radius: 8px; text-decoration: none; }
   </style>
 </head>
 <body>

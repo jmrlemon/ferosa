@@ -40,7 +40,7 @@
   $gcashAvailable = filled($gcashNumber) || filled($gcashQrUrl);
   $selectedPaymentMethod = old('payment_method', 'cod');
 @endphp
-<main class="customer-page max-w-4xl">
+<main class="customer-page">
   <a href="{{ route('shop') }}" class="mb-4 inline-flex items-center gap-1.5 text-xs font-bold text-surface-500 transition-colors hover:text-brand-700">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
     Back to shop

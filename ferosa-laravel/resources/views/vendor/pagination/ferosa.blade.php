@@ -30,7 +30,7 @@
       {{-- Previous --}}
       @if ($paginator->onFirstPage())
         <span aria-disabled="true" aria-label="Previous page"
-              class="{{ $link }} cursor-not-allowed text-surface-300">
+              class="{{ $link }} cursor-not-allowed text-surface-350">
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m15 19-7-7 7-7"/></svg>
         </span>
       @else
@@ -67,7 +67,7 @@
         </a>
       @else
         <span aria-disabled="true" aria-label="Next page"
-              class="{{ $link }} cursor-not-allowed text-surface-300">
+              class="{{ $link }} cursor-not-allowed text-surface-350">
           <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7"/></svg>
         </span>
       @endif

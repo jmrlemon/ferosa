@@ -3,7 +3,7 @@
 @section('title', 'Feedback')
 
 @section('content')
-<div class="customer-page max-w-2xl space-y-6">
+<div class="customer-page is-narrow space-y-6">
 
   {{-- Page header --}}
   <x-page-head
@@ -76,7 +76,7 @@
           <li class="px-6 py-4 space-y-1">
             <div class="flex items-center justify-between">
               <span class="text-amber-400 text-lg tracking-tighter">
-                {{ str_repeat('★', $fb->rating) }}<span class="text-gray-200">{{ str_repeat('★', 5 - $fb->rating) }}</span>
+                {{ str_repeat('★', $fb->rating) }}<span class="text-surface-350">{{ str_repeat('★', 5 - $fb->rating) }}</span>
               </span>
               <span class="text-xs text-surface-400">{{ $fb->created_at->format('M d, Y') }}</span>
             </div>
@@ -108,15 +108,15 @@
   <div class="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl animate-modal-up sm:animate-fade-in">
     {{-- drag handle mobile --}}
     <div class="flex justify-center pt-3 pb-1 sm:hidden">
-      <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
+      <div class="w-10 h-1 bg-surface-200 rounded-full"></div>
     </div>
     <div class="px-4 sm:px-6 pt-2 sm:pt-5 pb-5 sm:pb-6">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <h3 class="text-base font-semibold text-gray-900">Rate Your Order</h3>
-          <p class="text-xs text-gray-400 mt-0.5">Order <span id="modal-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
+          <h3 class="text-base font-semibold text-surface-900">Rate Your Order</h3>
+          <p class="text-xs text-surface-350 mt-0.5">Order <span id="modal-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
         </div>
-        <button onclick="closeFeedbackModal()" class="p-1.5 text-gray-300 hover:text-gray-600 transition-colors rounded-lg">
+        <button onclick="closeFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -124,29 +124,29 @@
         @csrf
         <input type="hidden" name="order_id" id="modal-order-id">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-3">Rating <span class="text-red-500">*</span></label>
+          <label class="block text-xs font-medium text-surface-600 mb-3">Rating <span class="text-red-500">*</span></label>
           <div class="flex justify-between sm:justify-start sm:gap-3" id="modal-star-group">
             @for ($i = 1; $i <= 5; $i++)
               <button type="button" data-value="{{ $i }}"
-                class="modal-star text-5xl sm:text-4xl text-gray-200 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
+                class="modal-star text-5xl sm:text-4xl text-surface-350 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
                 aria-label="{{ $i }} star">&#9733;</button>
             @endfor
           </div>
           <input type="hidden" name="rating" id="modal-rating-input" value="">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Comment <span class="text-gray-300">(optional)</span></label>
+          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
           <textarea name="comment" rows="3"
-            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-[#4caf50] resize-none transition-all"
+            class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 resize-none transition-all"
             placeholder="Tell us about your experience..."></textarea>
         </div>
         <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
           <button type="button" onclick="closeFeedbackModal()"
-            class="py-3 sm:py-2.5 sm:px-4 rounded-xl border border-gray-200 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors touch-manipulation">
+            class="py-3 sm:py-2.5 sm:px-4 rounded-xl border border-surface-200 text-sm font-medium text-surface-500 hover:bg-surface-50 transition-colors touch-manipulation">
             Cancel
           </button>
           <button type="submit" data-loading-label="Submitting..."
-            class="flex-1 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
+            class="flex-1 bg-surface-900 hover:bg-surface-800 active:bg-surface-700 text-white text-sm font-medium py-3 sm:py-2.5 rounded-xl transition-colors touch-manipulation">
             Submit Feedback
           </button>
         </div>
@@ -178,7 +178,7 @@
   function paintModal(upTo) {
     modalStars.forEach((s, i) => {
       s.classList.toggle('text-amber-400', i < upTo);
-      s.classList.toggle('text-gray-200',  i >= upTo);
+      s.classList.toggle('text-surface-350',  i >= upTo);
     });
   }
 

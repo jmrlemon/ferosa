@@ -74,6 +74,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/schedule', [PageController::class, 'schedule'])->name('schedule');
     Route::post('/schedule', [PageController::class, 'storeSchedule'])->name('schedule.store');
     Route::get('/schedule/availability', [PageController::class, 'scheduleAvailability'])->name('schedule.availability');
+    Route::put('/appointments/{appointment}/reschedule', [PageController::class, 'rescheduleAppointment'])->name('appointments.reschedule');
     Route::delete('/appointments/{appointment}/cancel', [PageController::class, 'cancelAppointment'])->name('appointments.cancel');
     Route::delete('/orders/{order}/cancel', [PageController::class, 'cancelOrder'])->name('orders.cancel');
     Route::get('/estimator', [PageController::class, 'estimator'])->name('estimator');
@@ -134,6 +135,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/conversations/{conversation}/reply', [AdminController::class, 'replyMessage'])->name('conversations.reply');
 
         Route::put('/appointments/{appointment}/status', [AdminController::class, 'updateAppointmentStatus'])->name('appointments.status');
+        Route::put('/appointments/{appointment}/scope', [AdminController::class, 'updateAppointmentScope'])->name('appointments.scope');
         Route::put('/appointments/{appointment}/cancel', [AdminController::class, 'cancelAppointment'])->name('appointments.cancel');
         Route::put('/appointments/{appointment}/archive', [AdminController::class, 'archiveAppointment'])->name('appointments.archive');
         Route::put('/appointments/{appointment}/restore', [AdminController::class, 'restoreAppointment'])->name('appointments.restore');

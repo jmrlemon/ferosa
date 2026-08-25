@@ -3,7 +3,7 @@
 @section('title', 'My Appointments - Ferosa Landscaping')
 
 @section('content')
-<main class="customer-page max-w-4xl">
+<main class="customer-page">
   <x-page-head
     kicker="Your bookings"
     title="Appointments"
@@ -132,8 +132,13 @@
               </span>
             @endif
 
-            {{-- Cancel --}}
+            {{-- Move or cancel. Reschedule reuses the booking calendar rather
+                 than a second date picker in a modal here. --}}
             @if ($isUpcoming)
+              <a href="{{ route('schedule', ['reschedule' => $appt->id]) }}" class="btn btn-secondary btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><polyline points="9 16 11 18 15 14"/></svg>
+                Reschedule
+              </a>
               <button onclick="openCancelApptModal({{ $appt->id }}, '{{ addslashes($appt->serviceType->name ?? 'Appointment') }}')"
                 class="btn btn-danger btn-sm">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -172,6 +177,12 @@
                   <span class="font-semibold text-orange-600">PHP {{ number_format($appt->balanceDue(), 2) }} due</span>
                 </div>
               @endif
+              @if ($appt->scope_notes)
+                <div class="flex gap-2 pt-1 border-t border-surface-100">
+                  <span class="text-surface-400 w-20 shrink-0">Scope</span>
+                  <span class="whitespace-pre-line font-medium text-brand-700">{{ $appt->scope_notes }}</span>
+                </div>
+              @endif
               @if ($appt->notes)
                 <div class="flex gap-2 pt-1 border-t border-surface-100">
                   <span class="text-surface-400 w-20 shrink-0">Notes</span>
@@ -202,7 +213,7 @@
                     if ($st === 'cancelled') { $done = false; $active = false; }
                     $circle = $done ? 'bg-brand-600 ring-brand-50 border-brand-600' :
                               ($active ? 'bg-brand-600 ring-brand-50 border-brand-600' : 'bg-white border-surface-300 ring-white');
-                    $text   = $done || $active ? ($active ? 'text-brand-700' : 'text-surface-900') : 'text-surface-300';
+                    $text   = $done || $active ? ($active ? 'text-brand-700' : 'text-surface-900') : 'text-surface-350';
                   @endphp
                   <div class="relative flex gap-3">
                     <div class="relative z-10 w-3 h-3 mt-0.5 rounded-full ring-2 {{ $circle }} flex items-center justify-center border">
@@ -299,7 +310,7 @@
           <h3 class="text-base font-semibold text-surface-900">Rate Your Appointment</h3>
           <p class="text-xs text-surface-400 mt-0.5" id="appt-modal-service-name"></p>
         </div>
-        <button onclick="closeApptFeedbackModal()" class="p-1.5 text-surface-300 hover:text-surface-600 transition-colors rounded-lg">
+        <button onclick="closeApptFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -311,14 +322,14 @@
           <div class="flex justify-between sm:justify-start sm:gap-3" id="appt-modal-star-group">
             @for ($i = 1; $i <= 5; $i++)
               <button type="button" data-value="{{ $i }}"
-                class="appt-modal-star text-5xl sm:text-4xl text-surface-200 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
+                class="appt-modal-star text-5xl sm:text-4xl text-surface-350 hover:text-amber-400 active:scale-90 transition-all focus:outline-none leading-none touch-manipulation"
                 aria-label="{{ $i }} star">&#9733;</button>
             @endfor
           </div>
           <input type="hidden" name="rating" id="appt-modal-rating-input" value="">
         </div>
         <div>
-          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-300">(optional)</span></label>
+          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
           <textarea name="comment" rows="3"
             class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-100 resize-none transition-all"
             placeholder="Tell us about your experience…"></textarea>
@@ -371,7 +382,7 @@
   function paintApptStars(upTo) {
     apptStars.forEach((s, i) => {
       s.classList.toggle('text-amber-400', i < upTo);
-      s.classList.toggle('text-surface-200', i >= upTo);
+      s.classList.toggle('text-surface-350', i >= upTo);
     });
   }
 

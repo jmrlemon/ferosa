@@ -9,6 +9,11 @@
   .cal-day.selected { background: #1f7a1f; color: #fff; font-weight: 600; border-radius: 8px; }
   .cal-day.today { outline: 2px solid #1f7a1f; border-radius: 8px; outline-offset: -2px; }
   .cal-day.past { color: #d4d4d4; cursor: not-allowed; }
+  .booking-step .step-marker { transition: background .12s, color .12s; }
+  .booking-step.is-done .step-marker { background: #123426; color: #fff; }
+  .booking-step.is-active .step-marker { background: #1f7a1f; color: #fff; box-shadow: 0 0 0 3px rgba(31,122,31,.16); }
+  .booking-step.is-done .step-label,
+  .booking-step.is-active .step-label { color: #1c1917; }
   .time-slot { transition: border-color .12s, background .12s, color .12s, opacity .12s; }
   .time-slot.selected { border-color: #1f7a1f; background: #f0faf0; color: #1a6320; font-weight: 600; }
   .time-slot:disabled,
@@ -24,13 +29,15 @@
 @endsection
 
 @section('content')
-<main class="customer-page max-w-3xl">
+<main class="customer-page">
 
   {{-- Page header --}}
   <x-page-head
-    kicker="Book a visit"
-    title="Schedule a service"
-    sub="Choose your service first, then pick an available date and time. We confirm within one business day.">
+    kicker="{{ $rescheduling ? 'Move a visit' : 'Book a visit' }}"
+    title="{{ $rescheduling ? 'Reschedule your visit' : 'Schedule a service' }}"
+    sub="{{ $rescheduling
+      ? 'Pick a new date and time. The service and the starting fee stay the same, and the team will confirm the new slot.'
+      : 'Choose your service first, then pick an available date and time. We confirm within one business day.' }}">
     <x-slot:icon>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M12 14v4M10 16h4"/>
@@ -38,15 +45,19 @@
     </x-slot:icon>
   </x-page-head>
 
+  {{-- Booking progress. The steps are driven by what the customer has actually
+       chosen (see updateStepper below); a strip that always highlighted step 1
+       told them nothing about where they were. --}}
   <section class="mb-6 overflow-hidden rounded-2xl border border-brand-100 bg-white reveal reveal-1" aria-label="Booking progress">
-    <div class="grid grid-cols-2 sm:grid-cols-4">
+    <ol class="grid grid-cols-2 sm:grid-cols-4">
       @foreach([['1', 'Service'], ['2', 'Date'], ['3', 'Time'], ['4', 'Confirm']] as [$number, $label])
-        <div class="flex items-center gap-2 border-b border-r border-brand-50 px-3 py-3 last:border-r-0 sm:border-b-0">
-          <span class="flex h-6 w-6 items-center justify-center rounded-full {{ $number === '1' ? 'bg-brand-700 text-white' : 'bg-brand-50 text-brand-700' }} text-[10px] font-bold">{{ $number }}</span>
-          <span class="text-xs font-bold text-surface-700">{{ $label }}</span>
-        </div>
+        <li class="booking-step flex items-center gap-2 border-b border-r border-brand-50 px-3 py-3 last:border-r-0 sm:border-b-0" data-step="{{ $number }}">
+          <span class="step-marker flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-brand-700 text-[10px] font-bold" aria-hidden="true">{{ $number }}</span>
+          <span class="step-label text-xs font-bold text-surface-500">{{ $label }}</span>
+          <span class="step-state sr-only">not started</span>
+        </li>
       @endforeach
-    </div>
+    </ol>
   </section>
 
   {{-- Success flash --}}
@@ -64,8 +75,18 @@
       </ul>
     </x-alert>
   @endif
-
-  @if ($activeAppointment ?? null)
+  @if ($rescheduling)
+    <div class="mb-6 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-900">
+      <p class="font-semibold">Moving your {{ $rescheduling->serviceType->name ?? 'service' }} visit.</p>
+      <p class="mt-1 text-brand-800/80">
+        Currently booked for {{ $rescheduling->appointment_at->format('M d, Y \a\t g:i A') }}.
+        Choosing a new slot keeps the same booking and starting fee, and returns it to the team for confirmation.
+      </p>
+      <a href="{{ route('appointments') }}" class="mt-2 inline-flex text-xs font-bold text-brand-700 hover:text-brand-900">
+        Keep the current time
+      </a>
+    </div>
+  @elseif ($activeAppointment ?? null)
     <div class="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
       <p class="font-semibold">You already have an active booking.</p>
       <p class="mt-1">
@@ -73,15 +94,27 @@
         {{ $activeAppointment->appointment_at->format('M d, Y \a\t g:i A') }}.
         Please cancel or complete this booking before scheduling another service.
       </p>
-      <a href="{{ route('appointments') }}" class="inline-flex mt-2 text-xs font-semibold text-amber-900 hover:text-amber-700">
-        View appointment
-      </a>
+      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        <a href="{{ route('appointments') }}" class="inline-flex text-xs font-semibold text-amber-900 hover:text-amber-700">
+          View appointment
+        </a>
+        <a href="{{ route('schedule', ['reschedule' => $activeAppointment->id]) }}" class="inline-flex text-xs font-semibold text-amber-900 hover:text-amber-700">
+          Move it to another time
+        </a>
+      </div>
     </div>
   @endif
 
-  {{-- Booking form --}}
-  <form method="POST" action="{{ route('schedule.store') }}" id="booking-form">
+  {{-- Booking form. In reschedule mode the same fields post to a different
+       action: the server keeps the service and the fee from the record, so
+       only the new time travels with the request. --}}
+  <form method="POST"
+        action="{{ $rescheduling ? route('appointments.reschedule', $rescheduling) : route('schedule.store') }}"
+        id="booking-form">
     @csrf
+    @if ($rescheduling)
+      @method('PUT')
+    @endif
 
     {{-- Hidden inputs populated by JS --}}
     <input type="hidden" name="service_type_id" id="hidden-service-type">
@@ -103,16 +136,24 @@
           </div>
           <div>
             <label for="service-type-select" class="block text-xs font-bold text-surface-700 mb-2">Landscaping service</label>
-            <select id="service-type-select"
-              class="w-full border border-surface-200 rounded-xl px-3.5 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition-colors">
+            {{-- Locked while rescheduling: this form moves an existing booking,
+                 it does not turn it into a different service. --}}
+            <select id="service-type-select" @disabled($rescheduling !== null)
+              class="w-full border border-surface-200 rounded-xl px-3.5 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition-colors disabled:bg-surface-50 disabled:text-surface-500">
               @forelse (($serviceTypes ?? []) as $st)
-                <option value="{{ $st->id }}" {{ (string) request('service') === (string) $st->id ? 'selected' : '' }}>
+                <option value="{{ $st->id }}"
+                  @selected($rescheduling
+                    ? (int) $rescheduling->service_type_id === (int) $st->id
+                    : (string) request('service') === (string) $st->id)>
                   {{ $st->name }} - from PHP {{ number_format((float) $st->default_fee, 0) }}
                 </option>
               @empty
                 <option value="">No services available</option>
               @endforelse
             </select>
+            @if ($rescheduling)
+              <p class="mt-2 text-[11px] text-surface-400">The service stays as booked. Cancel this visit if you need a different one.</p>
+            @endif
             @if(empty($serviceTypes) || count($serviceTypes) === 0)
               <div class="rounded-lg border border-amber-100 bg-amber-50 text-amber-700 text-xs px-3 py-2 mt-3">
                 No service types are available right now. Please check again later.
@@ -177,7 +218,7 @@
               </button>
             @endforeach
             <button type="button" disabled
-              class="time-slot min-h-[44px] border border-surface-100 py-2 rounded-xl text-xs font-medium text-surface-300 bg-surface-50 cursor-not-allowed opacity-65">
+              class="time-slot min-h-[44px] border border-surface-100 py-2 rounded-xl text-xs font-medium text-surface-350 bg-surface-50 cursor-not-allowed">
               05:30 PM
             </button>
           </div>
@@ -187,9 +228,9 @@
         {{-- Notes --}}
         <div class="customer-card p-5">
           <label for="notes-field" class="block text-sm font-bold text-surface-900 mb-1">Project notes <span class="font-normal text-surface-400">(optional)</span></label>
-          <p class="text-[11px] text-surface-400 mb-3">Tell us about your space, goals, or anything we should prepare for.</p>
+          <p class="text-[11px] text-surface-400 mb-3">Tell us about your space, goals, or anything we should prepare for. <span class="font-semibold text-surface-500">Need more than one service on this visit?</span> Name the extras here - the team confirms the combined scope and total before your visit.</p>
           <textarea id="notes-field"
-            placeholder="For example: front garden, partial shade, easy-care plants..."
+            placeholder="For example: front garden, partial shade, easy-care plants. Also need lawn care on the same visit."
             class="w-full border border-surface-200 rounded-xl px-3.5 py-3 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 h-24 resize-none transition-colors"></textarea>
         </div>
 
@@ -199,9 +240,15 @@
         </div>
 
         <button type="button" onclick="submitBooking()" id="booking-submit-btn"
-          @if ($activeAppointment ?? null) disabled @endif
+          @disabled($activeAppointment ?? null)
           class="customer-action w-full min-h-[48px] bg-brand-700 hover:bg-brand-800 text-white font-bold py-3 text-sm shadow-soft disabled:opacity-60 disabled:cursor-not-allowed">
-          {{ ($activeAppointment ?? null) ? 'Booking Limit Reached' : 'Confirm Booking' }}
+          @if ($rescheduling)
+            Confirm New Time
+          @elseif ($activeAppointment ?? null)
+            Booking Limit Reached
+          @else
+            Confirm Booking
+          @endif
         </button>
       </div>
     </div>
@@ -454,6 +501,37 @@
     }
   })();
 
+  // ── Progress ──────────────────────────────────────────────────────────────
+  // Step 1 is complete as soon as a service is chosen (one is preselected), so
+  // the strip normally opens on step 2 rather than pretending nothing is done.
+  function updateStepper() {
+    const done = [
+      Boolean(document.getElementById('service-type-select')?.value),
+      Boolean(selectedDate),
+      Boolean(selectedTime),
+      false,
+    ];
+    // "Confirm" is reached only once the three choices above are made.
+    done[3] = done[0] && done[1] && done[2];
+
+    const firstOpen = done.findIndex(isDone => !isDone);
+
+    document.querySelectorAll('.booking-step').forEach((step, index) => {
+      const isDone = done[index] && index !== 3;
+      const isActive = index === firstOpen || (index === 3 && done[3]);
+
+      step.classList.toggle('is-done', isDone);
+      step.classList.toggle('is-active', isActive && !isDone);
+      step.setAttribute('aria-current', isActive && !isDone ? 'step' : 'false');
+
+      const marker = step.querySelector('.step-marker');
+      if (marker) marker.textContent = isDone ? '✓' : String(index + 1);
+
+      const state = step.querySelector('.step-state');
+      if (state) state.textContent = isDone ? 'completed' : (isActive ? 'current step' : 'not started');
+    });
+  }
+
   // ── Summary ───────────────────────────────────────────────────────────────
   function updateSummary() {
     const sum = document.getElementById('selection-summary');
@@ -468,11 +546,14 @@
     } else {
       sum.classList.add('hidden');
     }
+    updateStepper();
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
+  const IS_RESCHEDULING = @json($rescheduling !== null);
+
   function submitBooking() {
-    if (@json((bool) ($activeAppointment ?? null))) {
+    if (!IS_RESCHEDULING && @json((bool) ($activeAppointment ?? null))) {
       alert('You already have an active booking. Please cancel or complete it before booking another service.');
       return;
     }
@@ -502,14 +583,19 @@
     const btn = document.getElementById('booking-submit-btn');
     btn.disabled = true;
     btn.dataset.loading = 'true';
-    btn.innerHTML = '<span class="inline-block w-3.5 h-3.5 border-2 border-current border-r-transparent rounded-full animate-spin"></span><span>Booking...</span>';
+    const busyLabel = IS_RESCHEDULING ? 'Moving...' : 'Booking...';
+    btn.innerHTML = '<span class="inline-block w-3.5 h-3.5 border-2 border-current border-r-transparent rounded-full animate-spin"></span><span>' + busyLabel + '</span>';
     document.getElementById('booking-form').submit();
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
     renderCalendar();
-    document.getElementById('service-type-select')?.addEventListener('change', refreshTimeSlotAvailability);
+    updateStepper();
+    document.getElementById('service-type-select')?.addEventListener('change', () => {
+      refreshTimeSlotAvailability();
+      updateStepper();
+    });
   });
 </script>
 @endsection

@@ -20,9 +20,17 @@ class Appointment extends Model
 {
     use Concerns\HasPayments;
 
+    /**
+     * A confirmed appointment can go back to scheduled so a customer can move
+     * a visit the team already confirmed: the new time has not been agreed with
+     * anyone yet, so it drops back to awaiting confirmation rather than keeping
+     * a confirmation that referred to a different day.
+     *
+     * @var array<string, list<string>>
+     */
     public const STATUS_TRANSITIONS = [
         'scheduled' => ['confirmed', 'cancelled'],
-        'confirmed' => ['completed', 'cancelled'],
+        'confirmed' => ['scheduled', 'completed', 'cancelled'],
         'completed' => [],
         'cancelled' => [],
     ];
@@ -44,6 +52,7 @@ class Appointment extends Model
         'payment_status',
         'appointment_amount',
         'notes',
+        'scope_notes',
         'cancel_reason',
         'cancelled_at',
         'cancelled_by',
@@ -60,6 +69,7 @@ class Appointment extends Model
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

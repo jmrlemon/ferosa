@@ -86,7 +86,15 @@ import kotlinx.coroutines.delay
 /** Imperatively covers the old WebView frame before Compose changes screens. */
 class WebNavigationCoverController {
     private var showCover: (() -> Unit)? = null
-    private var coverRequested = false
+
+    // Compose state, not a plain Boolean. The AndroidView update block sets
+    // the cover View's visibility from isRequested(), so that block has to be
+    // subscribed to this flag. As a plain field nothing recomposed when
+    // release() flipped it, and the cover stayed VISIBLE over a fully
+    // rendered page until some unrelated state change happened to re-run the
+    // block. That was the blank Shop on the first tap after a cold start:
+    // the page underneath was complete the whole time.
+    private var coverRequested by mutableStateOf(false)
     private var requestedTarget: AppScreen? = null
 
     fun attach(showCover: () -> Unit) {

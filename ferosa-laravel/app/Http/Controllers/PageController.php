@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\RescheduleAppointmentRequest;
 use App\Http\Requests\StoreScheduleRequest;
 use App\Mail\AppointmentBooked;
 use App\Mail\AppointmentStatusUpdated;
@@ -137,18 +138,61 @@ class PageController extends Controller
             ->limit(4)
             ->get();
 
+        // The hero needs a photograph of finished work, so the best-ranked
+        // published project that actually has a cover image is pulled out first
+        // and excluded from the grid below rather than shown twice.
+        $heroProject = Project::query()
+            ->published()
+            ->whereNotNull('cover_image_path')
+            ->orderByDesc('is_featured')
+            ->orderByDesc('completed_at')
+            ->latest('id')
+            ->first();
+
         $featuredProjects = Project::query()
             ->published()
+            ->when($heroProject, fn ($query) => $query->whereKeyNot($heroProject->getKey()))
             ->orderByDesc('is_featured')
             ->orderByDesc('completed_at')
             ->latest('id')
             ->limit(3)
             ->get();
 
+        // Client quotes are already captured on the project record, so the
+        // proof section needs no separate testimonial table.
+        $testimonials = Project::query()
+            ->published()
+            ->whereNotNull('client_quote')
+            ->where('client_quote', '!=', '')
+            ->orderByDesc('rating')
+            ->orderByDesc('completed_at')
+            ->limit(3)
+            ->get();
+
+        $arProducts = Product::query()
+            ->arEnabled()
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->whereNotNull('image_url')
+            ->latest()
+            ->limit(3)
+            ->get();
+
+        $stats = [
+            'projects' => Project::query()->published()->count(),
+            'products' => Product::query()->where('is_active', true)->whereNull('archived_at')->count(),
+            'services' => ServiceType::query()->where('is_active', true)->whereNull('archived_at')->count(),
+            'ar_models' => Product::query()->arEnabled()->where('is_active', true)->whereNull('archived_at')->count(),
+        ];
+
         return view('landing', [
             'featuredProducts' => $featuredProducts,
             'featuredServices' => $featuredServices,
             'featuredProjects' => $featuredProjects,
+            'heroProject' => $heroProject,
+            'testimonials' => $testimonials,
+            'arProducts' => $arProducts,
+            'stats' => $stats,
             'businessProfile' => AppSetting::getBusinessProfile(),
         ]);
     }
@@ -537,12 +581,33 @@ class PageController extends Controller
         return back()->with('status', "Order {$order->order_number} confirmed as received.");
     }
 
-    public function schedule(): View
+    public function schedule(Request $request): View
     {
-        $activeAppointment = $this->activeAppointmentForUser(auth()->id());
+        // `?reschedule=<id>` re-uses this whole form to move an existing visit,
+        // rather than maintaining a second calendar in a modal. The record is
+        // resolved here so the view never has to trust the query string.
+        $rescheduling = null;
+        if ($request->filled('reschedule')) {
+            $rescheduling = Appointment::query()
+                ->with('serviceType')
+                ->whereKey($request->integer('reschedule'))
+                ->first();
+
+            abort_unless($rescheduling !== null, 404);
+            abort_unless((int) $rescheduling->user_id === (int) auth()->id(), 403);
+            abort_unless(
+                in_array($rescheduling->status, ['scheduled', 'confirmed'], true) && $rescheduling->appointment_at->isFuture(),
+                422
+            );
+        }
+
+        // The one-active-booking limit does not apply while moving that very
+        // booking; it would otherwise block the customer from their own visit.
+        $activeAppointment = $rescheduling ? null : $this->activeAppointmentForUser(auth()->id());
 
         return view('schedule', [
             'activeAppointment' => $activeAppointment,
+            'rescheduling' => $rescheduling,
             'serviceTypes' => ServiceType::query()
                 ->where('is_active', true)
                 ->whereNull('archived_at')
@@ -646,6 +711,90 @@ class PageController extends Controller
         }
 
         return back()->with('status', 'Booking submitted. Track confirmation and updates in Appointments and Notifications.');
+    }
+
+    /**
+     * Move an existing visit to another published slot.
+     *
+     * Cancelling and rebooking used to be the only route, which surrendered the
+     * slot and walked the customer through the whole form again. Nothing here
+     * is read from the form except the new time: the service, the fee and the
+     * owner all stay as recorded, so a posted service_type_id cannot move a
+     * booking onto a different service.
+     */
+    public function rescheduleAppointment(RescheduleAppointmentRequest $request, Appointment $appointment): RedirectResponse
+    {
+        abort_unless((int) $appointment->user_id === (int) $request->user()->id, 403);
+        abort_unless(
+            in_array($appointment->status, ['scheduled', 'confirmed'], true) && $appointment->appointment_at->isFuture(),
+            422
+        );
+
+        $appointmentAt = Carbon::parse($request->validated()['appointment_at'])->seconds(0);
+
+        if ($appointmentAt->equalTo($appointment->appointment_at)) {
+            return back()->withErrors([
+                'appointment_at' => 'This visit is already booked for that time. Choose a different slot.',
+            ]);
+        }
+
+        $taken = Appointment::query()
+            ->where('service_type_id', $appointment->service_type_id)
+            ->where('appointment_at', $appointmentAt)
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->whereKeyNot($appointment->getKey())
+            ->exists();
+
+        if ($taken) {
+            return back()->withErrors([
+                'appointment_at' => 'That time slot is already booked. Please choose another time.',
+            ]);
+        }
+
+        // A confirmed visit returns to `scheduled`: the team agreed to the old
+        // time, not this one.
+        abort_unless($appointment->canTransitionTo('scheduled'), 422);
+
+        $previousAt = $appointment->appointment_at->copy();
+        $before = Audit::snapshot($appointment, ['status', 'appointment_at', 'slot_key']);
+
+        try {
+            $appointment->update([
+                'appointment_at' => $appointmentAt,
+                'slot_key' => Appointment::slotKey((int) $appointment->service_type_id, $appointmentAt),
+                'status' => 'scheduled',
+            ]);
+        } catch (QueryException) {
+            return back()->withErrors([
+                'appointment_at' => 'That time slot was just booked. Please choose another time.',
+            ]);
+        }
+
+        Audit::log(
+            $request,
+            'appointment.reschedule.customer',
+            $appointment,
+            $before,
+            Audit::snapshot($appointment, ['status', 'appointment_at', 'slot_key'])
+        );
+
+        $appointment->load(['user', 'serviceType']);
+
+        $operationsTeam = User::query()->whereIn('role', ['admin', 'staff'])->get();
+        if ($operationsTeam->isNotEmpty()) {
+            Notification::send($operationsTeam, new WorkCreatedNotice(
+                type: 'appointment_rescheduled',
+                message: $request->user()->name.' moved their '.($appointment->serviceType->name ?? 'service')
+                    .' visit from '.$previousAt->format('M d, Y g:i A').' to '.$appointmentAt->format('M d, Y g:i A').'.',
+                url: route('admin.appointments.show', $appointment),
+                appointmentId: $appointment->id,
+            ));
+        }
+
+        return redirect()->route('appointments')->with(
+            'status',
+            'Visit moved to '.$appointmentAt->format('M d, Y \a\t g:i A').'. The team will confirm the new time.'
+        );
     }
 
     private function activeAppointmentForUser(?int $userId): ?Appointment

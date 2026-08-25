@@ -860,4 +860,184 @@ class FunctionalWorkflowTest extends TestCase
 
         return $this->validGlb($document, $binary);
     }
+
+    public function test_customer_can_move_a_confirmed_visit_back_into_review(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        User::factory()->create(['role' => 'admin']);
+        $service = ServiceType::query()->create([
+            'name' => 'Garden Consultation',
+            'default_fee' => 500,
+            'is_active' => true,
+        ]);
+
+        $bookedAt = Carbon::now()->addDays(4)->setTime(9, 0)->seconds(0);
+        $movedTo = Carbon::now()->addDays(6)->setTime(13, 0)->seconds(0);
+
+        $this->actingAs($customer)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => $bookedAt->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+
+        $appointment = Appointment::query()->where('user_id', $customer->id)->firstOrFail();
+        $appointment->update(['status' => 'confirmed']);
+
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => $movedTo->format('Y-m-d H:i:s'),
+            ])
+            ->assertRedirect(route('appointments'))
+            ->assertSessionHasNoErrors();
+
+        $appointment->refresh();
+
+        // Same booking, new time, and back to awaiting confirmation.
+        $this->assertSame(1, Appointment::query()->count());
+        $this->assertSame('scheduled', $appointment->status);
+        $this->assertTrue($movedTo->equalTo($appointment->appointment_at));
+        $this->assertSame(Appointment::slotKey($service->id, $movedTo), $appointment->slot_key);
+        $this->assertSame($service->id, (int) $appointment->service_type_id);
+
+        Notification::assertSentTo(
+            User::query()->where('role', 'admin')->get(),
+            WorkCreatedNotice::class
+        );
+    }
+
+    public function test_the_freed_slot_is_bookable_and_the_target_slot_is_not_double_booked(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $other = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Planting',
+            'default_fee' => 700,
+            'is_active' => true,
+        ]);
+
+        $bookedAt = Carbon::now()->addDays(3)->setTime(9, 0)->seconds(0);
+        $takenAt = Carbon::now()->addDays(3)->setTime(14, 30)->seconds(0);
+
+        $this->actingAs($customer)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => $bookedAt->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+        $this->actingAs($other)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => $takenAt->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+
+        $appointment = Appointment::query()->where('user_id', $customer->id)->firstOrFail();
+
+        // Somebody else already holds that slot for this service.
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => $takenAt->format('Y-m-d H:i:s'),
+            ])
+            ->assertSessionHasErrors('appointment_at');
+        $this->assertTrue($bookedAt->equalTo($appointment->fresh()->appointment_at));
+
+        // Moving to a free slot releases the old one for the next customer.
+        $freeAt = Carbon::now()->addDays(5)->setTime(16, 0)->seconds(0);
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => $freeAt->format('Y-m-d H:i:s'),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $third = User::factory()->create(['role' => 'user']);
+        $this->actingAs($third)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => $bookedAt->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(3, Appointment::query()->count());
+    }
+
+    public function test_a_visit_cannot_be_moved_by_a_stranger_or_onto_an_unpublished_time(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $stranger = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Pruning',
+            'default_fee' => 600,
+            'is_active' => true,
+        ]);
+
+        $bookedAt = Carbon::now()->addDays(4)->setTime(9, 0)->seconds(0);
+        $this->actingAs($customer)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => $bookedAt->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+        $appointment = Appointment::query()->where('user_id', $customer->id)->firstOrFail();
+
+        // Someone else's booking is not theirs to move.
+        $this->actingAs($stranger)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => Carbon::now()->addDays(5)->setTime(13, 0)->format('Y-m-d H:i:s'),
+            ])
+            ->assertForbidden();
+        $this->actingAs($stranger)->get(route('schedule', ['reschedule' => $appointment->id]))->assertForbidden();
+
+        // 3 a.m. is not a slot a crew is dispatched to, and 24 hours' notice
+        // applies to a moved visit exactly as it does to a new one.
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => Carbon::now()->addDays(5)->setTime(3, 17)->format('Y-m-d H:i:s'),
+            ])
+            ->assertSessionHasErrors('appointment_at');
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => Carbon::now()->addHours(2)->setTime(9, 0)->format('Y-m-d H:i:s'),
+            ])
+            ->assertSessionHasErrors('appointment_at');
+
+        $this->assertTrue($bookedAt->equalTo($appointment->fresh()->appointment_at));
+
+        // A cancelled visit is finished; it is rebooked, not moved.
+        $appointment->update(['status' => 'cancelled', 'slot_key' => null]);
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => Carbon::now()->addDays(5)->setTime(13, 0)->format('Y-m-d H:i:s'),
+            ])
+            ->assertStatus(422);
+    }
+
+    public function test_the_booking_form_offers_a_reschedule_mode_that_keeps_the_service(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Hardscaping Quote',
+            'default_fee' => 0,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($customer)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => Carbon::now()->addDays(4)->setTime(9, 0)->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+        $appointment = Appointment::query()->where('user_id', $customer->id)->firstOrFail();
+
+        $this->actingAs($customer)
+            ->get(route('schedule', ['reschedule' => $appointment->id]))
+            ->assertOk()
+            ->assertSee('Reschedule your visit')
+            ->assertSee('Confirm New Time')
+            // The one-active-booking notice must not block the customer from
+            // moving that very booking.
+            ->assertDontSee('Please cancel or complete this booking before scheduling another service.');
+
+        // Without the flag the same customer is still held to one booking.
+        $this->actingAs($customer)
+            ->get(route('schedule'))
+            ->assertOk()
+            ->assertSee('Please cancel or complete this booking before scheduling another service.');
+    }
 }

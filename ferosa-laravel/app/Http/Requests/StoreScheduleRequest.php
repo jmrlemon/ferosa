@@ -37,7 +37,7 @@ class StoreScheduleRequest extends FormRequest
      * too, for the same reason prices and quantities are recalculated server
      * side rather than trusted from the form.
      */
-    private function withinDispatchSlot(string $attribute, mixed $value, \Closure $fail): void
+    protected function withinDispatchSlot(string $attribute, mixed $value, \Closure $fail): void
     {
         try {
             $time = Carbon::parse((string) $value)->format('H:i');

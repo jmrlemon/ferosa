@@ -16,7 +16,7 @@
   .mobile-nav-link {
     position: relative;
     min-height: 54px;
-    color: #9d9688;
+    color: var(--color-surface-400);
     transition: color .16s ease;
   }
   .mobile-nav-link.mobile-nav-active { color: #1b5239; font-weight: 700; }

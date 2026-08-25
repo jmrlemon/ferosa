@@ -515,8 +515,17 @@ fun AppContent(
                                         view?.copyBackForwardList()?.currentIndex ?: -1
                                 }
                                 webPageReadyFor = latestScreen.value
-                                isLoading = false
                             }
+
+                            // A link followed inside the page - Shop -> product
+                            // detail - never matches the tab's landing URL, so
+                            // the branch above cannot clear the flag that
+                            // onPageStarted set. The navigation cover is shown
+                            // while isLoading is true, so the product page sat
+                            // behind a cover that nothing would ever lift.
+                            // A document that has visually committed is, by
+                            // definition, no longer loading.
+                            isLoading = false
 
                             if (shouldReleaseWebNavigationCover(
                                     callbackMatchesCurrentDocument = true,

@@ -27,6 +27,9 @@ import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Construction
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
@@ -460,7 +463,14 @@ private fun ProjectTypeOption(
         ) {
             Surface(color = if (selected) Brand600 else Surface100, shape = RoundedCornerShape(9.dp)) {
                 Icon(
-                    Icons.Default.Calculate,
+                    // Every option used to draw the same calculator, which made the
+                    // three project types read as one repeated row.
+                    when (option.key) {
+                        "design" -> Icons.Default.LocalFlorist
+                        "maintenance" -> Icons.Default.ContentCut
+                        "hardscaping" -> Icons.Default.Construction
+                        else -> Icons.Default.Calculate
+                    },
                     contentDescription = null,
                     tint = if (selected) Color.White else Surface600,
                     modifier = Modifier.padding(8.dp).size(18.dp),

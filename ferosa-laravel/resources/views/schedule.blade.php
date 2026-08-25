@@ -36,8 +36,8 @@
     kicker="{{ $rescheduling ? 'Move a visit' : 'Book a visit' }}"
     title="{{ $rescheduling ? 'Reschedule your visit' : 'Schedule a service' }}"
     sub="{{ $rescheduling
-      ? 'Pick a new date and time. The service and the starting fee stay the same, and the team will confirm the new slot.'
-      : 'Choose your service first, then pick an available date and time. We confirm within one business day.' }}">
+      ? 'Pick a new date and time. The service and starting fee stay the same.'
+      : 'Pick your service, then a date and time. We confirm within one business day.' }}">
     <x-slot:icon>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M12 14v4M10 16h4"/>

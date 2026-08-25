@@ -39,7 +39,7 @@
   {{-- Date range --}}
   <form method="GET" action="{{ route('appointments') }}" class="toolbar mb-6 reveal reveal-1" data-loading-label="Filtering...">
     <input type="hidden" name="status" value="{{ request('status') }}">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:items-end">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-12 sm:items-end">
       <div class="sm:col-span-4">
         <label for="appt-from" class="field-label">From date</label>
         <input type="date" id="appt-from" name="from" value="{{ request('from') }}" class="field">
@@ -48,7 +48,7 @@
         <label for="appt-to" class="field-label">To date</label>
         <input type="date" id="appt-to" name="to" value="{{ request('to') }}" class="field">
       </div>
-      <div class="flex gap-2 sm:col-span-4">
+      <div class="col-span-2 flex gap-2 sm:col-span-4">
         <button class="btn btn-primary btn-sm flex-1" data-loading-label="Filtering...">Apply dates</button>
         @if(request('from') || request('to'))
           <a href="{{ route('appointments', array_filter(['status' => request('status')])) }}" class="btn btn-ghost btn-sm">Reset</a>

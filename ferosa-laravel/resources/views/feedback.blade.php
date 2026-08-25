@@ -9,7 +9,7 @@
   <x-page-head
     kicker="Your experience"
     title="Feedback"
-    sub="Rate completed orders and services — your notes help the Ferosa team improve every visit.">
+    sub="Rate completed orders and services — your notes help us improve every visit.">
     <x-slot:icon>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="m12 3 2.9 5.9 6.1.9-4.5 4.3 1.1 6.1L12 17.3 6.4 20.2l1.1-6.1L3 9.8l6.1-.9L12 3Z"/>
@@ -44,7 +44,7 @@
                 </p>
               </div>
               <button onclick="openFeedbackModal({{ $order->id }}, '{{ $order->order_number }}')"
-                class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm sm:text-xs font-medium px-4 py-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-colors touch-manipulation">
+                class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 bg-brand-700 hover:bg-brand-800 active:bg-brand-900 text-white text-sm sm:text-xs font-medium px-4 py-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-colors touch-manipulation">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                 Rate Now
               </button>

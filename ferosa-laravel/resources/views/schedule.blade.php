@@ -98,9 +98,11 @@
         <a href="{{ route('appointments') }}" class="inline-flex text-xs font-semibold text-amber-900 hover:text-amber-700">
           View appointment
         </a>
-        <a href="{{ route('schedule', ['reschedule' => $activeAppointment->id]) }}" class="inline-flex text-xs font-semibold text-amber-900 hover:text-amber-700">
-          Move it to another time
-        </a>
+        @if ($activeAppointment->isCustomerChangeable())
+          <a href="{{ route('schedule', ['reschedule' => $activeAppointment->id]) }}" class="inline-flex text-xs font-semibold text-amber-900 hover:text-amber-700">
+            Move it to another time
+          </a>
+        @endif
       </div>
     </div>
   @endif

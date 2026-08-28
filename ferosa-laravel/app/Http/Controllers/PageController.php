@@ -602,10 +602,7 @@ class PageController extends Controller
 
             abort_unless($rescheduling !== null, 404);
             abort_unless((int) $rescheduling->user_id === (int) auth()->id(), 403);
-            abort_unless(
-                in_array($rescheduling->status, ['scheduled', 'confirmed'], true) && $rescheduling->appointment_at->isFuture(),
-                422
-            );
+            abort_unless($rescheduling->isCustomerChangeable(), 422);
         }
 
         // The one-active-booking limit does not apply while moving that very
@@ -751,6 +748,16 @@ class PageController extends Controller
             in_array($appointment->status, ['scheduled', 'confirmed'], true) && $appointment->appointment_at->isFuture(),
             422
         );
+
+        // A customer can be sitting on this form as the window closes, so this
+        // one is a message rather than a 422: the UI stops offering the move
+        // well before here.
+        if (! $appointment->isCustomerChangeable()) {
+            return back()->withErrors([
+                'appointment_at' => 'This visit is less than '.Appointment::CHANGE_NOTICE_HOURS
+                    .' hours away, so it can no longer be moved online. Message the team and we will sort it out.',
+            ]);
+        }
 
         $appointmentAt = Carbon::parse($request->validated()['appointment_at'])->seconds(0);
 
@@ -1101,6 +1108,16 @@ class PageController extends Controller
             in_array($appointment->status, ['scheduled', 'confirmed']) && $appointment->appointment_at->isFuture(),
             422
         );
+
+        // Same window as moving a visit, and the same reason: the crew for a
+        // visit this close has already been scheduled around it.
+        if (! $appointment->isCustomerChangeable()) {
+            return back()->with(
+                'error',
+                'This visit is less than '.Appointment::CHANGE_NOTICE_HOURS
+                    .' hours away, so it can no longer be cancelled online. Message the team and we will sort it out.'
+            );
+        }
 
         $before = Audit::snapshot($appointment, ['status', 'cancel_reason', 'cancelled_at', 'cancelled_by']);
         $appointment->update([

@@ -861,6 +861,81 @@ class FunctionalWorkflowTest extends TestCase
         return $this->validGlb($document, $binary);
     }
 
+    public function test_a_visit_inside_the_notice_window_can_no_longer_be_moved_or_cancelled(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Tree Trimming',
+            'default_fee' => 900,
+            'is_active' => true,
+        ]);
+
+        // Booked, then the clock runs down to inside the notice window: still
+        // in the future, but the crew is already scheduled around it.
+        $appointment = Appointment::query()->create([
+            'user_id' => $customer->id,
+            'service_type_id' => $service->id,
+            'appointment_at' => Carbon::now()->addHours(Appointment::CHANGE_NOTICE_HOURS - 1),
+            'status' => 'confirmed',
+            'appointment_amount' => 900,
+        ]);
+        $movedTo = Carbon::now()->addDays(5)->setTime(9, 0)->seconds(0);
+
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => $movedTo->format('Y-m-d H:i:s'),
+            ])
+            ->assertSessionHasErrors('appointment_at');
+
+        $this->actingAs($customer)
+            ->delete(route('appointments.cancel', $appointment), ['cancel_reason' => 'Something came up'])
+            ->assertSessionHas('error');
+
+        // The booking form will not even open in reschedule mode for it.
+        $this->actingAs($customer)
+            ->get(route('schedule', ['reschedule' => $appointment->id]))
+            ->assertStatus(422);
+
+        $appointment->refresh();
+        $this->assertSame('confirmed', $appointment->status);
+        $this->assertFalse($movedTo->equalTo($appointment->appointment_at));
+    }
+
+    public function test_a_visit_outside_the_notice_window_can_still_be_moved(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Hedge Shaping',
+            'default_fee' => 400,
+            'is_active' => true,
+        ]);
+
+        $appointment = Appointment::query()->create([
+            'user_id' => $customer->id,
+            'service_type_id' => $service->id,
+            'appointment_at' => Carbon::now()->addHours(Appointment::CHANGE_NOTICE_HOURS + 1),
+            'status' => 'scheduled',
+            'appointment_amount' => 400,
+        ]);
+        $movedTo = Carbon::now()->addDays(5)->setTime(13, 0)->seconds(0);
+
+        $this->actingAs($customer)
+            ->get(route('schedule', ['reschedule' => $appointment->id]))
+            ->assertOk();
+
+        $this->actingAs($customer)
+            ->put(route('appointments.reschedule', $appointment), [
+                'appointment_at' => $movedTo->format('Y-m-d H:i:s'),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($movedTo->equalTo($appointment->refresh()->appointment_at));
+    }
+
     public function test_availability_does_not_treat_the_visit_being_moved_as_a_conflict(): void
     {
         Mail::fake();

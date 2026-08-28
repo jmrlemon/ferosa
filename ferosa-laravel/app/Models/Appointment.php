@@ -95,6 +95,26 @@ class Appointment extends Model
         return $serviceTypeId.'|'.Carbon::parse($appointmentAt)->format('Y-m-d H:i:00');
     }
 
+    /**
+     * A crew is dispatched to a booked visit, so a customer cannot move or
+     * cancel one at the last minute. The window is the same 24 hours a booking
+     * has to be made in advance (StoreScheduleRequest), so there is one rule to
+     * hold in your head rather than two.
+     */
+    public const CHANGE_NOTICE_HOURS = 24;
+
+    /**
+     * Whether the customer may still move or cancel this visit themselves.
+     * Staff are not bound by this - they are the ones the notice protects.
+     */
+    public function isCustomerChangeable(): bool
+    {
+        return in_array($this->status, ['scheduled', 'confirmed'], true)
+            && $this->appointment_at->greaterThanOrEqualTo(
+                Carbon::now()->addHours(self::CHANGE_NOTICE_HOURS)
+            );
+    }
+
     public function canTransitionTo(string $status): bool
     {
         return $status === $this->status

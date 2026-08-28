@@ -71,6 +71,8 @@
         $isUpcoming = in_array($st, ['scheduled','confirmed'])
           && $appt->appointment_at
           && \Carbon\Carbon::parse($appt->appointment_at)->isFuture();
+        // Moving and cancelling both close the same number of hours out.
+        $canChange = $appt->isCustomerChangeable();
         $step = match($st) {
           'confirmed' => 2,
           'completed' => 3,
@@ -134,7 +136,12 @@
 
             {{-- Move or cancel. Reschedule reuses the booking calendar rather
                  than a second date picker in a modal here. --}}
-            @if ($isUpcoming)
+            @if ($isUpcoming && ! $canChange)
+              <span class="text-xs text-surface-400">
+                Less than {{ \App\Models\Appointment::CHANGE_NOTICE_HOURS }} hours away - message the team to change it.
+              </span>
+            @endif
+            @if ($canChange)
               <a href="{{ route('schedule', ['reschedule' => $appt->id]) }}" class="btn btn-secondary btn-sm">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><polyline points="9 16 11 18 15 14"/></svg>
                 Reschedule

@@ -316,6 +316,13 @@ class PageController extends Controller
                     'payment_reference' => 'This GCash reference number has already been submitted. Check your Orders page or enter the correct reference.',
                 ])->withInput($request->except('payment_proof'));
             }
+        } else {
+            // A reference only means something for GCash. The form merely hides
+            // the GCash block when Cash on Delivery is chosen, so anything
+            // already typed is still submitted - and was being stored, leaving
+            // cash orders carrying a payment reference that billing would have
+            // to explain. Drop it here rather than trusting the form.
+            $data['payment_reference'] = null;
         }
 
         $summary = $cart->summary($request->user());

@@ -136,6 +136,7 @@ Route::middleware('auth')->group(function () {
 
         Route::put('/appointments/{appointment}/status', [AdminController::class, 'updateAppointmentStatus'])->name('appointments.status');
         Route::put('/appointments/{appointment}/scope', [AdminController::class, 'updateAppointmentScope'])->name('appointments.scope');
+        Route::put('/appointments/{appointment}/reschedule', [AdminController::class, 'rescheduleAppointment'])->name('appointments.reschedule');
         Route::put('/appointments/{appointment}/cancel', [AdminController::class, 'cancelAppointment'])->name('appointments.cancel');
         Route::put('/appointments/{appointment}/archive', [AdminController::class, 'archiveAppointment'])->name('appointments.archive');
         Route::put('/appointments/{appointment}/restore', [AdminController::class, 'restoreAppointment'])->name('appointments.restore');

@@ -204,6 +204,45 @@
         @if($isStaffOrAdmin && in_array($appointment->status, ['scheduled', 'confirmed'], true))
           <section class="rounded-xl border border-surface-100 bg-white shadow-sm">
             <div class="border-b border-surface-200 px-5 py-4">
+              <h3 class="font-semibold">Move Visit</h3>
+              <p class="mt-1 text-xs text-surface-500">
+                Customers can move their own visit until it is
+                {{ \App\Models\Appointment::CHANGE_NOTICE_HOURS }} hours away. After that they are
+                told to message the team - this is how you do it for them. The same booking, its
+                fee and its scope all stay as they are.
+              </p>
+            </div>
+            <form method="POST" action="{{ route('admin.appointments.reschedule', $appointment) }}" class="space-y-4 p-5">
+              @csrf @method('PUT')
+              <div class="grid grid-cols-2 gap-3">
+                <label class="block text-sm font-medium">Date
+                  <input type="date"
+                         name="move_date"
+                         required
+                         min="{{ now()->format('Y-m-d') }}"
+                         value="{{ old('move_date', $appointment->appointment_at->format('Y-m-d')) }}"
+                         class="mt-2 h-10 w-full rounded-lg border border-surface-200 px-3 outline-none focus:border-brand-600">
+                </label>
+                <label class="block text-sm font-medium">Time
+                  <select name="move_time" required
+                          class="mt-2 h-10 w-full rounded-lg border border-surface-200 px-3 outline-none focus:border-brand-600">
+                    @foreach(\App\Models\Appointment::SLOT_TIMES as $slot)
+                      <option value="{{ $slot }}"
+                        @selected(old('move_time', $appointment->appointment_at->format('H:i')) === $slot)>
+                        {{ \Carbon\Carbon::createFromFormat('H:i', $slot)->format('g:i A') }}
+                      </option>
+                    @endforeach
+                  </select>
+                </label>
+              </div>
+              {{-- The two controls are joined into one appointment_at by
+                   MoveAppointmentRequest, so this form needs no JavaScript. --}}
+              <p class="text-xs text-surface-500">Currently {{ $appointment->appointment_at->format('M d, Y \a\t g:i A') }}. The customer is notified of the new time.</p>
+              <button class="w-full rounded-lg bg-brand-700 py-2.5 font-semibold text-white hover:bg-brand-800">Move Visit</button>
+            </form>
+          </section>
+          <section class="rounded-xl border border-surface-100 bg-white shadow-sm">
+            <div class="border-b border-surface-200 px-5 py-4">
               <h3 class="font-semibold">Adjust Scope &amp; Cost</h3>
               <p class="mt-1 text-xs text-surface-500">One visit, one slot. Add the extra work the customer asked for here rather than booking a second appointment.</p>
             </div>

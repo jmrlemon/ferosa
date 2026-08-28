@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Admin\MoveAppointmentRequest;
 use App\Jobs\SendSmsJob;
 use App\Models\Appointment;
 use App\Models\AppSetting;
@@ -16,6 +17,7 @@ use App\Models\Product;
 use App\Models\ServiceType;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Notifications\AppointmentMovedByTeam;
 use App\Notifications\AppointmentScopeUpdated;
 use App\Notifications\AppointmentStatusChanged;
 use App\Notifications\OrderPaymentReviewed;
@@ -26,10 +28,12 @@ use App\Services\InventoryService;
 use App\Support\Audit;
 use App\Support\MessageAttachment;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -1837,6 +1841,87 @@ class AdminController extends Controller
 
         return redirect()->route('admin.appointments.show', $appointment)
             ->with('status', 'Scope updated. The customer has been notified of the new total.');
+    }
+
+    /**
+     * Move a visit on the customer's behalf.
+     *
+     * Customers can move their own visit until it is
+     * Appointment::CHANGE_NOTICE_HOURS away, and are told to message the team
+     * after that. This is what the team uses to honour that - so it is
+     * deliberately not bound by the notice window, only by the visit still
+     * being ahead of us and the slot still being a real dispatch time.
+     *
+     * The status is left alone, unlike a customer move. A confirmed visit the
+     * team itself moved is still a time the team has agreed to; making them
+     * re-confirm their own change would be theatre.
+     */
+    public function rescheduleAppointment(MoveAppointmentRequest $request, Appointment $appointment): RedirectResponse
+    {
+        $data = $request->validated();
+
+        if (! in_array($appointment->status, ['scheduled', 'confirmed'], true)) {
+            return back()->withErrors([
+                'appointment_at' => 'Only a scheduled or confirmed visit can be moved.',
+            ]);
+        }
+
+        $appointmentAt = Carbon::parse($data['appointment_at'])->seconds(0);
+
+        if ($appointmentAt->equalTo($appointment->appointment_at)) {
+            return back()->withErrors([
+                'appointment_at' => 'This visit is already booked for that time.',
+            ]);
+        }
+
+        $taken = Appointment::query()
+            ->where('service_type_id', $appointment->service_type_id)
+            ->where('appointment_at', $appointmentAt)
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->whereKeyNot($appointment->getKey())
+            ->exists();
+
+        if ($taken) {
+            return back()->withErrors([
+                'appointment_at' => 'That slot is already taken by another visit for this service.',
+            ]);
+        }
+
+        $previousAt = $appointment->appointment_at->copy();
+        $before = Audit::snapshot($appointment, ['appointment_at', 'slot_key']);
+
+        try {
+            $appointment->update([
+                'appointment_at' => $appointmentAt,
+                'slot_key' => Appointment::slotKey((int) $appointment->service_type_id, $appointmentAt),
+            ]);
+        } catch (QueryException) {
+            return back()->withErrors([
+                'appointment_at' => 'That slot was just taken. Choose another time.',
+            ]);
+        }
+
+        $appointment->refresh()->load(['user', 'serviceType']);
+        Audit::log(
+            $request,
+            'appointment.reschedule.staff',
+            $appointment,
+            $before,
+            Audit::snapshot($appointment, ['appointment_at', 'slot_key'])
+        );
+
+        // The customer did not ask for this, so silence would leave them
+        // turning up on the old day.
+        try {
+            $appointment->user->notify(new AppointmentMovedByTeam($appointment, $previousAt));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return redirect()->route('admin.appointments.show', $appointment)->with(
+            'status',
+            'Visit moved to '.$appointmentAt->format('M d, Y \a\t g:i A').'. The customer has been notified.'
+        );
     }
 
     public function updateUserRole(Request $request, User $user): RedirectResponse

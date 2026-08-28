@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DispatchSlot;
 use Illuminate\Support\Carbon;
 
 /**
@@ -9,9 +10,9 @@ use Illuminate\Support\Carbon;
  * fee and the owner all stay whatever the appointment already recorded, so
  * none of them are read from the form.
  *
- * Extends the booking request to inherit `withinDispatchSlot`: a rescheduled
- * visit has to land on a published slot for exactly the reason a new one
- * does — the crew is dispatched to those times and no others.
+ * A moved visit has to land on a published dispatch slot for exactly the
+ * reason a new booking does - the crew is dispatched to those times and no
+ * others.
  */
 class RescheduleAppointmentRequest extends StoreScheduleRequest
 {
@@ -24,7 +25,7 @@ class RescheduleAppointmentRequest extends StoreScheduleRequest
                 'required',
                 'date',
                 'after_or_equal:'.$minimumAppointmentAt,
-                $this->withinDispatchSlot(...),
+                new DispatchSlot,
             ],
         ];
     }

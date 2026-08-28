@@ -4,10 +4,37 @@ namespace Tests;
 
 use App\Models\AppSetting;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Carbon;
 use RuntimeException;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * Pin every test to a Monday morning.
+     *
+     * Tests book visits with `Carbon::now()->addDays(n)`, and no crew is
+     * dispatched on a Sunday (Appointment::CLOSED_WEEKDAYS). Left on the real
+     * clock, any test whose offset happened to land on a Sunday would fail one
+     * day in seven and pass the other six - the worst kind of failure, because
+     * it looks like whatever you changed most recently.
+     *
+     * The clock still moves forward in real time; only the weekday is fixed, so
+     * "24 hours from now" and "three days out" keep meaning what they say.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow(Carbon::now()->next(Carbon::MONDAY)->setTime(9, 0));
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
     /**
      * Boot the application, then refuse to go any further unless the suite is
      * pointed at a disposable database.

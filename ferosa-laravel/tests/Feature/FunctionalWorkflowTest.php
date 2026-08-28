@@ -476,12 +476,19 @@ class FunctionalWorkflowTest extends TestCase
 
         $this->assertSame(0, Appointment::query()->count());
 
-        // Every published slot still books cleanly.
+        // Every published slot still books cleanly. The five days this walks
+        // over always contain a Sunday, and no crew is dispatched then, so step
+        // past a closed day rather than asserting the rule away.
         foreach (Appointment::SLOT_TIMES as $index => $slot) {
             [$hour, $minute] = array_map('intval', explode(':', $slot));
+            $at = Carbon::now()->addDays(5 + $index)->setTime($hour, $minute);
+            while (Appointment::isClosedOn($at)) {
+                $at->addDay();
+            }
+
             $this->actingAs($customer)->post(route('schedule.store'), [
                 'service_type_id' => $service->id,
-                'appointment_at' => Carbon::now()->addDays(5 + $index)->setTime($hour, $minute)->format('Y-m-d H:i:s'),
+                'appointment_at' => $at->format('Y-m-d H:i:s'),
             ])->assertSessionHasNoErrors();
 
             // One active booking at a time, so clear the way for the next slot.
@@ -993,7 +1000,9 @@ class FunctionalWorkflowTest extends TestCase
         ]);
 
         $bookedAt = Carbon::now()->addDays(4)->setTime(9, 0)->seconds(0);
-        $movedTo = Carbon::now()->addDays(6)->setTime(13, 0)->seconds(0);
+        // +6 would be a Sunday under the pinned test clock, and no crew is
+        // dispatched then.
+        $movedTo = Carbon::now()->addDays(5)->setTime(13, 0)->seconds(0);
 
         $this->actingAs($customer)->post(route('schedule.store'), [
             'service_type_id' => $service->id,

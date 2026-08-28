@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -42,6 +43,31 @@ class Appointment extends Model
      * which meant a posted 3 a.m. appointment was accepted without complaint.
      */
     public const SLOT_TIMES = ['09:00', '10:30', '13:00', '14:30', '16:00'];
+
+    /**
+     * Days no crew is dispatched. The shop keeps selling on a Sunday - an
+     * order is picked and delivered on a working day - but a visit puts people
+     * on the ground, so Sunday is not a bookable day.
+     *
+     * Enforced in the DispatchSlot rule, which every booking path shares.
+     *
+     * @var list<int>
+     */
+    public const CLOSED_WEEKDAYS = [CarbonInterface::SUNDAY];
+
+    public static function isClosedOn(Carbon $date): bool
+    {
+        return in_array($date->dayOfWeek, self::CLOSED_WEEKDAYS, true);
+    }
+
+    /** @return list<string> Human names of the closed days, for messages and the UI. */
+    public static function closedDayNames(): array
+    {
+        return array_map(
+            fn (int $day): string => Carbon::now()->startOfWeek(CarbonInterface::SUNDAY)->addDays($day)->format('l'),
+            self::CLOSED_WEEKDAYS
+        );
+    }
 
     protected $fillable = [
         'user_id',

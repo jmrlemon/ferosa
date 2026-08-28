@@ -55,7 +55,10 @@ class StaffRescheduleTest extends TestCase
 
         // Inside the customer's notice window: they are being told to message
         // the team about exactly this visit.
-        $bookedAt = Carbon::now()->addHours(Appointment::CHANGE_NOTICE_HOURS - 2)->setTime(9, 0);
+        // A real dispatch slot later the same day: close enough that the
+        // customer can no longer touch it. Do not reach for addHours() and then
+        // setTime() - the second call throws the first one away.
+        $bookedAt = Carbon::now()->setTime(16, 0);
         $appointment = $this->makeAppointment($customer, $service, $bookedAt);
         $this->assertFalse($appointment->isCustomerChangeable());
 

@@ -237,7 +237,10 @@
               </div>
               {{-- The two controls are joined into one appointment_at by
                    MoveAppointmentRequest, so this form needs no JavaScript. --}}
-              <p class="text-xs text-surface-500">Currently {{ $appointment->appointment_at->format('M d, Y \a\t g:i A') }}. The customer is notified of the new time.</p>
+              <p class="text-xs text-surface-500">
+                Currently {{ $appointment->appointment_at->format('M d, Y \a\t g:i A') }}. The customer is notified of the new time.
+                No crew is dispatched on {{ implode(' or ', \App\Models\Appointment::closedDayNames()) }}, so those days are refused.
+              </p>
               <button class="w-full rounded-lg bg-brand-700 py-2.5 font-semibold text-white hover:bg-brand-800">Move Visit</button>
             </form>
           </section>

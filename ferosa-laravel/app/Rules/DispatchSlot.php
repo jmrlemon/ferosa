@@ -31,6 +31,14 @@ class DispatchSlot implements ValidationRule
 
         if (! in_array($time, Appointment::SLOT_TIMES, true)) {
             $fail('Please choose one of the available visit times: '.implode(', ', Appointment::SLOT_TIMES).'.');
+
+            return;
+        }
+
+        // A closed day is not a dispatch slot either. Checked here rather than
+        // in one form request so booking, moving and staff moving all agree.
+        if (Appointment::isClosedOn(Carbon::parse((string) $value))) {
+            $fail('We do not run visits on '.implode(' or ', Appointment::closedDayNames()).'. Please choose another day.');
         }
     }
 }

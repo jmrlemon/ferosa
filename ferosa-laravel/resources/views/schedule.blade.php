@@ -323,7 +323,13 @@
     return slotDateTime(date, time) >= minimumBookingAt;
   }
 
+  // Days no crew is dispatched, from Appointment::CLOSED_WEEKDAYS. The server
+  // rejects them too - this only keeps the customer from picking one and being
+  // told off for it.
+  const CLOSED_WEEKDAYS = @json(\App\Models\Appointment::CLOSED_WEEKDAYS);
+
   function isDateBookable(date) {
+    if (CLOSED_WEEKDAYS.includes(date.getDay())) return false;
     const slots = Array.from(document.querySelectorAll('.time-slot[data-time]'));
     return slots.some(btn => isSlotAllowed(date, btn.dataset.time));
   }
@@ -364,6 +370,13 @@
         cell.classList.add('past');
         cell.disabled = true;
         cell.setAttribute('aria-disabled', 'true');
+        // A closed day looks the same as a past one, so say which it is
+        // rather than leaving the customer to guess why it is greyed out.
+        if (CLOSED_WEEKDAYS.includes(date.getDay())) {
+          const dayName = date.toLocaleDateString(undefined, { weekday: 'long' });
+          cell.title = `No visits on ${dayName}`;
+          cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')} - no visits on ${dayName}`);
+        }
       } else {
         if (isToday) cell.classList.add('today');
         if (isSelected) cell.classList.add('selected');

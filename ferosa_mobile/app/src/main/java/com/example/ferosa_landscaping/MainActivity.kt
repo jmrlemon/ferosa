@@ -234,6 +234,12 @@ private fun FerosaApp(
         modifier = Modifier.fillMaxSize(),
         containerColor = Surface50,
         bottomBar = {
+            // Do NOT gate this on WindowInsets.isImeVisible to reclaim the row
+            // while the keyboard is up. The activity sets
+            // decorFitsSystemWindows(true) with adjustResize, so the window is
+            // already resized by the system and the IME inset does not report
+            // reliably - it latched on after a native date picker closed and
+            // left the app with no navigation at all.
             FerosaBottomNavigation(
                 currentScreen = currentScreen,
                 userRole = userRole,

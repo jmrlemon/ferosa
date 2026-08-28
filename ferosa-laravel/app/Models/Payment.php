@@ -51,11 +51,13 @@ class Payment extends Model
         return $this->morphTo();
     }
 
+    /** @return BelongsTo<User, $this> */
     public function recordedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');

@@ -96,21 +96,25 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** @return HasMany<OrderItem, $this> */
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
     }
 
+    /** @return HasOne<Feedback, $this> */
     public function feedback(): HasOne
     {
         return $this->hasOne(Feedback::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function paymentVerifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'payment_verified_by');

@@ -13,49 +13,7 @@ parameters:
 			path: app/Console/Commands/SecureChatAttachments.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Console/Commands/SendAppointmentReminders.php
-
-		-
-			message: '#^Cannot call method format\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Console/Commands/SendAppointmentReminders.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\OrderItem\:\:\$total_qty\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_path\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/AdminController.php
@@ -67,30 +25,6 @@ parameters:
 			path: app/Http/Controllers/AdminController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_number\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$qty\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sender\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
 			identifier: property.notFound
 			count: 1
@@ -99,24 +33,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_amount\.$#'
 			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:attachmentPayload\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isUser\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Match arm comparison between ''cancelled''\|''pending'' and ''completed'' is always false\.$#'
-			identifier: match.alwaysFalse
 			count: 1
 			path: app/Http/Controllers/AdminController.php
 
@@ -137,114 +53,6 @@ parameters:
 			identifier: match.alwaysFalse
 			count: 1
 			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/AdminController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_path\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ArController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_size\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ArController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height_cm\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ArController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$updated_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/ArController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$customer_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sender\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sender_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:attachmentPayload\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/MessageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/PageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Http/Controllers/PageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/PageController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$qty\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/PageController.php
-
-		-
-			message: '#^Cannot call method isFuture\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/PageController.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\ServiceType\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\ServiceType\>\|null given\.$#'
@@ -313,84 +121,6 @@ parameters:
 			path: app/Models/AuditLog.php
 
 		-
-			message: '#^Offset ''cancelled''\|''confirmed''\|''delivered''\|''out_for_delivery''\|''pending'' on array\{pending\: array\{''confirmed'', ''cancelled''\}, confirmed\: array\{''out_for_delivery'', ''cancelled''\}, out_for_delivery\: array\{''delivered''\}, delivered\: array\{''completed''\}, completed\: array\{\}, cancelled\: array\{\}\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Models/Order.php
-
-		-
-			message: '#^Match arm comparison between ''cancelled''\|''pending'' and ''completed'' is always false\.$#'
-			identifier: match.alwaysFalse
-			count: 1
-			path: app/Notifications/OrderStatusChanged.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$archived_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$image_url\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$price\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$stock_qty\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:items\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: mixed, name\: mixed, price\: float, qty\: int\<0, max\>, stock_qty\: int, image_url\: mixed\}, Closure\(App\\Models\\CartItem\)\: array\{id\: mixed, name\: mixed, price\: float, qty\: int\<0, max\>, stock_qty\: int, image_url\: mixed\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/CartService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\CartItem\)\: bool given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/CartService.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>qty" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -443,42 +173,6 @@ parameters:
 			identifier: nullCoalesce.offset
 			count: 1
 			path: database/seeders/SystemSeeder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$file_path\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Feature/FunctionalWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height_cm\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/FunctionalWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$attachment_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/MessageAttachmentTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$attachment_path\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/MessageAttachmentTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$body\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/MessageAttachmentTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:attachmentIsImage\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/MessageAttachmentTest.php
 
 		-
 			message: '#^Call to method PHPUnit\\Framework\\Assert\:\:assertNotNull\(\) with App\\Models\\User will always evaluate to true\.$#'

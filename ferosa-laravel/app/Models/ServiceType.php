@@ -23,6 +23,7 @@ class ServiceType extends Model
         ];
     }
 
+    /** @return HasMany<Appointment, $this> */
     public function appointments(): HasMany
     {
         return $this->hasMany(Appointment::class);

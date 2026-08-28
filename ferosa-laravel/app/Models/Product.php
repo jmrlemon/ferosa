@@ -37,6 +37,7 @@ class Product extends Model
         return $this->stock_qty > 0;
     }
 
+    /** @return HasMany<OrderItem, $this> */
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);

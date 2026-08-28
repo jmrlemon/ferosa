@@ -62,7 +62,7 @@ action. If you add an action that loads a record by ID, add that line.
 directly; go through the transition check. Stock and totals are always
 recalculated server-side — never trust a posted price or quantity.
 
-**Static analysis has a baseline.** `phpstan-baseline.neon` records 84
+**Static analysis has a baseline.** `phpstan-baseline.neon` records 39
 pre-existing findings so CI blocks *new* ones. Shrink it; don't add to it.
 
 ## Android ↔ Laravel

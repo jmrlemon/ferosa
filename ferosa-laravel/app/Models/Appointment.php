@@ -75,16 +75,19 @@ class Appointment extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<ServiceType, $this> */
     public function serviceType(): BelongsTo
     {
         return $this->belongsTo(ServiceType::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    /** @return HasOne<Feedback, $this> */
     public function feedback(): HasOne
     {
         return $this->hasOne(Feedback::class);

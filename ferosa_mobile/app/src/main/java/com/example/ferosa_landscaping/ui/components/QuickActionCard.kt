@@ -101,6 +101,12 @@ fun QuickActionCard(
 /**
  * Circular header action. Keeps the 48dp minimum touch target while the visible
  * circle stays 44dp, and exposes itself to TalkBack as a button.
+ *
+ * The badge is a sibling of the touch target rather than a [BadgedBox] around
+ * it. A badge sits at the top-right *outside* its anchor, and the anchor here is
+ * a circle clipped to the 48dp target — so the badge was being cut in half by
+ * that clip, leaving the unread count on Home unreadable. The outer Box has no
+ * clip of its own, so the badge can overhang it.
  */
 @Composable
 fun HeaderIconButton(
@@ -115,21 +121,13 @@ fun HeaderIconButton(
         contentDescription
     }
 
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick, role = Role.Button, onClickLabel = accessibleLabel),
-        contentAlignment = Alignment.Center,
-    ) {
-        BadgedBox(
-            badge = {
-                if (badgeCount > 0) {
-                    Badge(containerColor = Brand600, contentColor = Color.White) {
-                        Text(formatBadgeCount(badgeCount))
-                    }
-                }
-            }
+    Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onClick, role = Role.Button, onClickLabel = accessibleLabel),
+            contentAlignment = Alignment.Center,
         ) {
             Box(
                 modifier = Modifier
@@ -144,6 +142,16 @@ fun HeaderIconButton(
                     tint = Surface600,
                     modifier = Modifier.size(20.dp),
                 )
+            }
+        }
+
+        if (badgeCount > 0) {
+            Badge(
+                containerColor = Brand600,
+                contentColor = Color.White,
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
+                Text(formatBadgeCount(badgeCount))
             }
         }
     }

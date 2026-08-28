@@ -1935,9 +1935,16 @@ class AdminController extends Controller
                 ->with('status', 'You cannot change your own role.');
         }
 
+        // Granting someone admin is the most powerful thing anyone can do in
+        // here, and it was the one action that left no trace: archiving an
+        // order is audited, handing over the keys was not.
+        $before = Audit::snapshot($user, ['role']);
+
         $user->update([
             'role' => $data['role'],
         ]);
+
+        Audit::log($request, 'user.role.update', $user, $before, Audit::snapshot($user->refresh(), ['role']));
 
         return redirect()->route('admin.dashboard', ['tab' => 'users'])
             ->with('status', "User {$user->name} role updated to ".ucfirst($data['role']).'.');

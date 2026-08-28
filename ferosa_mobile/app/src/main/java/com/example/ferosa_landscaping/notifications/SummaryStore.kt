@@ -9,7 +9,11 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.ferosa_landscaping.ui.summary.AccountSummary
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 private val Context.summaryDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "ferosa_summary_state"
@@ -67,5 +71,25 @@ class SummaryStore(private val context: Context) {
     /** Called on sign-out so the next account does not inherit a baseline. */
     suspend fun clear() {
         context.summaryDataStore.edit { it.clear() }
+    }
+
+    companion object {
+        /**
+         * Clears the baseline from a caller that cannot suspend — sign-out runs
+         * from a Compose event handler.
+         *
+         * Deliberately not tied to the composition or the ViewModel scope: both
+         * are being torn down as part of signing out, and a cancelled write
+         * would leave the previous account's order, appointment and unread
+         * counts on disk. The next account's first poll then compares against
+         * them, and either announces a stranger's order status or stays silent
+         * about its own.
+         */
+        fun clearAsync(context: Context) {
+            val appContext = context.applicationContext
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                runCatching { SummaryStore(appContext).clear() }
+            }
+        }
     }
 }

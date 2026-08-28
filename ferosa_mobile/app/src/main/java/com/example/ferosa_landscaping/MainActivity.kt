@@ -56,6 +56,7 @@ import com.example.ferosa_landscaping.data.api.ApiClient
 import com.example.ferosa_landscaping.data.repository.SummaryRepository
 import com.example.ferosa_landscaping.notifications.FerosaNotifications
 import com.example.ferosa_landscaping.notifications.SummaryPollWorker
+import com.example.ferosa_landscaping.notifications.SummaryStore
 import com.example.ferosa_landscaping.ui.auth.LoginWebViewScreen
 import com.example.ferosa_landscaping.ui.components.formatBadgeCount
 import com.example.ferosa_landscaping.ui.navigation.AppScreen
@@ -176,6 +177,11 @@ private fun FerosaApp(
     fun signOut() {
         summaryViewModel.clear()
         SummaryPollWorker.cancel(context)
+        // The poll compares each result against the last snapshot it acted on.
+        // Left behind, that snapshot belongs to the account that just signed
+        // out, so the next account's first poll measures its orders and unread
+        // counts against a stranger's.
+        SummaryStore.clearAsync(context)
         isLoggedIn = false
         userRole = "user"
         currentScreen = AppScreen.HOME

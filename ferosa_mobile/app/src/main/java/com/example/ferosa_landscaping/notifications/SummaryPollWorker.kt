@@ -36,7 +36,14 @@ class SummaryPollWorker(
         } catch (_: AuthenticationException) {
             // The session is gone. Retrying cannot fix that and would keep
             // waking the device, so stop until the next sign-in re-enqueues us.
+            //
+            // Drop the baseline with it. Signing out inside the app clears this
+            // too, but a session that expires while the app is closed never
+            // reaches that path: without this the next account to sign in on
+            // this phone would have its first poll compared against the
+            // previous account's orders and unread counts.
             cancel(applicationContext)
+            SummaryStore(applicationContext).clear()
             return Result.success()
         } catch (_: Exception) {
             return Result.retry()

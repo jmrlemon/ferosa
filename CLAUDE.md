@@ -10,8 +10,7 @@ an admin workspace, and a native Android companion app with AR plant placement.
 |---|---|
 | `ferosa-laravel/` | The application. Laravel 12, PHP 8.2+, MySQL. **All PHP work happens here.** |
 | `ferosa_mobile/` | Native Android app (Kotlin, Compose, ARCore/SceneView). Hybrid: a persistent WebView renders the Laravel UI, native screens handle AR and the estimator. |
-| `laravel/` | Stale one-file duplicate of `composer.json`. Not a project. Ignore it. |
-| `.kiro/`, `.idea/` | Other tools' workspaces, committed by accident. |
+| `.kiro/`, `.idea/` | Other tools' workspaces. Untracked now, still on disk. |
 
 ## Running things
 
@@ -63,7 +62,7 @@ action. If you add an action that loads a record by ID, add that line.
 directly; go through the transition check. Stock and totals are always
 recalculated server-side — never trust a posted price or quantity.
 
-**Static analysis has a baseline.** `phpstan-baseline.neon` records 127
+**Static analysis has a baseline.** `phpstan-baseline.neon` records 84
 pre-existing findings so CI blocks *new* ones. Shrink it; don't add to it.
 
 ## Android ↔ Laravel

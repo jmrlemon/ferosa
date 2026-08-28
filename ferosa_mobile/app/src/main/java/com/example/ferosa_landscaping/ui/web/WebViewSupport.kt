@@ -95,6 +95,51 @@ internal val WEBVIEW_CURSOR_FIX_JS = """
 })();
 """.trimIndent()
 
+/**
+ * Host of the internal signal a page uses to tell the shell its cart changed.
+ *
+ * Handled in [com.example.ferosa_landscaping.ui.shell.AppContent]'s
+ * `shouldOverrideUrlLoading`, which cancels the navigation.
+ */
+internal const val CART_UPDATED_SIGNAL_HOST = "cart-updated"
+
+/**
+ * Relays the page's own `cartUpdated` event to the native shell.
+ *
+ * Adding to the cart is a `fetch()`, so no page ever finishes loading and the
+ * shell's usual `onPageFinished` refresh never runs — the navigation bar's cart
+ * badge stayed on its old number until the customer happened to navigate
+ * somewhere. The Laravel layouts already dispatch `cartUpdated` on window for
+ * their own header badge, so this listens for the same event.
+ *
+ * The signal goes out through a throwaway hidden iframe rather than assigning
+ * `location.href`. `shouldOverrideUrlLoading` cancels both, but only the iframe
+ * keeps the *main* frame completely out of it, so this cannot perturb the
+ * navigation-cover and in-flight-URL bookkeeping that tracks the top document.
+ *
+ * Injected only into the shell WebView. The login WebView has no handler for
+ * the scheme, which is why this is not part of [WEBVIEW_CURSOR_FIX_JS].
+ */
+internal val WEBVIEW_CART_BRIDGE_JS = """
+(function(){
+  if(window.__ferosaCartBridge)return;
+  window.__ferosaCartBridge=true;
+  window.addEventListener('cartUpdated',function(){
+    try{
+      var host=document.body||document.documentElement;
+      if(!host)return;
+      var frame=document.createElement('iframe');
+      frame.style.display='none';
+      frame.src='ferosa://$CART_UPDATED_SIGNAL_HOST';
+      host.appendChild(frame);
+      setTimeout(function(){
+        if(frame.parentNode)frame.parentNode.removeChild(frame);
+      },0);
+    }catch(e){}
+  });
+})();
+""".trimIndent()
+
 /** Marker the Laravel layouts look for to render the in-app (chrome-free) view. */
 private const val FEROSA_APP_UA_MARKER = "FerosaApp/1.0"
 

@@ -253,6 +253,7 @@ private fun FerosaApp(
             onLoggedOut = ::signOut,
             onOpenAr = onOpenAr,
             onRefreshSummary = { summaryViewModel.refresh() },
+            onCartChanged = { summaryViewModel.refresh(force = true) },
         )
     }
 }

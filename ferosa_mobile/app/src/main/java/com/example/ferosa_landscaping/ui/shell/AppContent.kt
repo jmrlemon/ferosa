@@ -68,8 +68,10 @@ import com.example.ferosa_landscaping.ui.summary.AccountSummary
 import com.example.ferosa_landscaping.ui.theme.Brand50
 import com.example.ferosa_landscaping.ui.theme.Brand600
 import com.example.ferosa_landscaping.ui.theme.Surface50
+import com.example.ferosa_landscaping.ui.web.CART_UPDATED_SIGNAL_HOST
 import com.example.ferosa_landscaping.ui.web.ConnectionErrorScreen
 import com.example.ferosa_landscaping.ui.web.PendingDownload
+import com.example.ferosa_landscaping.ui.web.WEBVIEW_CART_BRIDGE_JS
 import com.example.ferosa_landscaping.ui.web.WEBVIEW_CURSOR_FIX_JS
 import com.example.ferosa_landscaping.ui.web.WEBVIEW_LOADING_INDICATOR_DELAY_MS
 import com.example.ferosa_landscaping.ui.web.WEBVIEW_LOAD_TIMEOUT_MS
@@ -159,6 +161,12 @@ fun AppContent(
     onLoggedOut: () -> Unit,
     onOpenAr: (ArLaunchRequest) -> Unit,
     onRefreshSummary: () -> Unit,
+    /**
+     * A page changed the cart without navigating. Separate from
+     * [onRefreshSummary] because this one must not be rate-limited: two quick
+     * taps on "Add" would otherwise leave the badge one behind.
+     */
+    onCartChanged: () -> Unit,
 ) {
     val context = LocalContext.current
     val serverHost = remember { SERVER_URL.toUri().host ?: "" }
@@ -613,6 +621,14 @@ fun AppContent(
                             val uri = dest.toUri()
 
                             return when {
+                                // ferosa://cart-updated → the page told us its
+                                // cart changed without loading a new document.
+                                // Refresh the badge and swallow the navigation.
+                                uri.scheme == "ferosa" &&
+                                    uri.host == CART_UPDATED_SIGNAL_HOST -> {
+                                    onCartChanged()
+                                    true
+                                }
                                 // ferosa://ar → launch AR activity
                                 uri.scheme == "ferosa" && uri.host == "ar" -> {
                                     ctx.startActivity(
@@ -646,6 +662,7 @@ fun AppContent(
                                 // The observer also patches inputs streamed into the
                                 // document after this first visible frame.
                                 view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                                view?.evaluateJavascript(WEBVIEW_CART_BRIDGE_JS, null)
                             }
                         }
 
@@ -668,6 +685,7 @@ fun AppContent(
                             }
 
                             view?.evaluateJavascript(WEBVIEW_CURSOR_FIX_JS, null)
+                            view?.evaluateJavascript(WEBVIEW_CART_BRIDGE_JS, null)
                             // A page the user navigated to may have changed the
                             // cart or read their messages; keep the badges honest.
                             onRefreshSummary()

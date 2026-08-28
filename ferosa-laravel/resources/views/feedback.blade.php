@@ -116,7 +116,7 @@
           <h3 class="text-base font-semibold text-surface-900">Rate Your Order</h3>
           <p class="text-xs text-surface-350 mt-0.5">Order <span id="modal-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
         </div>
-        <button onclick="closeFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
+        <button type="button" aria-label="Close dialog" onclick="closeFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -135,8 +135,8 @@
           <input type="hidden" name="rating" id="modal-rating-input" value="">
         </div>
         <div>
-          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
-          <textarea name="comment" rows="3"
+          <label for="feedback-comment" class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
+          <textarea id="feedback-comment" name="comment" rows="3"
             class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 resize-none transition-all"
             placeholder="Tell us about your experience..."></textarea>
         </div>

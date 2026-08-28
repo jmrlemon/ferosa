@@ -102,7 +102,10 @@
     <div id="track-proof-card" class="hidden mt-5 pt-4 border-t border-surface-100">
       <p class="text-xs font-semibold text-surface-900 mb-2">Delivery Proof</p>
       <a id="track-proof-link" href="#" class="inline-block overflow-hidden rounded-lg border border-surface-100 bg-surface-50">
-        <img id="track-proof-img" src="" alt="Delivery proof" class="w-full max-h-44 object-cover">
+        {{-- No empty src: the tracking script sets it. An `src=""` resolves to
+             the current page, so every visit silently re-requested the whole
+             orders document and tried to decode it as an image. --}}
+        <img id="track-proof-img" alt="Delivery proof" class="w-full max-h-44 object-cover">
       </a>
       <p class="text-xs text-surface-500 mt-2" id="track-proof-meta"></p>
     </div>
@@ -479,8 +482,8 @@
       <form id="cancel-order-form" method="POST">
         @csrf
         @method('DELETE')
-        <label class="block text-xs font-medium text-surface-600 mb-1">Reason <span class="text-surface-400">(optional)</span></label>
-        <textarea name="cancel_reason" rows="3" maxlength="500"
+        <label for="order-cancel-reason" class="block text-xs font-medium text-surface-600 mb-1">Reason <span class="text-surface-400">(optional)</span></label>
+        <textarea id="order-cancel-reason" name="cancel_reason" rows="3" maxlength="500"
           class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 resize-none transition-all mb-4"
           placeholder="Tell us why you want to cancel this order."></textarea>
         <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
@@ -515,7 +518,7 @@
           <h3 class="text-base font-semibold text-surface-900">Rate Your Order</h3>
           <p class="text-xs text-surface-400 mt-0.5">Order <span id="modal-order-number" class="font-mono text-brand-600 font-semibold"></span></p>
         </div>
-        <button onclick="closeFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
+        <button type="button" aria-label="Close dialog" onclick="closeFeedbackModal()" class="p-1.5 text-surface-400 hover:text-surface-600 transition-colors rounded-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -539,8 +542,8 @@
 
         {{-- Comment --}}
         <div>
-          <label class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
-          <textarea name="comment" rows="3"
+          <label for="order-feedback-comment" class="block text-xs font-medium text-surface-600 mb-1">Comment <span class="text-surface-400">(optional)</span></label>
+          <textarea id="order-feedback-comment" name="comment" rows="3"
             class="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm text-surface-700 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-100 resize-none transition-all"
             placeholder="Tell us about your experience..."></textarea>
         </div>

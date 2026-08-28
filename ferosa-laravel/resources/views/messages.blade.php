@@ -90,7 +90,10 @@
       </svg>
     </div>
     <div class="flex-1">
-      <p class="text-sm font-semibold text-surface-900">Ferosa Support</p>
+      {{-- An h1, not a p: this is the page's title, and the chat had no
+           top-level heading at all for a screen reader to land on. Same
+           classes, so it renders identically. --}}
+      <h1 class="text-sm font-semibold text-surface-900">Ferosa Support</h1>
       <p class="text-xs text-surface-500">{{ $businessHours ?: 'Usually replies within a few hours' }}</p>
     </div>
   </div>
@@ -205,7 +208,7 @@
          already reported on the message bubble itself ("Sending 40%"). --}}
     <form id="msg-form" method="POST" action="{{ route('messages.store') }}" enctype="multipart/form-data" data-no-loading="true" class="flex items-end gap-2.5">
       @csrf
-      <input type="file" id="msg-attachment" name="attachment" class="hidden"
+      <input type="file" id="msg-attachment" name="attachment" class="hidden" aria-label="Message attachment"
              accept="{{ \App\Support\MessageAttachment::accept() }}">
       <button type="button" id="attach-btn" aria-label="Attach a file or picture"
         class="flex-shrink-0 w-10 h-10 rounded-full border border-surface-200 hover:bg-surface-50 flex items-center justify-center transition-colors text-surface-500">
@@ -218,12 +221,13 @@
         name="body"
         rows="1"
         placeholder="Type a message…"
+        aria-label="Message"
         maxlength="2000"
         class="flex-1 resize-none border border-surface-200 rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all max-h-32 overflow-y-auto bg-surface-50 placeholder:text-surface-400"
         style="min-height:44px"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();document.getElementById('msg-form').requestSubmit();}"
       ></textarea>
-      <button type="submit" data-loading-label=""
+      <button type="submit" aria-label="Send message" data-loading-label=""
         class="flex-shrink-0 w-10 h-10 bg-brand-600 hover:bg-brand-700 active:scale-95 rounded-full flex items-center justify-center transition-all shadow-sm">
         <svg class="w-4 h-4 text-white translate-x-[1px]" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.269 20.876L5.999 12zm0 0h7.5"/>
@@ -245,7 +249,9 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
     </svg>
   </button>
-  <img id="img-lightbox-img" src="" alt=""
+  {{-- No empty src: the lightbox sets it on open. An `src=""` resolves to the
+       current page, so opening Messages re-requested the whole document. --}}
+  <img id="img-lightbox-img" alt=""
        class="max-h-[88vh] max-w-full rounded-xl object-contain shadow-2xl">
   <a id="img-lightbox-open" href="#" target="_blank" rel="noopener"
      class="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-colors">

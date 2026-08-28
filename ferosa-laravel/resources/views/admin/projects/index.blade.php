@@ -27,8 +27,8 @@
     </section>
 
     <form method="GET" action="{{ route('admin.projects.index') }}" class="mb-6 grid gap-3 rounded-xl border border-surface-200 bg-white p-4 sm:grid-cols-[1fr_180px_auto]">
-      <input type="search" name="q" value="{{ $search }}" placeholder="Search title, service, or location" class="h-11 w-full rounded-xl border border-surface-200 px-3 text-sm outline-none focus:border-brand-500">
-      <select name="status" class="h-11 rounded-xl border border-surface-200 px-3 text-sm outline-none focus:border-brand-500">
+      <input type="search" name="q" aria-label="Search projects" value="{{ $search }}" placeholder="Search title, service, or location" class="h-11 w-full rounded-xl border border-surface-200 px-3 text-sm outline-none focus:border-brand-500">
+      <select name="status" aria-label="Filter projects by status" class="h-11 rounded-xl border border-surface-200 px-3 text-sm outline-none focus:border-brand-500">
         <option value="all" @selected($status === 'all')>All statuses</option>
         <option value="published" @selected($status === 'published')>Published</option>
         <option value="draft" @selected($status === 'draft')>Drafts</option>

@@ -274,7 +274,7 @@
 
               <form id="reply-form" method="POST" enctype="multipart/form-data" class="flex items-end gap-2">
                 @csrf
-                <input type="file" id="reply-attachment" name="attachment" class="hidden"
+                <input type="file" id="reply-attachment" aria-label="Reply attachment" name="attachment" class="hidden"
                        accept="{{ \App\Support\MessageAttachment::accept() }}">
                 <button type="button" id="reply-attach-btn" aria-label="Attach a file or picture"
                   class="flex-shrink-0 w-11 h-11 rounded-full border border-surface-200 hover:bg-surface-50 flex items-center justify-center transition-colors text-surface-500">
@@ -283,7 +283,7 @@
                   </svg>
                 </button>
                 <textarea
-                  id="reply-body"
+                  id="reply-body" aria-label="Reply message"
                   name="body"
                   rows="1"
                   placeholder="Type a reply&hellip;"
@@ -576,12 +576,12 @@
             <input type="hidden" name="tab" value="overview">
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">From</label>
-              <input type="date" name="sales_from" value="{{ $salesFrom ?? request('sales_from') }}"
+              <input type="date" name="sales_from" aria-label="Sales report from date" value="{{ $salesFrom ?? request('sales_from') }}"
                      class="h-11 rounded-lg border border-surface-200 px-3 text-xs text-surface-700 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">To</label>
-              <input type="date" name="sales_to" value="{{ $salesTo ?? request('sales_to') }}"
+              <input type="date" name="sales_to" aria-label="Sales report to date" value="{{ $salesTo ?? request('sales_to') }}"
                      class="h-11 rounded-lg border border-surface-200 px-3 text-xs text-surface-700 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
             <button class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Apply</button>
@@ -791,7 +791,7 @@
             <input type="hidden" name="tab" value="appointments">
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
-              <select name="appt_status" class="h-11 min-w-[120px] rounded-lg border border-surface-200 px-3 text-xs text-surface-600 outline-none focus:border-brand-500">
+              <select name="appt_status" aria-label="Filter appointments by status" class="h-11 min-w-[120px] rounded-lg border border-surface-200 px-3 text-xs text-surface-600 outline-none focus:border-brand-500">
                 <option value="">All</option>
                 @foreach (['scheduled', 'confirmed', 'completed', 'cancelled'] as $st)
                   <option value="{{ $st }}" {{ ($apptStatus ?? '') === $st ? 'selected' : '' }}>{{ ucfirst($st) }}</option>
@@ -802,7 +802,7 @@
               <label class="block text-[10px] font-medium text-surface-400 mb-1">Search</label>
               <div class="relative">
                 <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="search" name="appt_q" value="{{ $apptQ ?? '' }}" placeholder="Name, email, service..."
+                <input type="search" name="appt_q" aria-label="Search appointments" value="{{ $apptQ ?? '' }}" placeholder="Name, email, service..."
                        class="h-11 w-full rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
               </div>
             </div>
@@ -922,12 +922,12 @@
                         @csrf
                         @method('PUT')
                         <div class="flex flex-col gap-1 min-w-[90px]">
-                          <select name="status" class="border border-surface-200 rounded px-2 py-0.5 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-full" {{ $isStaffOrAdmin ? '' : 'disabled' }}>
+                          <select aria-label="Change status for appointment {{ $appt->id }}" name="status" class="border border-surface-200 rounded px-2 py-0.5 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-full" {{ $isStaffOrAdmin ? '' : 'disabled' }}>
                             @foreach (['scheduled','confirmed','completed','cancelled'] as $st)
                               <option value="{{ $st }}" {{ $appt->status === $st ? 'selected' : '' }}>{{ ucfirst($st) }}</option>
                             @endforeach
                           </select>
-                          <select name="payment_status" class="border border-surface-200 rounded px-2 py-0.5 text-[10px] {{ $appt->payment_status === 'paid' ? 'text-brand-600 bg-brand-50 font-medium' : 'text-surface-600' }} outline-none focus:border-brand-500 w-full" {{ $isStaffOrAdmin ? '' : 'disabled' }}>
+                          <select aria-label="Change payment status for appointment {{ $appt->id }}" name="payment_status" class="border border-surface-200 rounded px-2 py-0.5 text-[10px] {{ $appt->payment_status === 'paid' ? 'text-brand-600 bg-brand-50 font-medium' : 'text-surface-600' }} outline-none focus:border-brand-500 w-full" {{ $isStaffOrAdmin ? '' : 'disabled' }}>
                             <option value="unpaid" {{ ($appt->payment_status ?? 'unpaid') === 'unpaid' ? 'selected' : '' }}>Unpaid</option>
                             <option value="paid" {{ $appt->payment_status === 'paid' ? 'selected' : '' }}>Paid</option>
                           </select>
@@ -1007,7 +1007,7 @@
               <input type="hidden" name="tab" value="orders">
               <div>
                 <label class="block text-[10px] font-medium text-surface-400 mb-1">Status</label>
-                <select name="order_status" class="h-11 min-w-[120px] rounded-lg border border-surface-200 px-3 text-xs text-surface-600 outline-none focus:border-brand-500">
+                <select name="order_status" aria-label="Filter orders by status" class="h-11 min-w-[120px] rounded-lg border border-surface-200 px-3 text-xs text-surface-600 outline-none focus:border-brand-500">
                   <option value="">All</option>
                   @foreach (['pending', 'confirmed', 'out_for_delivery', 'delivered', 'completed', 'cancelled'] as $st)
                     <option value="{{ $st }}" {{ request('order_status') === $st ? 'selected' : '' }}>
@@ -1020,7 +1020,7 @@
                 <label class="block text-[10px] font-medium text-surface-400 mb-1">Search</label>
                 <div class="relative">
                   <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                  <input type="search" name="order_q" value="{{ request('order_q') }}" placeholder="Order #, name, email"
+                  <input type="search" name="order_q" aria-label="Search orders" value="{{ request('order_q') }}" placeholder="Order #, name, email"
                          class="h-11 w-full rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
                 </div>
               </div>
@@ -1034,7 +1034,7 @@
             <form method="POST" action="{{ route('admin.orders.bulk-status') }}" class="flex items-center gap-2 bg-surface-50 p-1.5 rounded-lg border border-surface-100" id="admin-bulk-orders-form">
               @csrf
               <span class="text-[10px] font-medium text-surface-400 uppercase tracking-wider ml-1 hidden sm:block">Bulk:</span>
-              <select name="status" class="border border-surface-200 rounded-lg px-2 py-1 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-28">
+              <select name="status" aria-label="Bulk status to apply to selected orders" class="border border-surface-200 rounded-lg px-2 py-1 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-28">
                 @foreach (['pending', 'confirmed', 'cancelled'] as $st)
                   <option value="{{ $st }}">{{ ucfirst(str_replace('_', ' ', $st)) }}</option>
                 @endforeach
@@ -1095,7 +1095,7 @@
             <thead>
               <tr class="text-left text-surface-400 text-[10px] uppercase tracking-wider border-b border-surface-100">
                 <th class="px-5 py-3 w-8">
-                  <input type="checkbox" id="admin-select-all-orders" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500" form="admin-bulk-orders-form">
+                  <input type="checkbox" id="admin-select-all-orders" aria-label="Select all orders" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500" form="admin-bulk-orders-form">
                 </th>
                 <th class="px-5 py-3 font-medium">Order #</th>
                 <th class="px-5 py-3 font-medium">Customer</th>
@@ -1109,7 +1109,7 @@
               @forelse ($adminOrders as $order)
                 <tr class="hover:bg-surface-50 transition-colors">
                   <td class="px-5 py-3">
-                    <input type="checkbox" name="order_ids[]" value="{{ $order->id }}" class="admin-order-cb w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500" form="admin-bulk-orders-form">
+                    <input type="checkbox" name="order_ids[]" aria-label="Select order {{ $order->order_number }}" value="{{ $order->id }}" class="admin-order-cb w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500" form="admin-bulk-orders-form">
                   </td>
                   <td class="px-5 py-3">
                     <div class="flex items-center gap-1.5">
@@ -1220,14 +1220,14 @@
                         @csrf
                         @method('PUT')
                         <div class="flex flex-col gap-1 min-w-[100px]">
-                          <select name="status" {{ $isAdmin ? '' : 'disabled' }} class="border border-surface-200 rounded px-2 py-0.5 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
+                          <select aria-label="Change status for order {{ $order->order_number }}" name="status" {{ $isAdmin ? '' : 'disabled' }} class="border border-surface-200 rounded px-2 py-0.5 text-[10px] text-surface-600 outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
                             @foreach ($inlineStatuses as $status)
                               <option value="{{ $status }}" {{ $order->status === $status ? 'selected' : '' }}>
                                 {{ ucfirst(str_replace('_', ' ', $status)) }}
                               </option>
                             @endforeach
                           </select>
-                          <select name="payment_status" {{ $isAdmin ? '' : 'disabled' }} class="border border-surface-200 rounded px-2 py-0.5 text-[10px] {{ $order->payment_status === 'paid' ? 'text-brand-600 bg-brand-50 font-medium' : 'text-surface-600' }} outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
+                          <select aria-label="Change payment status for order {{ $order->order_number }}" name="payment_status" {{ $isAdmin ? '' : 'disabled' }} class="border border-surface-200 rounded px-2 py-0.5 text-[10px] {{ $order->payment_status === 'paid' ? 'text-brand-600 bg-brand-50 font-medium' : 'text-surface-600' }} outline-none focus:border-brand-500 w-full" {{ $isAdmin ? '' : 'disabled' }}>
                             <option value="unpaid" {{ $order->payment_status === 'unpaid' ? 'selected' : '' }}>Unpaid</option>
                             <option value="pending_verification" {{ $order->payment_status === 'pending_verification' ? 'selected' : '' }}>Pending verification</option>
                             <option value="paid" {{ $order->payment_status === 'paid' ? 'selected' : '' }}>Paid</option>
@@ -1305,7 +1305,7 @@
           <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
             <div class="relative md:col-span-9">
               <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
-              <input type="search" name="service_q" value="{{ $serviceQ ?? request('service_q') }}" placeholder="Search services..." class="h-10 w-full rounded-lg border border-surface-200 px-3 pl-9 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+              <input type="search" name="service_q" aria-label="Search services" value="{{ $serviceQ ?? request('service_q') }}" placeholder="Search services..." class="h-10 w-full rounded-lg border border-surface-200 px-3 pl-9 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
             <div class="flex gap-2 md:col-span-3">
               <button type="submit" class="h-10 flex-1 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-800">Search</button>
@@ -1397,9 +1397,9 @@
           <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
             <div class="relative md:col-span-5">
               <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"/></svg>
-              <input type="search" name="product_q" value="{{ $productQ ?? request('product_q') }}" placeholder="Search by product or category..." class="h-10 w-full rounded-lg border border-surface-200 px-3 pl-9 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+              <input type="search" name="product_q" aria-label="Search products" value="{{ $productQ ?? request('product_q') }}" placeholder="Search by product or category..." class="h-10 w-full rounded-lg border border-surface-200 px-3 pl-9 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
             </div>
-            <select name="product_category" class="h-10 rounded-lg border border-surface-200 bg-white px-3 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 md:col-span-4">
+            <select name="product_category" aria-label="Filter products by category" class="h-10 rounded-lg border border-surface-200 bg-white px-3 text-sm outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 md:col-span-4">
               <option value="">All Categories</option>
               @foreach(($productCategories ?? collect()) as $categoryOption)
                 <option value="{{ $categoryOption }}" @selected(($productCategory ?? '') === $categoryOption)>{{ ucfirst($categoryOption) }}</option>
@@ -1507,19 +1507,19 @@
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">GCash Account Name</label>
-              <input name="gcash_name" value="{{ old('gcash_name', $gcashSettings['name'] ?? '') }}" placeholder="e.g. Maria Santos"
+              <input name="gcash_name" aria-label="GCash account name" value="{{ old('gcash_name', $gcashSettings['name'] ?? '') }}" placeholder="e.g. Maria Santos"
                      class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 transition-colors">
             </div>
 
             <div>
               <label class="block text-[10px] font-medium text-surface-400 mb-1">GCash Number</label>
-              <input name="gcash_number" value="{{ old('gcash_number', $gcashSettings['number'] ?? '') }}" placeholder="e.g. 0917 123 4567"
+              <input name="gcash_number" aria-label="GCash mobile number" value="{{ old('gcash_number', $gcashSettings['number'] ?? '') }}" placeholder="e.g. 0917 123 4567"
                      class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-500 transition-colors">
             </div>
 
             <div class="sm:col-span-2">
               <label class="block text-[10px] font-medium text-surface-400 mb-1">Upload GCash QR</label>
-              <input name="gcash_qr" type="file" accept="image/*"
+              <input name="gcash_qr" type="file" aria-label="GCash QR code image" accept="image/*"
                      class="w-full text-xs text-surface-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-surface-100 file:text-surface-700 hover:file:bg-surface-200">
               <p class="text-[11px] text-surface-400 mt-1">PNG or JPG, up to 5MB.</p>
             </div>
@@ -1693,7 +1693,7 @@
             <input type="hidden" name="tab" value="audit">
             <div class="relative">
               <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input type="search" name="audit_q" value="{{ $auditQ ?? request('audit_q') }}" placeholder="Activity, user, target, or ID"
+              <input type="search" name="audit_q" aria-label="Search audit log" value="{{ $auditQ ?? request('audit_q') }}" placeholder="Activity, user, target, or ID"
                      class="h-11 w-52 rounded-lg border border-surface-200 pl-8 pr-3 text-xs outline-none transition-colors focus:border-brand-500">
             </div>
             <button type="submit" class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Search</button>
@@ -1862,7 +1862,7 @@
           </div>
           <form method="GET" action="{{ route('admin.dashboard') }}" class="flex items-center gap-2">
             <input type="hidden" name="tab" value="feedbacks">
-            <input type="text" name="feedback_q" value="{{ $feedbackQ }}" placeholder="Search…"
+            <input type="text" name="feedback_q" aria-label="Search feedback" value="{{ $feedbackQ }}" placeholder="Search…"
               class="h-11 w-44 rounded-lg border border-surface-200 px-3 text-xs outline-none focus:border-brand-500">
             <button class="inline-flex h-11 items-center justify-center rounded-lg bg-surface-900 px-4 text-xs font-medium text-white transition-colors hover:bg-surface-800">Search</button>
             @if($feedbackQ)

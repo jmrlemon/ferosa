@@ -259,7 +259,7 @@
           </div>
           <div class="p-5">
             <div class="relative mb-1">
-              <input type="number" id="size-input" min="1" step="1" value="{{ $rateCard['defaults']['size'] }}" placeholder="e.g. 2500"
+              <input type="number" id="size-input" aria-label="Property size in square metres" min="1" step="1" value="{{ $rateCard['defaults']['size'] }}" placeholder="e.g. 2500"
                      class="w-full border border-surface-200 rounded-xl px-4 py-3.5 text-2xl font-display font-bold text-surface-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition-all pr-20"
                      oninput="updateSizeUI(); calculate()">
               <span class="absolute right-4 top-1/2 -translate-y-1/2 text-surface-400 text-sm font-medium pointer-events-none">sq m</span>
@@ -414,6 +414,7 @@
                        data-price="{{ (float) $product->price }}">
                     <div class="flex items-start gap-3">
                       <input type="checkbox"
+                             aria-label="Include {{ $product->name }} in the estimate"
                              class="estimate-product-check mt-1 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
                              onchange="toggleEstimateProduct(this); calculate()">
                       <div class="min-w-0 flex-1">
@@ -427,6 +428,7 @@
                         <div class="estimate-product-qty mt-3 hidden items-center justify-between gap-3">
                           <span class="text-[10px] text-surface-400">Quantity</span>
                           <input type="number" min="1" step="1" value="1"
+                                 aria-label="Quantity of {{ $product->name }}"
                                  class="w-20 border border-surface-200 rounded-lg px-2 py-1.5 text-xs text-surface-700 outline-none focus:border-brand-500"
                                  oninput="calculate()">
                         </div>

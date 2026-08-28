@@ -52,6 +52,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -124,6 +126,15 @@ private fun rememberRateCard(): RateCard {
     return rateCard
 }
 
+/**
+ * Persists the chosen add-on keys as an ArrayList, which the saved-instance
+ * bundle can hold, and restores them as the Set the screen works with.
+ */
+private val AddonSelectionSaver = listSaver<MutableState<Set<String>>, String>(
+    save = { it.value.toList() },
+    restore = { mutableStateOf(it.toSet()) },
+)
+
 @Composable
 fun NativeEstimatorScreen(
     modifier: Modifier = Modifier,
@@ -135,7 +146,14 @@ fun NativeEstimatorScreen(
     var projectKey by rememberSaveable { mutableStateOf(rateCard.defaultProjectType) }
     var sizeText by rememberSaveable { mutableStateOf(rateCard.defaultSize.toString()) }
     var tierKey by rememberSaveable { mutableStateOf(rateCard.defaultTier) }
-    var selectedAddons by remember { mutableStateOf(emptySet<String>()) }
+    // Saved like the other four inputs. A Set is not one of the types
+    // rememberSaveable handles on its own, and being the odd one out meant a
+    // process death restored the project type, size and tier but silently
+    // dropped the add-ons - so the estimate came back lower than the one the
+    // customer had been reading, with nothing to say why.
+    var selectedAddons by rememberSaveable(saver = AddonSelectionSaver) {
+        mutableStateOf(emptySet<String>())
+    }
     var showZoom by rememberSaveable { mutableStateOf(false) }
 
     // Falls back to the first entry when a saved key is missing from a rate card

@@ -382,6 +382,15 @@
   });
 
   // ── Cart rendering ───────────────────────────────────────────────────────
+  // Cart lines are built with innerHTML, so every value interpolated into one
+  // has to be escaped. Product names and image paths are set in the admin, not
+  // by the customer, but that is a reason to keep this cheap rather than a
+  // reason to skip it.
+  const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+  }
+
   function getCart() {
     try { return JSON.parse(localStorage.getItem('ferosa_cart')) || []; } catch { return []; }
   }
@@ -463,21 +472,30 @@
 
       const li = document.createElement('li');
       li.className = 'cart-line py-4 flex gap-4 items-center';
+      // The cart payload carries image_url for every line (see CartService).
+      // This used to draw a map pin for all of them, so the last screen before
+      // paying showed no product images at all - and a location marker as the
+      // stand-in for a plant. Fall back to a box, not a pin, when a product
+      // genuinely has no photo.
+      const thumbnail = item.image_url
+        ? `<img src="${escapeHtml(item.image_url)}" alt="" loading="lazy"
+                class="cart-line-icon w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-surface-100">`
+        : `<div class="cart-line-icon w-12 h-12 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1f7a1f" stroke-width="1.5"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+           </div>`;
       li.innerHTML = `
-        <div class="cart-line-icon w-12 h-12 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1f7a1f" stroke-width="1.5"><path d="M12 2a9 9 0 0 1 9 9c0 6-9 13-9 13S3 17 3 11a9 9 0 0 1 9-9z"/><circle cx="12" cy="11" r="3"/></svg>
-        </div>
+        ${thumbnail}
         <div class="cart-line-info flex-1 min-w-0">
-          <h3 class="text-sm font-medium text-surface-900 truncate">${item.name}</h3>
+          <h3 class="text-sm font-medium text-surface-900 truncate">${escapeHtml(item.name)}</h3>
           <p class="text-xs text-surface-400">\u20B1${item.price.toLocaleString()} each</p>
         </div>
         <div class="cart-line-controls flex items-center gap-3 shrink-0">
           <div class="flex items-center gap-2 border border-surface-200 rounded-lg px-1.5 py-0.5">
-            <button type="button" onclick="updateQty(${item.id}, -1)" class="w-5 h-5 flex items-center justify-center text-surface-400 hover:text-surface-700 transition-colors">
+            <button type="button" onclick="updateQty(${item.id}, -1)" aria-label="Decrease quantity of ${escapeHtml(item.name)}" class="w-5 h-5 flex items-center justify-center text-surface-400 hover:text-surface-700 transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
             <span class="text-xs font-medium text-surface-900 min-w-[1rem] text-center">${item.qty}</span>
-            <button type="button" onclick="updateQty(${item.id}, 1)" class="w-5 h-5 flex items-center justify-center text-surface-400 hover:text-surface-700 transition-colors">
+            <button type="button" onclick="updateQty(${item.id}, 1)" aria-label="Increase quantity of ${escapeHtml(item.name)}" class="w-5 h-5 flex items-center justify-center text-surface-400 hover:text-surface-700 transition-colors">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>

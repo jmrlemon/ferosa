@@ -551,6 +551,14 @@
        this just tightens the padding so the stack costs less height. */
     body.in-app :where(.toolbar) { padding: .75rem; border-radius: .85rem; }
     body.in-app :where(.field) { padding: .5rem .7rem; font-size: .8125rem; }
+    /* Restore the inset that clears a leading icon. The rule above sets the
+       `padding` shorthand, which resets padding-left, and it outranks the
+       `:where(.field-icon > .field)` rule that supplies the inset because
+       `:where()` contributes no specificity while `body.in-app` does. Without
+       this, every icon field in the app drew its icon on top of the text -
+       visible on Orders as a magnifier sitting over "e.g. FRS-98243". Shop's
+       search pill carries its own larger inset and is unaffected either way. */
+    body.in-app :where(.field-icon > .field) { padding-left: 2.35rem; }
     body.in-app :where(.field-label) { margin-bottom: .25rem; }
   </style>
 

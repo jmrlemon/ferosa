@@ -277,6 +277,9 @@
 @section('scripts')
 <script>
   const SCHEDULE_AVAILABILITY_URL = @json(route('schedule.availability'));
+  // Declared here rather than beside IS_RESCHEDULING further down: the first
+  // availability fetch runs during init, before that line has been evaluated.
+  const RESCHEDULING_ID = @json($rescheduling?->id);
 
   // ── Calendar state ────────────────────────────────────────────────────────
   const MONTHS = ['January','February','March','April','May','June',
@@ -473,6 +476,8 @@
       service_type_id: serviceTypeId,
       date: formatDateYmd(selectedDate),
     });
+    // The visit being moved does not block its own slot.
+    if (RESCHEDULING_ID) params.set('exclude_appointment_id', RESCHEDULING_ID);
     try {
       const res = await fetch(`${SCHEDULE_AVAILABILITY_URL}?${params}`, {
         credentials: 'same-origin',

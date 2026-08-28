@@ -628,15 +628,30 @@ class PageController extends Controller
         $data = $request->validate([
             'service_type_id' => ['required', 'integer', 'exists:service_types,id'],
             'date' => ['required', 'date_format:Y-m-d'],
+            'exclude_appointment_id' => ['sometimes', 'integer'],
         ]);
 
         $dayStart = Carbon::createFromFormat('Y-m-d', $data['date'])->startOfDay();
         $dayEnd = (clone $dayStart)->endOfDay();
 
+        // While moving a visit, its own slot is not a conflict - the customer
+        // already holds it. Without this the grid greys out the very time the
+        // banner above says they are currently booked for. The id is only
+        // honoured for a visit the caller owns, so it cannot be used to make
+        // someone else's slot look free.
+        $excludeId = null;
+        if (isset($data['exclude_appointment_id'])) {
+            $excludeId = Appointment::query()
+                ->whereKey($data['exclude_appointment_id'])
+                ->where('user_id', auth()->id())
+                ->value('id');
+        }
+
         $booked = Appointment::query()
             ->where('service_type_id', $data['service_type_id'])
             ->whereBetween('appointment_at', [$dayStart, $dayEnd])
             ->whereIn('status', ['scheduled', 'confirmed'])
+            ->when($excludeId, fn ($q) => $q->whereKeyNot($excludeId))
             ->pluck('appointment_at')
             ->map(fn ($dt) => Carbon::parse($dt)->format('H:i'))
             ->values()

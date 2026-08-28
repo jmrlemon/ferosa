@@ -861,6 +861,50 @@ class FunctionalWorkflowTest extends TestCase
         return $this->validGlb($document, $binary);
     }
 
+    public function test_availability_does_not_treat_the_visit_being_moved_as_a_conflict(): void
+    {
+        Mail::fake();
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'user']);
+        $stranger = User::factory()->create(['role' => 'user']);
+        $service = ServiceType::query()->create([
+            'name' => 'Lawn Care',
+            'default_fee' => 750,
+            'is_active' => true,
+        ]);
+
+        $bookedAt = Carbon::now()->addDays(4)->setTime(9, 0)->seconds(0);
+        $this->actingAs($customer)->post(route('schedule.store'), [
+            'service_type_id' => $service->id,
+            'appointment_at' => $bookedAt->format('Y-m-d H:i:s'),
+        ])->assertSessionHasNoErrors();
+
+        $appointment = Appointment::query()->where('user_id', $customer->id)->firstOrFail();
+        $query = [
+            'service_type_id' => $service->id,
+            'date' => $bookedAt->format('Y-m-d'),
+        ];
+
+        // Without the exclusion the slot reads as taken, which is right for
+        // anyone booking fresh.
+        $this->actingAs($customer)
+            ->getJson(route('schedule.availability', $query))
+            ->assertOk()
+            ->assertJsonPath('booked_times', ['09:00']);
+
+        // Moving that same visit, its own slot is not a conflict.
+        $this->actingAs($customer)
+            ->getJson(route('schedule.availability', $query + ['exclude_appointment_id' => $appointment->id]))
+            ->assertOk()
+            ->assertJsonPath('booked_times', []);
+
+        // Someone else cannot use the id to make the slot look free.
+        $this->actingAs($stranger)
+            ->getJson(route('schedule.availability', $query + ['exclude_appointment_id' => $appointment->id]))
+            ->assertOk()
+            ->assertJsonPath('booked_times', ['09:00']);
+    }
+
     public function test_customer_can_move_a_confirmed_visit_back_into_review(): void
     {
         Mail::fake();

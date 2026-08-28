@@ -181,10 +181,29 @@
                  web page and the Android app cannot drift apart. Only the artwork
                  below is web-specific. --}}
             @php
+              // Each icon is one <path> plus, for two of them, a second shape.
+              // That second shape used to be smuggled into the path string by
+              // closing the attribute early (...z" /><circle ...), which only
+              // works when echoed raw. It is echoed escaped, so the quotes and
+              // angle brackets ended up inside the d attribute: the browser
+              // rejected the path, logged an error per icon on every page load,
+              // and the pin lost its centre dot while the house lost its door.
+              // Keep the shapes as their own data instead.
               $projectArt = [
-                'design'      => ['M12 2a9 9 0 0 1 9 9c0 6-9 13-9 13S3 17 3 11a9 9 0 0 1 9-9z" /><circle cx="12" cy="11" r="3',  'bg-green-50 text-green-600'],
-                'maintenance' => ['M3 12h18M3 6h18M3 18h12',                                                                     'bg-blue-50 text-blue-600'],
-                'hardscaping' => ['M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22',   'bg-amber-50 text-amber-600'],
+                'design' => [
+                    'path' => 'M12 2a9 9 0 0 1 9 9c0 6-9 13-9 13S3 17 3 11a9 9 0 0 1 9-9z',
+                    'circle' => ['cx' => 12, 'cy' => 11, 'r' => 3],
+                    'class' => 'bg-green-50 text-green-600',
+                ],
+                'maintenance' => [
+                    'path' => 'M3 12h18M3 6h18M3 18h12',
+                    'class' => 'bg-blue-50 text-blue-600',
+                ],
+                'hardscaping' => [
+                    'path' => 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+                    'polyline' => '9 22 9 12 15 12 15 22',
+                    'class' => 'bg-amber-50 text-amber-600',
+                ],
               ];
             @endphp
             @foreach ($rateCard['project_types'] as $val => $projectType)
@@ -192,7 +211,11 @@
               $title = $projectType['label'];
               $desc = $projectType['description'];
               $rate = '₱'.number_format($projectType['rate']).'/sq m';
-              [$icon, $iconClass] = $projectArt[$val] ?? ['M3 12h18M3 6h18M3 18h12', 'bg-surface-100 text-surface-600'];
+              $art = $projectArt[$val] ?? [
+                  'path' => 'M3 12h18M3 6h18M3 18h12',
+                  'class' => 'bg-surface-100 text-surface-600',
+              ];
+              $iconClass = $art['class'];
             @endphp
             <label class="step-card cursor-pointer">
               <input type="radio" name="project_type" value="{{ $val }}" class="sr-only" {{ $val === $rateCard['defaults']['project_type'] ? 'checked' : '' }} onchange="calculate()">
@@ -202,7 +225,15 @@
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
                 <div class="card-icon w-9 h-9 rounded-lg {{ $iconClass }} flex items-center justify-center mb-3 transition-colors">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="{{ $icon }}"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="{{ $art['path'] }}"/>
+                    @isset($art['circle'])
+                      <circle cx="{{ $art['circle']['cx'] }}" cy="{{ $art['circle']['cy'] }}" r="{{ $art['circle']['r'] }}"/>
+                    @endisset
+                    @isset($art['polyline'])
+                      <polyline points="{{ $art['polyline'] }}"/>
+                    @endisset
+                  </svg>
                 </div>
                 <p class="card-title text-sm font-semibold text-surface-900 mb-1">{{ $title }}</p>
                 <p class="text-[11px] text-surface-400 leading-snug mb-3">{{ $desc }}</p>
@@ -317,7 +348,11 @@
                 'water'      => ['M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z', 'text-cyan-500',   'bg-cyan-50'],
                 'pergola'    => ['M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',                                    'text-amber-600',  'bg-amber-50'],
                 'fence'      => ['M4 4h16v2H4zm0 7h16v2H4zm0 7h16v2H4z',                                              'text-zinc-500',   'bg-zinc-100'],
-                'soil'       => ['M3 3h18v18H3z" rx="2',                                                              'text-green-600',  'bg-green-50'],
+                // A real rounded square. This used to be the sharp-cornered
+                // path plus a smuggled `rx="2"`, which broke the d attribute
+                // once escaped - and would have been ignored even raw, because
+                // rx is not a <path> attribute.
+                'soil'       => ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'text-green-600',  'bg-green-50'],
               ];
             @endphp
             @foreach ($rateCard['addons'] as $addonKey => $addon)

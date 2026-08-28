@@ -6,7 +6,25 @@
   @include('partials.favicon')
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="ferosa-user-role" content="{{ auth()->user()?->role ?? 'staff' }}">
-  <title>Admin Dashboard - Ferosa Landscaping</title>
+  {{-- /admin, /admin/service-scheduling and /admin/ordering-delivery all render
+       this one view, so a fixed title left every admin tab and every history
+       entry reading "Admin Dashboard" with no way to tell them apart. --}}
+  @php
+      $sectionTitle = match ($activeTab ?? 'overview') {
+          'appointments' => 'Appointments',
+          'orders' => 'Orders & Delivery',
+          'services' => 'Services',
+          'products' => 'Inventory',
+          'messages' => 'Messages',
+          'archived' => 'Archived',
+          'audit' => 'Audit Logs',
+          'users' => 'Users',
+          'feedbacks' => 'Feedback',
+          'payment' => 'Billing',
+          default => 'Dashboard',
+      };
+  @endphp
+  <title>{{ $sectionTitle }} - Ferosa Admin</title>
 
   <link rel="stylesheet" href="{{ asset('fonts/ferosa-fonts.css') }}">
 

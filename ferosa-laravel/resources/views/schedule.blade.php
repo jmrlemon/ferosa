@@ -510,10 +510,15 @@
   // Step 1 is complete as soon as a service is chosen (one is preselected), so
   // the strip normally opens on step 2 rather than pretending nothing is done.
   function updateStepper() {
+    const hasDate = Boolean(selectedDate);
     const done = [
       Boolean(document.getElementById('service-type-select')?.value),
-      Boolean(selectedDate),
-      Boolean(selectedTime),
+      hasDate,
+      // A time slot is preselected on load as a convenience, before any date
+      // exists to book it on. Counting that as a finished step put a tick on
+      // "Time" while "Date" was still the open step, so the strip claimed the
+      // customer had done something they had not, in the wrong order.
+      hasDate && Boolean(selectedTime),
       false,
     ];
     // "Confirm" is reached only once the three choices above are made.

@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +50,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.ferosa_landscaping.ArActivity
 import com.example.ferosa_landscaping.BuildConfig
@@ -262,6 +266,38 @@ fun AppContent(
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
     val swipeRefreshRef = remember { mutableStateOf<SwipeRefreshLayout?>(null) }
     val webLoadingCoverRef = remember { mutableStateOf<View?>(null) }
+
+    // The shared WebView is deliberately never destroyed on tab switches, but
+    // "never destroyed" had become literal: nothing paused it when the app went
+    // to the background, so its timers, animations and media kept running off
+    // screen, and nothing released it when the shell left composition on
+    // sign-out - leaking a renderer process per session.
+    //
+    // onPause/onResume only suspend and restore; they do not touch the document
+    // or the session cookie, so the persistent-WebView design is unaffected.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> webViewRef.value?.onPause()
+                Lifecycle.Event.ON_RESUME -> webViewRef.value?.onResume()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // Detach from the view tree before destroying, or WebView logs and
+            // can crash on a destroy while still parented.
+            webViewRef.value?.let { view ->
+                (view.parent as? ViewGroup)?.removeView(view)
+                view.destroy()
+            }
+            webViewRef.value = null
+            swipeRefreshRef.value = null
+            webLoadingCoverRef.value = null
+        }
+    }
 
     val targetUrl = remember(currentScreen) { currentScreen.webUrl() }
 

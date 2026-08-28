@@ -3,6 +3,7 @@ package com.example.ferosa_landscaping.util
 import android.app.Activity
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Session
+import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -23,6 +24,23 @@ sealed class ArAvailability {
 
     /** The availability check failed (timed out or errored). */
     data class CheckFailed(val reason: String) : ArAvailability()
+}
+
+/**
+ * The result of actually trying to open an ARCore session on this device.
+ */
+sealed class ArSessionCheck {
+    /** A session opened and closed cleanly; AR can start. */
+    object Ok : ArSessionCheck()
+
+    /**
+     * The device is not on Google's certified ARCore list. Nothing the customer
+     * can install changes this, so the AR screen must not offer a retry.
+     */
+    object DeviceNotCompatible : ArSessionCheck()
+
+    /** Something else went wrong, and trying again may well work. */
+    data class Failed(val message: String) : ArSessionCheck()
 }
 
 /**
@@ -129,15 +147,21 @@ class ArCompatibilityChecker {
      * Verifies ARCore can create a real session on this device.
      *
      * Some devices report ARCore installed but fail when ARCore looks for the
-     * device calibration/profile required to start camera tracking.
+     * device calibration profile required to start camera tracking. That is the
+     * common case and it is permanent, so it is reported as its own result:
+     * ARCore throws [UnavailableDeviceNotCompatibleException] with a null
+     * message, and guessing a remedy from the message text told the owner of an
+     * uncertified phone to install an ARCore that was already installed.
      */
-    suspend fun validateSessionCreation(activity: Activity): String? {
+    suspend fun validateSessionCreation(activity: Activity): ArSessionCheck {
         return withContext(Dispatchers.Main) {
             try {
                 Session(activity).close()
-                null
+                ArSessionCheck.Ok
+            } catch (_: UnavailableDeviceNotCompatibleException) {
+                ArSessionCheck.DeviceNotCompatible
             } catch (e: Exception) {
-                e.message ?: "This device cannot start an ARCore session."
+                ArSessionCheck.Failed(e.message ?: "This device cannot start an ARCore session.")
             }
         }
     }

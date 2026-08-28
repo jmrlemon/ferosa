@@ -102,6 +102,7 @@ import com.example.ferosa_landscaping.ui.ar.validateGlbFile
 import com.example.ferosa_landscaping.ui.theme.*
 import com.example.ferosa_landscaping.util.ArAvailability
 import com.example.ferosa_landscaping.util.ArCompatibilityChecker
+import com.example.ferosa_landscaping.util.ArSessionCheck
 import com.example.ferosa_landscaping.util.ConnectivityMonitor
 import com.google.ar.core.Config
 import com.google.ar.core.DepthPoint
@@ -485,13 +486,24 @@ class ArActivity : ComponentActivity() {
 
     private fun validateArSessionAndLaunch() {
         cleanupScope.launch {
-            val error = ArCompatibilityChecker().validateSessionCreation(this@ArActivity)
+            val check = ArCompatibilityChecker().validateSessionCreation(this@ArActivity)
             if (!isActivityAlive()) return@launch
-            if (error == null) {
-                launchArScreen()
-            } else {
-                showArUnsupported(
-                    "This phone cannot start AR camera tracking. ${friendlyArCoreError(error)}"
+            when (check) {
+                is ArSessionCheck.Ok -> launchArScreen()
+
+                // Permanent: the phone has no ARCore calibration profile. Saying
+                // "try again" here only makes the customer repeat a check that
+                // cannot pass, so this screen offers the way back instead.
+                is ArSessionCheck.DeviceNotCompatible -> showArUnsupported(
+                    message = "This phone is not on Google's certified list of AR devices, " +
+                        "so the camera preview cannot run here. Everything else in the app " +
+                        "works normally.",
+                    canRetry = false,
+                )
+
+                is ArSessionCheck.Failed -> showArUnsupported(
+                    "This phone cannot start AR camera tracking. " +
+                        friendlyArCoreError(check.message)
                 )
             }
         }
@@ -605,7 +617,7 @@ class ArActivity : ComponentActivity() {
         }
     }
 
-    private fun showArUnsupported(message: String) {
+    private fun showArUnsupported(message: String, canRetry: Boolean = true) {
         setContent {
             Ferosa_landscapingTheme(darkTheme = false) {
                 Box(
@@ -646,23 +658,37 @@ class ArActivity : ComponentActivity() {
                         )
                         Spacer(Modifier.height(28.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(
-                                onClick = { finish() },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                            ) {
-                                Text("Go Back", fontWeight = FontWeight.SemiBold)
-                            }
-                            Button(
-                                onClick = {
-                                    arScreenLaunched = false
-                                    showArChecking()
-                                    checkArAvailabilityAndLaunch()
-                                },
-                                shape   = RoundedCornerShape(12.dp),
-                                colors  = ButtonDefaults.buttonColors(containerColor = Brand500)
-                            ) {
-                                Text("Try Again", fontWeight = FontWeight.SemiBold)
+                            if (canRetry) {
+                                OutlinedButton(
+                                    onClick = { finish() },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("Go Back", fontWeight = FontWeight.SemiBold)
+                                }
+                                Button(
+                                    onClick = {
+                                        arScreenLaunched = false
+                                        showArChecking()
+                                        checkArAvailabilityAndLaunch()
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Brand500)
+                                ) {
+                                    Text("Try Again", fontWeight = FontWeight.SemiBold)
+                                }
+                            } else {
+                                // Nothing to retry, so "Go Back" is the action
+                                // rather than the alternative to one.
+                                Button(
+                                    onClick = { finish() },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Brand500)
+                                ) {
+                                    Text("Go Back", fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     }

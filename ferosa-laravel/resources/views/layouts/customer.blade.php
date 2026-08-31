@@ -1201,9 +1201,27 @@
       const cover = document.getElementById('page-navigation-cover');
       if (!cover) return;
 
+      let coverTimer = null;
+
       function showNavigationCover() {
+        coverTimer = null;
         cover.classList.remove('hidden');
         cover.setAttribute('aria-hidden', 'false');
+      }
+
+      function hideNavigationCover() {
+        window.clearTimeout(coverTimer);
+        coverTimer = null;
+        cover.classList.add('hidden');
+        cover.setAttribute('aria-hidden', 'true');
+      }
+
+      // Wait before covering. A navigation on the same machine usually lands
+      // well inside this, and covering immediately blanked the whole layout -
+      // sidebar included - for a frame or two, which reads as a flicker.
+      function armNavigationCover() {
+        if (coverTimer !== null) return;
+        coverTimer = window.setTimeout(showNavigationCover, 400);
       }
 
       function shouldCoverLink(event, link) {
@@ -1229,7 +1247,14 @@
         const link = event.target instanceof Element
           ? event.target.closest('a[href]')
           : null;
-        if (shouldCoverLink(event, link)) showNavigationCover();
+        if (shouldCoverLink(event, link)) armNavigationCover();
+      });
+
+      // Leaving cancels a cover that never got to show; coming back through
+      // the back/forward cache restores a DOM that may still have it up.
+      window.addEventListener('pagehide', hideNavigationCover);
+      window.addEventListener('pageshow', function (event) {
+        if (event.persisted) hideNavigationCover();
       });
     })();
   </script>
